@@ -33,7 +33,7 @@ h1 { margin:0; font-family:Georgia,"Noto Serif TC",serif; font-size:clamp(28px,3
 .legend i,.season-key i { display:inline-block; width:16px; height:2px; margin-right:5px; vertical-align:3px; }
 .legend .light { background:#dc7f82; }.legend .earth-grid { background:#78a8c9; }.legend .ecliptic-line { background:#f2c86b; }.legend .sun,.legend .observer { width:7px; height:7px; border-radius:50%; vertical-align:0; }.legend .sun { background:#ffd66f; }.legend .observer { background:#ff8f75; }
 .season-key { right:13px; top:14px; display:flex; gap:8px; padding:7px 8px; border-radius:4px; font-size:9px; }
-.season-key .current { background:#ff8f75; }.season-key .summer { background:#f2c86b; }.season-key .equinox { background:#9ddbe4; }.season-key .winter { background:#6e9ed8; }
+.season-key .current { background:#ff8f75; }.season-key .seasonal { background:#fff; height:3px; }
 .metrics { display:grid; grid-template-columns:repeat(5,1fr); border:1px solid var(--line); border-radius:7px; background:rgba(248,251,252,.94); overflow:hidden; }
 .metrics div { min-width:0; padding:11px 10px; border-right:1px solid var(--line); }.metrics div:last-child { border:0; }
 .metrics span,.metrics strong { display:block; }.metrics span { overflow:hidden; color:var(--muted); font-size:9px; white-space:nowrap; text-overflow:ellipsis; }.metrics strong { margin-top:5px; font-family:Georgia,serif; font-size:15px; font-weight:500; white-space:nowrap; }

@@ -5,6 +5,9 @@ import Image from "next/image";
 import Link from "next/link";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { Line2 } from "three/examples/jsm/lines/Line2.js";
+import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
+import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import {
   ChevronDown,
   ChevronUp,
@@ -87,9 +90,9 @@ type SceneApi = {
 };
 
 const seasons = [
-  { label: "夏至", declination: degrees(23.44), color: 0xf2c86b },
-  { label: "春／秋分", declination: 0, color: 0x9ddbe4 },
-  { label: "冬至", declination: degrees(-23.44), color: 0x6e9ed8 },
+  { declination: degrees(23.44) },
+  { declination: 0 },
+  { declination: degrees(-23.44) },
 ];
 
 const latitudePresets = [
@@ -120,6 +123,30 @@ function makeLine(points: THREE.Vector3[], color: number, opacity = 1, dashed = 
     : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
   const line = new THREE.Line(geometry, material);
   if (dashed) line.computeLineDistances();
+  return line;
+}
+
+function makeWideLine(
+  points: THREE.Vector3[],
+  color: number,
+  opacity: number,
+  dashed: boolean,
+  materials: LineMaterial[],
+) {
+  const geometry = new LineGeometry();
+  geometry.setPositions(points.flatMap((point) => [point.x, point.y, point.z]));
+  const material = new LineMaterial({
+    color,
+    transparent: true,
+    opacity,
+    linewidth: 1.5,
+    dashed,
+    dashSize: 0.055,
+    gapSize: 0.035,
+  });
+  const line = new Line2(geometry, material);
+  if (dashed) line.computeLineDistances();
+  materials.push(material);
   return line;
 }
 
@@ -208,12 +235,15 @@ function pathSegments(
   color: number,
   faded = false,
   belowHorizon = true,
+  wide = false,
+  wideMaterials: LineMaterial[] = [],
 ) {
   let points: THREE.Vector3[] = [];
   let above: boolean | null = null;
   const flush = () => {
     if (points.length > 1 && above !== null && (above || belowHorizon)) {
-      group.add(makeLine(points, color, above ? (faded ? 0.64 : 1) : 0.22, !above));
+      const opacity = above ? (faded ? 0.76 : 1) : 0.22;
+      group.add(wide ? makeWideLine(points, color, opacity, !above, wideMaterials) : makeLine(points, color, opacity, !above));
     }
     points = [];
   };
@@ -635,6 +665,7 @@ function setupScenes(
 
   const currentPath = new THREE.Group();
   const comparisonPaths = new THREE.Group();
+  let comparisonLineMaterials: LineMaterial[] = [];
   localScene.add(currentPath, comparisonPaths);
   const localSun = new THREE.Mesh(new THREE.SphereGeometry(0.058, 20, 14), sunMaterial.clone());
   localScene.add(localSun);
@@ -671,6 +702,7 @@ function setupScenes(
       renderer.setSize(width, height, false);
       camera.aspect = width / Math.max(height, 1);
       camera.updateProjectionMatrix();
+      if (renderer === localRenderer) comparisonLineMaterials.forEach((material) => material.resolution.set(width, height));
     });
   };
   let resizeFrame = 0;
@@ -927,17 +959,21 @@ function setupScenes(
       if (seasonPathKey !== lastSeasonPathKey) {
         lastSeasonPathKey = seasonPathKey;
         clearGroup(comparisonPaths);
+        comparisonLineMaterials = [];
         if (layers.seasonalPaths) {
           seasons.forEach((season) => {
             pathSegments(
               comparisonPaths,
               state.latitude,
               season.declination,
-              season.color,
-              true,
+              0xffffff,
+              false,
               layers.belowHorizon,
+              true,
+              comparisonLineMaterials,
             );
           });
+          comparisonLineMaterials.forEach((material) => material.resolution.set(localRenderer.domElement.width, localRenderer.domElement.height));
         }
       }
 
@@ -1309,7 +1345,7 @@ export default function SolarLab() {
           <article className="viewport-card local-card">
             <div className="card-label"><span>02</span><div><strong>觀察者模型</strong><small>{formatLatitude(state.latitude)}的天空</small></div></div>
             <div className="canvas-host" ref={localRef} />
-            <div className="season-key"><span><i className="current" />當日</span><span><i className="summer" />夏至</span><span><i className="equinox" />春／秋分</span><span><i className="winter" />冬至</span></div>
+            <div className="season-key"><span><i className="current" />當日</span><span><i className="seasonal" />二分二至</span></div>
           </article>
 
           <section className="metrics" aria-label="計算結果">
