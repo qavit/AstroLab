@@ -55,7 +55,7 @@ export function compassLabel(azimuth: number) {
 
 export function dateFromDay(day: number) {
   const date = new Date(Date.UTC(2025, 0, 1));
-  date.setUTCDate(day);
+  date.setUTCDate(Math.round(day));
   return `${date.getUTCMonth() + 1} 月 ${date.getUTCDate()} 日`;
 }
 

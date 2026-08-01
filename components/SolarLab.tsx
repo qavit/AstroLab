@@ -23,6 +23,9 @@ type LayerState = {
   equatorialGrid: boolean;
   ecliptic: boolean;
   observer: boolean;
+  geographicGrid: boolean;
+  observerLatitude: boolean;
+  subsolarPoint: boolean;
   horizontalGrid: boolean;
   labels: boolean;
   seasonalPaths: boolean;
@@ -38,10 +41,19 @@ type SceneApi = {
 };
 
 const seasons = [
-  { label: "夏至", declination: degrees(23.44), color: 0xf0f0ec },
-  { label: "春／秋分", declination: 0, color: 0xaeb5b5 },
-  { label: "冬至", declination: degrees(-23.44), color: 0x747d7e },
+  { label: "夏至", declination: degrees(23.44), color: 0xf2c86b },
+  { label: "春／秋分", declination: 0, color: 0x9ddbe4 },
+  { label: "冬至", declination: degrees(-23.44), color: 0x6e9ed8 },
 ];
+
+const latitudePresets = [
+  ["北極", 90], ["北極圈", 66.5], ["北回歸線", 23.5], ["赤道", 0],
+  ["南回歸線", -23.5], ["南極圈", -66.5], ["南極", -90],
+] as const;
+
+const datePresets = [
+  ["春分", 80], ["夏至", 172], ["秋分", 266], ["冬至", 355],
+] as const;
 
 function makeLine(points: THREE.Vector3[], color: number, opacity = 1, dashed = false) {
   const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -132,23 +144,54 @@ function setupScenes(globalHost: HTMLDivElement, localHost: HTMLDivElement): Sce
   const globalRenderer = makeRenderer(globalHost);
   const globalControls = new OrbitControls(globalCamera, globalRenderer.domElement);
   globalControls.enableDamping = true;
-  globalScene.add(new THREE.AmbientLight(0xffffff, 1.7));
-  const light = new THREE.DirectionalLight(0xffffff, 2.5);
+  globalScene.add(new THREE.AmbientLight(0x8aa6bf, 0.34));
+  const light = new THREE.DirectionalLight(0xfff4d6, 3.4);
   light.position.set(5, 7, 4);
   globalScene.add(light);
 
+  const earthRotationGroup = new THREE.Group();
   const earth = new THREE.Mesh(
     new THREE.SphereGeometry(1, 64, 32),
-    new THREE.MeshPhongMaterial({ color: 0x596164, emissive: 0x101415, shininess: 24 }),
+    new THREE.MeshPhongMaterial({ color: 0x245a83, emissive: 0x020a12, shininess: 18 }),
   );
-  globalScene.add(earth);
+  earthRotationGroup.add(earth);
+  globalScene.add(earthRotationGroup);
+
+  const geographicGrid = new THREE.Group();
+  for (let latitude = -60; latitude <= 60; latitude += 30) {
+    const radius = 1.006 * Math.cos(degrees(latitude));
+    const z = 1.006 * Math.sin(degrees(latitude));
+    geographicGrid.add(makeLine(circle(radius, z), 0x78a8c9, latitude === 0 ? 0.75 : 0.48));
+  }
+  for (let longitude = 0; longitude < 360; longitude += 30) {
+    const points = Array.from({ length: 181 }, (_, index) => {
+      const latitude = degrees(-90 + index);
+      return new THREE.Vector3(
+        1.006 * Math.cos(latitude) * Math.cos(degrees(longitude)),
+        1.006 * Math.cos(latitude) * Math.sin(degrees(longitude)),
+        1.006 * Math.sin(latitude),
+      );
+    });
+    geographicGrid.add(makeLine(points, 0x78a8c9, 0.42));
+  }
+  earthRotationGroup.add(geographicGrid);
+
+  const observerLatitude = new THREE.Group();
+  globalScene.add(observerLatitude);
+  const subsolarPoint = new THREE.Mesh(
+    new THREE.SphereGeometry(0.045, 18, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffd66f }),
+  );
+  globalScene.add(subsolarPoint);
+  const subsolarLabel = textSprite("日下點", "#ffe39a", 0.11);
+  globalScene.add(subsolarLabel);
 
   // Equatorial coordinates on the celestial sphere: declination parallels and RA hour circles.
   const equatorialGrid = new THREE.Group();
   for (let declination = -60; declination <= 60; declination += 30) {
     const radius = 3 * Math.cos(degrees(declination));
     const z = 3 * Math.sin(degrees(declination));
-    equatorialGrid.add(makeLine(circle(radius, z), 0xb9c0c0, declination === 0 ? 0.58 : 0.22));
+    equatorialGrid.add(makeLine(circle(radius, z), 0x73aeca, declination === 0 ? 0.7 : 0.26));
   }
   for (let rightAscension = 0; rightAscension < 360; rightAscension += 15) {
     const points = Array.from({ length: 241 }, (_, index) => {
@@ -159,52 +202,75 @@ function setupScenes(globalHost: HTMLDivElement, localHost: HTMLDivElement): Sce
         3 * Math.sin(declination),
       );
     });
-    equatorialGrid.add(makeLine(points, 0xaeb5b5, 0.18));
+    equatorialGrid.add(makeLine(points, 0x6395b2, 0.2));
   }
   globalScene.add(equatorialGrid);
 
   const axis = new THREE.Mesh(
     new THREE.CylinderGeometry(0.018, 0.018, 6.6, 12),
-    new THREE.MeshBasicMaterial({ color: 0xf4f4ef }),
+    new THREE.MeshBasicMaterial({ color: 0xc4ddef }),
   );
   axis.rotation.x = Math.PI / 2;
   globalScene.add(axis);
   const celestial = new THREE.Mesh(
     new THREE.SphereGeometry(3, 30, 16),
-    new THREE.MeshBasicMaterial({ color: 0xc9cecd, transparent: true, opacity: 0.025, wireframe: true }),
+    new THREE.MeshBasicMaterial({ color: 0x4c7794, transparent: true, opacity: 0.035, wireframe: false, side: THREE.DoubleSide, depthWrite: false }),
   );
   globalScene.add(celestial);
-  const celestialEquator = makeLine(circle(3), 0xf2f2ec, 0.78);
+  const celestialEquator = makeLine(circle(3), 0x9cd9e5, 0.82);
   globalScene.add(celestialEquator);
-  const ecliptic = makeLine(circle(3), 0xaaa37b, 0.88);
+  const ecliptic = makeLine(circle(3), 0xf2c86b, 0.96);
   ecliptic.rotation.x = degrees(23.44);
   globalScene.add(ecliptic);
   const globalLabels = new THREE.Group();
-  const equatorLabel = textSprite("赤緯 0°", "#e8e9e4");
+  const equatorLabel = textSprite("赤緯 0°", "#a9dce7");
   equatorLabel.position.set(2.25, 0, 0.18);
-  const eclipticLabel = textSprite("黃道", "#c9c39c");
+  const eclipticLabel = textSprite("黃道", "#f5d685");
   eclipticLabel.position.set(-2.25, 0.65, 0.8);
-  const northLabel = textSprite("北天極／地軸", "#eeeeea", 0.14);
+  const northLabel = textSprite("北天極／地軸", "#cbe0ef", 0.14);
   northLabel.position.set(0, 0, 3.42);
-  const raLabel = textSprite("赤經", "#c7ccca", 0.13);
+  const raLabel = textSprite("赤經", "#8fc2d7", 0.13);
   raLabel.position.set(0.4, 2.55, 0.15);
   globalLabels.add(equatorLabel, eclipticLabel, northLabel, raLabel);
   globalScene.add(globalLabels);
 
-  const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xe0bd62 });
+  const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffd66f });
   const globalSun = new THREE.Mesh(new THREE.SphereGeometry(0.13, 24, 16), sunMaterial);
   globalScene.add(globalSun);
   const observer = new THREE.Group();
-  const observerDot = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 10), new THREE.MeshBasicMaterial({ color: 0xd9d9d3 }));
+  const observerDot = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 10), new THREE.MeshBasicMaterial({ color: 0xff8f75 }));
   const tangent = new THREE.Mesh(
     new THREE.CircleGeometry(0.42, 48),
-    new THREE.MeshBasicMaterial({ color: 0xd5d6d1, transparent: true, opacity: 0.2, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: 0x8ec9db, transparent: true, opacity: 0.24, side: THREE.DoubleSide }),
   );
   const observerDome = new THREE.Mesh(
     new THREE.SphereGeometry(0.42, 24, 12, 0, TAU, 0, Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: 0xd7dbd9, transparent: true, opacity: 0.16, wireframe: true }),
+    new THREE.MeshBasicMaterial({ color: 0x4c87a3, transparent: true, opacity: 0.09, wireframe: false, side: THREE.DoubleSide, depthWrite: false }),
   );
-  observer.add(observerDot, tangent, observerDome);
+  observerDome.rotation.x = Math.PI / 2;
+  const observerHorizonGrid = new THREE.Group();
+  observerHorizonGrid.add(makeLine(circle(0.42), 0xa8d7e1, 0.74));
+  for (const altitude of [30, 60]) {
+    observerHorizonGrid.add(
+      makeLine(
+        circle(0.42 * Math.cos(degrees(altitude)), 0.42 * Math.sin(degrees(altitude)), 120),
+        0x76b6cb,
+        0.42,
+      ),
+    );
+  }
+  for (let azimuth = 0; azimuth < 360; azimuth += 45) {
+    const points = Array.from({ length: 61 }, (_, index) => {
+      const altitude = degrees((90 * index) / 60);
+      return new THREE.Vector3(
+        0.42 * Math.cos(altitude) * Math.sin(degrees(azimuth)),
+        0.42 * Math.cos(altitude) * Math.cos(degrees(azimuth)),
+        0.42 * Math.sin(altitude),
+      );
+    });
+    observerHorizonGrid.add(makeLine(points, 0x76b6cb, 0.38));
+  }
+  observer.add(observerDot, tangent, observerDome, observerHorizonGrid);
   globalScene.add(observer);
 
   const localScene = new THREE.Scene();
@@ -215,23 +281,24 @@ function setupScenes(globalHost: HTMLDivElement, localHost: HTMLDivElement): Sce
   const localControls = new OrbitControls(localCamera, localRenderer.domElement);
   localControls.enableDamping = true;
   localControls.target.set(0, 0, 0.42);
-  localScene.add(new THREE.AmbientLight(0xffffff, 2));
+  localScene.add(new THREE.AmbientLight(0xbcd7e8, 1.8));
   const floor = new THREE.Mesh(
     new THREE.CircleGeometry(1.28, 80),
-    new THREE.MeshPhongMaterial({ color: 0x34393a, transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
+    new THREE.MeshPhongMaterial({ color: 0x173b58, transparent: true, opacity: 0.94, side: THREE.DoubleSide }),
   );
   localScene.add(floor);
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(1, 36, 18, 0, TAU, 0, Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: 0xc8ccca, transparent: true, opacity: 0.025, wireframe: true }),
+    new THREE.MeshBasicMaterial({ color: 0x4e87a7, transparent: true, opacity: 0.045, wireframe: false, side: THREE.DoubleSide, depthWrite: false }),
   );
+  dome.rotation.x = Math.PI / 2;
   localScene.add(dome);
 
   // Horizontal coordinates: altitude circles and azimuth great semicircles.
   const horizontalGrid = new THREE.Group();
-  horizontalGrid.add(makeLine(circle(1), 0xf0f0eb, 0.7));
+  horizontalGrid.add(makeLine(circle(1), 0xb8dce8, 0.78));
   for (const altitude of [30, 60]) {
-    horizontalGrid.add(makeLine(circle(Math.cos(degrees(altitude)), Math.sin(degrees(altitude))), 0xbcc1bf, 0.26));
+    horizontalGrid.add(makeLine(circle(Math.cos(degrees(altitude)), Math.sin(degrees(altitude))), 0x70a9c3, 0.34));
   }
   for (let azimuth = 0; azimuth < 360; azimuth += 30) {
     const points = Array.from({ length: 91 }, (_, index) => {
@@ -242,11 +309,11 @@ function setupScenes(globalHost: HTMLDivElement, localHost: HTMLDivElement): Sce
         Math.sin(altitude),
       );
     });
-    horizontalGrid.add(makeLine(points, 0xaeb4b2, 0.2));
+    horizontalGrid.add(makeLine(points, 0x6598b2, 0.28));
   }
   const zenithAxis = makeLine(
     [new THREE.Vector3(0, 0, -0.16), new THREE.Vector3(0, 0, 1.18)],
-    0xf1f1ed,
+    0xc1dfeb,
     0.78,
   );
   horizontalGrid.add(zenithAxis);
@@ -263,9 +330,9 @@ function setupScenes(globalHost: HTMLDivElement, localHost: HTMLDivElement): Sce
   });
   const zenith = textSprite("天頂", "#ffffff", 0.12);
   zenith.position.set(0, 0, 1.12);
-  const altitude30 = textSprite("高度 30°", "#c9cecc", 0.1);
+  const altitude30 = textSprite("高度 30°", "#91bdd0", 0.1);
   altitude30.position.set(0.86, 0, 0.53);
-  const altitude60 = textSprite("高度 60°", "#c9cecc", 0.1);
+  const altitude60 = textSprite("高度 60°", "#91bdd0", 0.1);
   altitude60.position.set(0.48, 0, 0.9);
   localLabels.add(zenith, altitude30, altitude60);
   localScene.add(localLabels);
@@ -277,10 +344,19 @@ function setupScenes(globalHost: HTMLDivElement, localHost: HTMLDivElement): Sce
   localScene.add(localSun);
   const rodHeight = 0.28;
   const shadowGroup = new THREE.Group();
-  const gnomon = makeLine([new THREE.Vector3(), new THREE.Vector3(0, 0, rodHeight)], 0xf3f3ee, 1);
-  const shadow = makeLine([new THREE.Vector3(), new THREE.Vector3()], 0x050606, 1);
-  const ray = makeLine([new THREE.Vector3(0, 0, rodHeight), new THREE.Vector3()], 0xbdbdb4, 0.48, true);
-  shadowGroup.add(gnomon, shadow, ray);
+  const gnomon = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.014, 0.014, rodHeight, 12),
+    new THREE.MeshBasicMaterial({ color: 0xf1f6f7 }),
+  );
+  gnomon.position.z = rodHeight / 2;
+  gnomon.rotation.x = Math.PI / 2;
+  const shadow = makeLine([new THREE.Vector3(), new THREE.Vector3()], 0x02070b, 1);
+  const shadowBar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.018, 0.018, 1, 10),
+    new THREE.MeshBasicMaterial({ color: 0x02070b }),
+  );
+  const ray = makeLine([new THREE.Vector3(0, 0, rodHeight), new THREE.Vector3()], 0xffd66f, 0.62, true);
+  shadowGroup.add(gnomon, shadow, shadowBar, ray);
   localScene.add(shadowGroup);
 
   const resize = () => {
@@ -315,6 +391,10 @@ function setupScenes(globalHost: HTMLDivElement, localHost: HTMLDivElement): Sce
   };
   draw();
 
+  let lastObserverLatitude = Number.NaN;
+  let lastCurrentPathKey = "";
+  let lastSeasonPathKey = "";
+
   return {
     update(state, layers) {
       celestial.visible = layers.celestialSphere;
@@ -322,6 +402,10 @@ function setupScenes(globalHost: HTMLDivElement, localHost: HTMLDivElement): Sce
       celestialEquator.visible = layers.equatorialGrid;
       ecliptic.visible = layers.ecliptic;
       observer.visible = layers.observer;
+      geographicGrid.visible = layers.geographicGrid;
+      observerLatitude.visible = layers.observerLatitude;
+      subsolarPoint.visible = layers.subsolarPoint;
+      subsolarLabel.visible = layers.subsolarPoint && layers.labels;
       horizontalGrid.visible = layers.horizontalGrid;
       dome.visible = layers.horizontalGrid;
       globalLabels.visible = layers.labels;
@@ -335,41 +419,77 @@ function setupScenes(globalHost: HTMLDivElement, localHost: HTMLDivElement): Sce
 
       const declination = solarDeclination(state.day);
       const lambda = (TAU * (state.day - 80)) / 365;
-      globalSun.position
+      const eclipticSun = new THREE.Vector3()
         .set(3 * Math.cos(lambda), 3 * Math.sin(lambda), 0)
         .applyAxisAngle(new THREE.Vector3(1, 0, 0), degrees(23.44));
+      globalSun.position.copy(eclipticSun);
+      light.position.copy(eclipticSun).normalize().multiplyScalar(8);
+      const subsolarNormal = eclipticSun.clone().normalize();
+      subsolarPoint.position.copy(subsolarNormal).multiplyScalar(1.045);
+      subsolarLabel.position.copy(subsolarNormal).multiplyScalar(1.18);
+
       const phi = degrees(state.latitude);
-      const normal = new THREE.Vector3(Math.cos(phi), 0, Math.sin(phi));
+      const hourAngle = degrees(15 * (state.time - 12));
+      const sunRightAscension = Math.atan2(eclipticSun.y, eclipticSun.x);
+      const observerLongitude = sunRightAscension + hourAngle;
+      earthRotationGroup.rotation.z = observerLongitude;
+      const normal = new THREE.Vector3(
+        Math.cos(phi) * Math.cos(observerLongitude),
+        Math.cos(phi) * Math.sin(observerLongitude),
+        Math.sin(phi),
+      );
       observer.position.copy(normal.clone().multiplyScalar(1.01));
       observer.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
 
-      clearGroup(currentPath);
-      if (layers.currentPath) {
-        pathSegments(currentPath, state.latitude, declination, 0xf3f3ee, false, layers.belowHorizon);
-      }
-      clearGroup(comparisonPaths);
-      if (layers.seasonalPaths) {
-        seasons.forEach((season) => {
-          pathSegments(
-            comparisonPaths,
-            state.latitude,
-            season.declination,
-            season.color,
-            true,
-            layers.belowHorizon,
-          );
-        });
+      if (lastObserverLatitude !== state.latitude) {
+        lastObserverLatitude = state.latitude;
+        clearGroup(observerLatitude);
+        const radius = 1.018 * Math.cos(phi);
+        const z = 1.018 * Math.sin(phi);
+        observerLatitude.add(makeLine(circle(radius, z), 0xff8f75, 0.98));
       }
 
-      const vector = sunHorizontal(state.latitude, declination, degrees(15 * (state.time - 12)));
+      const currentPathKey = `${state.latitude}:${state.day.toFixed(2)}:${layers.currentPath}:${layers.belowHorizon}`;
+      if (currentPathKey !== lastCurrentPathKey) {
+        lastCurrentPathKey = currentPathKey;
+        clearGroup(currentPath);
+        if (layers.currentPath) {
+          pathSegments(currentPath, state.latitude, declination, 0xff8f75, false, layers.belowHorizon);
+        }
+      }
+      const seasonPathKey = `${state.latitude}:${layers.seasonalPaths}:${layers.belowHorizon}`;
+      if (seasonPathKey !== lastSeasonPathKey) {
+        lastSeasonPathKey = seasonPathKey;
+        clearGroup(comparisonPaths);
+        if (layers.seasonalPaths) {
+          seasons.forEach((season) => {
+            pathSegments(
+              comparisonPaths,
+              state.latitude,
+              season.declination,
+              season.color,
+              true,
+              layers.belowHorizon,
+            );
+          });
+        }
+      }
+
+      const vector = sunHorizontal(state.latitude, declination, hourAngle);
       localSun.position.set(vector.x, vector.y, vector.z);
       (localSun.material as THREE.MeshBasicMaterial).opacity = vector.z >= 0 ? 1 : 0.25;
       (localSun.material as THREE.MeshBasicMaterial).transparent = true;
       const cast = shadowForUnitGnomon(vector);
-      shadow.visible = ray.visible = Boolean(cast) && layers.shadow;
+      shadow.visible = shadowBar.visible = ray.visible = Boolean(cast) && layers.shadow;
       if (cast) {
         const tip = new THREE.Vector3(cast.x * rodHeight, cast.y * rodHeight, 0);
         shadow.geometry.setFromPoints([new THREE.Vector3(), tip]);
+        const direction = tip.clone();
+        const length = direction.length();
+        shadowBar.position.copy(tip).multiplyScalar(0.5);
+        shadowBar.position.z = 0.012;
+        shadowBar.scale.set(1, length, 1);
+        shadowBar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
         ray.geometry.setFromPoints([new THREE.Vector3(0, 0, rodHeight), tip]);
         ray.computeLineDistances();
       }
@@ -466,12 +586,15 @@ export default function SolarLab() {
   const localRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SceneApi | null>(null);
   const [state, setState] = useState<LabState>({ latitude: 23.5, day: 172, time: 12 });
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState<"day" | "year" | null>(null);
   const [layers, setLayers] = useState<LayerState>({
     celestialSphere: true,
     equatorialGrid: true,
     ecliptic: true,
     observer: true,
+    geographicGrid: true,
+    observerLatitude: true,
+    subsolarPoint: true,
     horizontalGrid: true,
     labels: true,
     seasonalPaths: true,
@@ -495,7 +618,16 @@ export default function SolarLab() {
     const tick = (now: number) => {
       const delta = Math.min(0.05, (now - previous) / 1000);
       previous = now;
-      setState((current) => ({ ...current, time: (current.time + delta * 2.2) % 24 }));
+      setState((current) => {
+        if (playing === "year") {
+          return {
+            ...current,
+            day: ((current.day - 1 + delta * 6) % 365) + 1,
+            time: (current.time + delta * 144) % 24,
+          };
+        }
+        return { ...current, time: (current.time + delta * 2.2) % 24 };
+      });
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -547,7 +679,7 @@ export default function SolarLab() {
         <article className="viewport-card global-card">
           <div className="card-label"><span>01</span><div><strong>地心模型</strong><small>地球、天球赤道與黃道</small></div></div>
           <div className="canvas-host" ref={globalRef} />
-          <div className="legend globe-legend"><i className="light" />赤經／赤緯<i className="ecliptic-line" />黃道<i className="sun" />太陽<i className="observer" />觀察者</div>
+          <div className="legend globe-legend"><i className="light" />赤經／赤緯<i className="earth-grid" />地理經緯線<i className="ecliptic-line" />黃道<i className="sun" />太陽<i className="observer" />觀察者</div>
           <div className="interaction-hint">以地軸旋轉 · 拖曳／縮放</div>
         </article>
 
@@ -555,7 +687,7 @@ export default function SolarLab() {
           <article className="viewport-card local-card">
             <div className="card-label"><span>02</span><div><strong>觀察者模型</strong><small>{formatLatitude(state.latitude)}的天空</small></div></div>
             <div className="canvas-host" ref={localRef} />
-            <div className="season-key"><span><i className="summer" />夏至</span><span><i className="equinox" />春／秋分</span><span><i className="winter" />冬至</span></div>
+            <div className="season-key"><span><i className="current" />當日</span><span><i className="summer" />夏至</span><span><i className="equinox" />春／秋分</span><span><i className="winter" />冬至</span></div>
             <div className="interaction-hint">以天頂—天底線旋轉</div>
           </article>
 
@@ -575,6 +707,9 @@ export default function SolarLab() {
           <label><input type="checkbox" checked={layers.celestialSphere} onChange={() => toggleLayer("celestialSphere")} />天球外框</label>
           <label><input type="checkbox" checked={layers.equatorialGrid} onChange={() => toggleLayer("equatorialGrid")} />赤經／赤緯格線</label>
           <label><input type="checkbox" checked={layers.ecliptic} onChange={() => toggleLayer("ecliptic")} />黃道</label>
+          <label><input type="checkbox" checked={layers.geographicGrid} onChange={() => toggleLayer("geographicGrid")} />一般經緯線</label>
+          <label><input type="checkbox" checked={layers.observerLatitude} onChange={() => toggleLayer("observerLatitude")} />觀察者緯線</label>
+          <label><input type="checkbox" checked={layers.subsolarPoint} onChange={() => toggleLayer("subsolarPoint")} />日下點</label>
           <label><input type="checkbox" checked={layers.observer} onChange={() => toggleLayer("observer")} />觀察者與切平面</label>
         </div>
         <div className="layer-group"><span>觀察者模型</span>
@@ -589,10 +724,10 @@ export default function SolarLab() {
 
       <section className="control-deck" aria-label="模型控制台">
         <div className="control-heading"><span>同步控制台</span><small>三個參數同時驅動兩個視圖與所有數值</small></div>
-        <label><span>緯度 <b>{formatLatitude(state.latitude)}</b></span><input type="range" min="-90" max="90" step="0.5" value={state.latitude} onChange={(event) => setNumber("latitude", event.target.value)} /><div className="range-ends"><small>南極</small><small>赤道</small><small>北極</small></div></label>
-        <label><span>日期 <b>{dateFromDay(state.day)}</b></span><input type="range" min="1" max="365" value={state.day} onChange={(event) => setNumber("day", event.target.value)} /><div className="range-ends"><small>1 月</small><small>6 月</small><small>12 月</small></div></label>
+        <label><span>緯度 <b>{formatLatitude(state.latitude)}</b></span><input type="range" min="-90" max="90" step="0.5" value={state.latitude} onChange={(event) => setNumber("latitude", event.target.value)} /><div className="range-ends"><small>南極</small><small>赤道</small><small>北極</small></div><div className="preset-row latitude-presets">{latitudePresets.map(([label, latitude]) => <button type="button" key={label} className={state.latitude === latitude ? "selected" : ""} onClick={() => { setPlaying(null); setState((current) => ({ ...current, latitude })); }}>{label}</button>)}</div></label>
+        <label><span>日期 <b>{dateFromDay(state.day)}</b></span><input type="range" min="1" max="365" step="0.1" value={state.day} onChange={(event) => setNumber("day", event.target.value)} /><div className="range-ends"><small>1 月</small><small>6 月</small><small>12 月</small></div><div className="preset-row">{datePresets.map(([label, day]) => <button type="button" key={label} className={Math.round(state.day) === day ? "selected" : ""} onClick={() => { setPlaying(null); setState((current) => ({ ...current, day })); }}>{label}</button>)}</div></label>
         <label><span>地方太陽時 <b>{formatTime(state.time)}</b></span><input type="range" min="0" max="24" step="0.05" value={state.time} onChange={(event) => setNumber("time", event.target.value)} /><div className="range-ends"><small>00</small><small>12</small><small>24</small></div></label>
-        <div className="play-actions"><button className={playing ? "active" : ""} onClick={() => setPlaying((value) => !value)}>{playing ? "暫停" : "▶ 播放一天"}</button><button onClick={() => setState((current) => ({ ...current, time: 12 }))}>跳到正午</button></div>
+        <div className="play-actions"><button className={playing === "day" ? "active" : ""} onClick={() => setPlaying((value) => value === "day" ? null : "day")}>{playing === "day" ? "暫停一天" : "▶ 播放一天"}</button><button className={playing === "year" ? "active year-play" : "year-play"} onClick={() => setPlaying((value) => value === "year" ? null : "year")}>{playing === "year" ? "暫停一年" : "▶ 快速播放一年"}</button><button onClick={() => { setPlaying(null); setState((current) => ({ ...current, time: 12 })); }}>跳到正午</button></div>
       </section>
 
       <footer className="lab-footer"><span>ASTROLAB / INTERACTIVE SCIENCE MODELS</span><span>教學近似模型 · 赤緯採週期近似式</span></footer>

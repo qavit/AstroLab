@@ -26,6 +26,13 @@ test("server-renders the AstroLab model shell", async () => {
   assert.match(html, /赤經／赤緯格線/);
   assert.match(html, /高度／方位格線/);
   assert.match(html, /天球外框/);
+  assert.match(html, /一般經緯線/);
+  assert.match(html, /觀察者緯線/);
+  assert.match(html, /日下點/);
+  assert.match(html, /北極圈/);
+  assert.match(html, /南回歸線/);
+  assert.match(html, /春分/);
+  assert.match(html, /快速播放一年/);
   assert.match(html, /黑白線稿 PNG/);
   assert.match(html, /影長（竿高 = 1）/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
