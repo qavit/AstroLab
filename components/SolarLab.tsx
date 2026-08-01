@@ -42,23 +42,38 @@ type AppearanceState = {
   globalObserver: ObserverMode;
   localObserver: ObserverMode;
   directManipulation: boolean;
+  earthOpaque: boolean;
+  compassPoints: 4 | 8 | 16;
 };
 type LayerState = {
   celestialSphere: boolean;
-  equatorialGrid: boolean;
+  rightAscensionLines: boolean;
+  declinationLines: boolean;
+  rightAscensionLabels: boolean;
+  declinationLabels: boolean;
+  celestialEquator: boolean;
   ecliptic: boolean;
-  eclipticGrid: boolean;
+  eclipticLongitudeLines: boolean;
+  eclipticLatitudeLines: boolean;
   eclipticLongitudeLabels: boolean;
-  coordinateLabels: boolean;
+  eclipticLatitudeLabels: boolean;
   seasonalMarkers: boolean;
   solarTermLabels: boolean;
+  apsides: boolean;
   celestialAxis: boolean;
   observer: boolean;
+  tangentPlane: boolean;
   geographicGrid: boolean;
   observerLatitude: boolean;
+  observerMeridian: boolean;
   subsolarPoint: boolean;
-  horizontalGrid: boolean;
-  labels: boolean;
+  compassLabels: boolean;
+  horizontalAltitudeLines: boolean;
+  horizontalAzimuthLines: boolean;
+  horizontalAltitudeLabels: boolean;
+  horizontalAzimuthLabels: boolean;
+  meridianCircle: boolean;
+  primeVertical: boolean;
   seasonalPaths: boolean;
   currentPath: boolean;
   belowHorizon: boolean;
@@ -115,7 +130,18 @@ function circle(radius = 1, z = 0, count = 180) {
   });
 }
 
-function textSprite(text: string, color = "#ffffff", scale = 0.16) {
+function horizonArc(radius: number, azimuth: number, count = 90) {
+  return Array.from({ length: count + 1 }, (_, index) => {
+    const altitude = degrees((90 * index) / count);
+    return new THREE.Vector3(
+      radius * Math.cos(altitude) * Math.sin(degrees(azimuth)),
+      radius * Math.cos(altitude) * Math.cos(degrees(azimuth)),
+      radius * Math.sin(altitude),
+    );
+  });
+}
+
+function textSprite(text: string, color = "#ffffff", scale = 0.16, depthTest = false) {
   const canvas = document.createElement("canvas");
   canvas.width = 512;
   canvas.height = 128;
@@ -127,10 +153,43 @@ function textSprite(text: string, color = "#ffffff", scale = 0.16) {
   context.fillText(text, 256, 64);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest, depthWrite: false }));
   sprite.scale.set(scale * 4, scale, 1);
   return sprite;
 }
+
+function capsuleBetween(start: THREE.Vector3, end: THREE.Vector3, radius: number, material: THREE.Material) {
+  const length = start.distanceTo(end);
+  const mesh = new THREE.Mesh(
+    new THREE.CapsuleGeometry(radius, Math.max(0.001, length - radius * 2), 6, 10),
+    material,
+  );
+  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), end.clone().sub(start).normalize());
+  return mesh;
+}
+
+function chibiPerson(height: number, color = 0xffb09d) {
+  const person = new THREE.Group();
+  const material = new THREE.MeshPhongMaterial({ color, shininess: 22 });
+  const point = (x: number, y: number, z: number) => new THREE.Vector3(x * height, y * height, z * height);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(height * 0.19, 18, 12), material);
+  head.position.copy(point(0, 0, 0.79));
+  const torso = capsuleBetween(point(0, 0, 0.34), point(0, 0, 0.61), height * 0.14, material);
+  const leftArm = capsuleBetween(point(-0.1, 0, 0.57), point(-0.3, 0, 0.31), height * 0.052, material);
+  const rightArm = capsuleBetween(point(0.1, 0, 0.57), point(0.3, 0, 0.31), height * 0.052, material);
+  const leftLeg = capsuleBetween(point(-0.075, 0, 0.31), point(-0.105, 0, 0.075), height * 0.066, material);
+  const rightLeg = capsuleBetween(point(0.075, 0, 0.31), point(0.105, 0, 0.075), height * 0.066, material);
+  person.add(head, torso, leftArm, rightArm, leftLeg, rightLeg);
+  return person;
+}
+
+const compassPoints = [
+  [0, "北"], [22.5, "北北東"], [45, "東北"], [67.5, "東北東"],
+  [90, "東"], [112.5, "東南東"], [135, "東南"], [157.5, "南南東"],
+  [180, "南"], [202.5, "南南西"], [225, "西南"], [247.5, "西南西"],
+  [270, "西"], [292.5, "西北西"], [315, "西北"], [337.5, "北北西"],
+] as const;
 
 function clearGroup(group: THREE.Group) {
   for (const item of [...group.children]) {
@@ -197,9 +256,10 @@ function setupScenes(
   globalScene.add(light);
 
   const earthRotationGroup = new THREE.Group();
+  const earthMaterial = new THREE.MeshPhongMaterial({ color: 0x245a83, emissive: 0x020a12, shininess: 18 });
   const earth = new THREE.Mesh(
     new THREE.SphereGeometry(1, 64, 32),
-    new THREE.MeshPhongMaterial({ color: 0x245a83, emissive: 0x020a12, shininess: 18 }),
+    earthMaterial,
   );
   earthRotationGroup.add(earth);
   globalScene.add(earthRotationGroup);
@@ -225,21 +285,29 @@ function setupScenes(
 
   const observerLatitude = new THREE.Group();
   globalScene.add(observerLatitude);
+  const observerMeridian = new THREE.Group();
+  const observerMeridianPoints = Array.from({ length: 361 }, (_, index) => {
+    const latitude = degrees(-90 + index / 2);
+    return new THREE.Vector3(1.018 * Math.cos(latitude), 0, 1.018 * Math.sin(latitude));
+  });
+  observerMeridian.add(makeLine(observerMeridianPoints, 0xffa086, 0.96));
+  earthRotationGroup.add(observerMeridian);
   const subsolarPoint = new THREE.Mesh(
     new THREE.CircleGeometry(0.0225, 24),
     new THREE.MeshBasicMaterial({ color: 0xffd66f, side: THREE.DoubleSide }),
   );
   globalScene.add(subsolarPoint);
-  const subsolarLabel = textSprite("日下點", "#ffe39a", 0.11);
+  const subsolarLabel = textSprite("日下點", "#ffe39a", 0.11, true);
   globalScene.add(subsolarLabel);
 
-  // Equatorial coordinates on the celestial sphere: declination parallels and RA hour circles.
-  const equatorialGrid = new THREE.Group();
-  for (let declination = -60; declination <= 60; declination += 30) {
+  // Equatorial coordinates: independent declination parallels and right-ascension hour circles.
+  const declinationLines = new THREE.Group();
+  for (const declination of [-60, -30, 30, 60]) {
     const radius = 3 * Math.cos(degrees(declination));
     const z = 3 * Math.sin(degrees(declination));
-    equatorialGrid.add(makeLine(circle(radius, z), 0xc98080, declination === 0 ? 0.78 : 0.3));
+    declinationLines.add(makeLine(circle(radius, z), 0xc98080, 0.3));
   }
+  const rightAscensionLines = new THREE.Group();
   for (let rightAscension = 0; rightAscension < 360; rightAscension += 15) {
     const points = Array.from({ length: 241 }, (_, index) => {
       const declination = degrees(-90 + (180 * index) / 240);
@@ -249,9 +317,9 @@ function setupScenes(
         3 * Math.sin(declination),
       );
     });
-    equatorialGrid.add(makeLine(points, 0xb96f72, 0.22));
+    rightAscensionLines.add(makeLine(points, 0xb96f72, 0.22));
   }
-  globalScene.add(equatorialGrid);
+  globalScene.add(rightAscensionLines, declinationLines);
 
   const axis = new THREE.Mesh(
     new THREE.CylinderGeometry(0.018, 0.018, 6.6, 12),
@@ -280,56 +348,58 @@ function setupScenes(
     ).applyAxisAngle(new THREE.Vector3(1, 0, 0), degrees(23.44));
   };
 
-  const eclipticGrid = new THREE.Group();
+  const eclipticLatitudeLines = new THREE.Group();
   for (const latitude of [-60, -30, 30, 60]) {
     const radius = 3 * Math.cos(degrees(latitude));
     const z = 3 * Math.sin(degrees(latitude));
     const latitudeCircle = makeLine(circle(radius, z), 0xcaa94e, 0.22);
     latitudeCircle.rotation.x = degrees(23.44);
-    eclipticGrid.add(latitudeCircle);
+    eclipticLatitudeLines.add(latitudeCircle);
   }
+  const eclipticLongitudeLines = new THREE.Group();
   for (let longitude = 0; longitude < 360; longitude += 15) {
     const points = Array.from({ length: 181 }, (_, index) => {
       const latitude = -90 + index;
       return eclipticPoint(longitude, latitude);
     });
-    eclipticGrid.add(makeLine(points, 0xcaa94e, 0.18));
+    eclipticLongitudeLines.add(makeLine(points, 0xcaa94e, 0.18));
   }
-  globalScene.add(eclipticGrid);
+  globalScene.add(eclipticLongitudeLines, eclipticLatitudeLines);
 
-  const coordinateLabels = new THREE.Group();
+  const rightAscensionLabels = new THREE.Group();
+  const declinationLabels = new THREE.Group();
   const eclipticLongitudeLabels = new THREE.Group();
+  const eclipticLatitudeLabels = new THREE.Group();
   const solarTermLabels = new THREE.Group();
   const seasonalMarkers = new THREE.Group();
   const labelInterval = (angle: number) => angle % 90 === 0 ? 90 : angle % 30 === 0 ? 30 : 15;
 
   for (let longitude = 0; longitude < 360; longitude += 15) {
-    const ra = textSprite(`${longitude}°`, "#efb3b3", 0.1);
+    const ra = textSprite(`${longitude}°`, "#efb3b3", 0.1, true);
     ra.position.set(3.13 * Math.cos(degrees(longitude)), 3.13 * Math.sin(degrees(longitude)), 0);
     ra.userData.interval = labelInterval(longitude);
-    coordinateLabels.add(ra);
+    rightAscensionLabels.add(ra);
 
-    const eclipticLongitude = textSprite(`${longitude}°`, "#f2d889", 0.1);
+    const eclipticLongitude = textSprite(`${longitude}°`, "#f2d889", 0.1, true);
     eclipticLongitude.position.copy(eclipticPoint(longitude, 0, 3.15));
     eclipticLongitude.userData.interval = labelInterval(longitude);
     eclipticLongitudeLabels.add(eclipticLongitude);
   }
   for (let latitude = -60; latitude <= 60; latitude += 15) {
     if (latitude === 0) continue;
-    const dec = textSprite(`${latitude > 0 ? "+" : ""}${latitude}°`, "#e9a8a8", 0.09);
+    const dec = textSprite(`${latitude > 0 ? "+" : ""}${latitude}°`, "#e9a8a8", 0.09, true);
     dec.position.set(3.12 * Math.cos(degrees(latitude)), 0, 3.12 * Math.sin(degrees(latitude)));
     dec.userData.interval = Math.abs(latitude) % 30 === 0 ? 30 : 15;
-    coordinateLabels.add(dec);
+    declinationLabels.add(dec);
 
-    const eclipticLatitude = textSprite(`${latitude > 0 ? "+" : ""}${latitude}°`, "#e9cb70", 0.09);
+    const eclipticLatitude = textSprite(`${latitude > 0 ? "+" : ""}${latitude}°`, "#e9cb70", 0.09, true);
     eclipticLatitude.position.copy(eclipticPoint(8, latitude, 3.13));
     eclipticLatitude.userData.interval = Math.abs(latitude) % 30 === 0 ? 30 : 15;
-    coordinateLabels.add(eclipticLatitude);
-    eclipticLatitude.userData.ecliptic = true;
+    eclipticLatitudeLabels.add(eclipticLatitude);
   }
 
   solarTerms.forEach((name, index) => {
-    const term = textSprite(name, "#f3d67d", 0.105);
+    const term = textSprite(name, "#f3d67d", 0.105, true);
     term.position.copy(eclipticPoint(index * 15, 0, 3.28));
     term.userData.interval = labelInterval(index * 15);
     solarTermLabels.add(term);
@@ -339,20 +409,40 @@ function setupScenes(
   ] as const;
   cardinalPoints.forEach(([longitude, symbol, name]) => {
     const marker = new THREE.Mesh(
-      new THREE.CircleGeometry(0.032, 16),
+      new THREE.CircleGeometry(0.0064, 12),
       new THREE.MeshBasicMaterial({ color: 0xffd66f, side: THREE.DoubleSide }),
     );
     marker.position.copy(eclipticPoint(longitude, 0, 3.018));
     marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), marker.position.clone().normalize());
-    const label = textSprite(`${symbol} ${name}`, "#ffe29a", 0.13);
+    const label = textSprite(`${symbol} ${name}`, "#ffe29a", 0.13, true);
     label.position.copy(eclipticPoint(longitude, 0, 3.3));
     seasonalMarkers.add(marker, label);
   });
-  globalScene.add(coordinateLabels, eclipticLongitudeLabels, solarTermLabels, seasonalMarkers);
+  const apsides = new THREE.Group();
+  [[284, "近日點"], [104, "遠日點"]].forEach(([longitude, name]) => {
+    const marker = new THREE.Mesh(
+      new THREE.CircleGeometry(0.014, 14),
+      new THREE.MeshBasicMaterial({ color: 0xf0bd52, side: THREE.DoubleSide }),
+    );
+    marker.position.copy(eclipticPoint(longitude as number, 0, 3.018));
+    marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), marker.position.clone().normalize());
+    const label = textSprite(name as string, "#f5cf73", 0.105, true);
+    label.position.copy(eclipticPoint(longitude as number, 0, 3.2));
+    apsides.add(marker, label);
+  });
+  globalScene.add(
+    rightAscensionLabels,
+    declinationLabels,
+    eclipticLongitudeLabels,
+    eclipticLatitudeLabels,
+    solarTermLabels,
+    seasonalMarkers,
+    apsides,
+  );
   const globalLabels = new THREE.Group();
-  const eclipticLabel = textSprite("黃道", "#f5d685");
+  const eclipticLabel = textSprite("黃道", "#f5d685", 0.16, true);
   eclipticLabel.position.set(-2.25, 0.65, 0.8);
-  const northLabel = textSprite("北天極／地軸", "#cbe0ef", 0.14);
+  const northLabel = textSprite("北天極／地軸", "#cbe0ef", 0.14, true);
   northLabel.position.set(0, 0, 3.42);
   globalLabels.add(eclipticLabel, northLabel);
   globalScene.add(globalLabels);
@@ -366,24 +456,13 @@ function setupScenes(
   );
   globalScene.add(globalSunDragProxy);
   const observer = new THREE.Group();
+  const observerVisuals = new THREE.Group();
   const observerDot = new THREE.Mesh(
     new THREE.CircleGeometry(0.0275, 24),
     new THREE.MeshBasicMaterial({ color: 0xff8f75, side: THREE.DoubleSide }),
   );
   observerDot.position.z = 0.006;
-  const globalPerson = new THREE.Group();
-  const personHead = new THREE.Mesh(
-    new THREE.SphereGeometry(0.025, 12, 8),
-    new THREE.MeshBasicMaterial({ color: 0xffb09d }),
-  );
-  personHead.position.z = 0.13;
-  globalPerson.add(
-    personHead,
-    makeLine([new THREE.Vector3(0, 0, 0.03), new THREE.Vector3(0, 0, 0.11)], 0xffb09d, 1),
-    makeLine([new THREE.Vector3(-0.04, 0, 0.085), new THREE.Vector3(0.04, 0, 0.085)], 0xffb09d, 1),
-    makeLine([new THREE.Vector3(0, 0, 0.04), new THREE.Vector3(-0.035, 0, 0)], 0xffb09d, 1),
-    makeLine([new THREE.Vector3(0, 0, 0.04), new THREE.Vector3(0.035, 0, 0)], 0xffb09d, 1),
-  );
+  const globalPerson = chibiPerson(0.17);
   const globalGnomon = new THREE.Group();
   const globalRod = makeLine([new THREE.Vector3(), new THREE.Vector3(0, 0, 0.16)], 0xf4f8fa, 1);
   const globalShadow = makeLine([new THREE.Vector3(), new THREE.Vector3()], 0x02070b, 1);
@@ -401,36 +480,70 @@ function setupScenes(
     new THREE.MeshBasicMaterial({ color: 0x4c87a3, transparent: true, opacity: 0.09, wireframe: false, side: THREE.DoubleSide, depthWrite: false }),
   );
   observerDome.rotation.x = Math.PI / 2;
-  const observerHorizonGrid = new THREE.Group();
-  observerHorizonGrid.add(makeLine(circle(0.42), 0xa8d7e1, 0.74));
+  const observerHorizonLine = makeLine(circle(0.42), 0x8dd0a7, 0.82);
+  const observerAltitudeLines = new THREE.Group();
   for (const altitude of [30, 60]) {
-    observerHorizonGrid.add(
+    observerAltitudeLines.add(
       makeLine(
         circle(0.42 * Math.cos(degrees(altitude)), 0.42 * Math.sin(degrees(altitude)), 120),
-        0x76b6cb,
+        0x71bd91,
         0.42,
       ),
     );
   }
-  for (let azimuth = 0; azimuth < 360; azimuth += 45) {
-    const points = Array.from({ length: 61 }, (_, index) => {
-      const altitude = degrees((90 * index) / 60);
-      return new THREE.Vector3(
-        0.42 * Math.cos(altitude) * Math.sin(degrees(azimuth)),
-        0.42 * Math.cos(altitude) * Math.cos(degrees(azimuth)),
-        0.42 * Math.sin(altitude),
-      );
-    });
-    observerHorizonGrid.add(makeLine(points, 0x76b6cb, 0.38));
+  const observerAzimuthLines = new THREE.Group();
+  for (let azimuth = 0; azimuth < 360; azimuth += 30) {
+    if (azimuth % 90 === 0) continue;
+    observerAzimuthLines.add(makeLine(horizonArc(0.42, azimuth, 60), 0x62ad83, 0.34));
   }
+  const observerMeridianCircle = new THREE.Group();
+  observerMeridianCircle.add(
+    makeLine(horizonArc(0.42, 0, 60), 0xa3dfb8, 0.78),
+    makeLine(horizonArc(0.42, 180, 60), 0xa3dfb8, 0.78),
+  );
+  const observerPrimeVertical = new THREE.Group();
+  observerPrimeVertical.add(
+    makeLine(horizonArc(0.42, 90, 60), 0x8ed3a8, 0.72),
+    makeLine(horizonArc(0.42, 270, 60), 0x8ed3a8, 0.72),
+  );
+  const observerCompassLabels = new THREE.Group();
+  const observerAltitudeLabels = new THREE.Group();
+  const observerAzimuthLabels = new THREE.Group();
+  compassPoints.forEach(([azimuth, name]) => {
+    const label = textSprite(name, "#b9ebcc", 0.052, true);
+    label.position.set(0.48 * Math.sin(degrees(azimuth)), 0.48 * Math.cos(degrees(azimuth)), 0.012);
+    label.userData.points = azimuth % 90 === 0 ? 4 : azimuth % 45 === 0 ? 8 : 16;
+    observerCompassLabels.add(label);
+  });
+  for (let altitude = 15; altitude <= 75; altitude += 15) {
+    const label = textSprite(`${altitude}°`, "#9dddb6", 0.045, true);
+    label.position.set(
+      0.44 * Math.cos(degrees(altitude)) * Math.sin(degrees(118)),
+      0.44 * Math.cos(degrees(altitude)) * Math.cos(degrees(118)),
+      0.44 * Math.sin(degrees(altitude)),
+    );
+    label.userData.interval = altitude % 30 === 0 ? 30 : 15;
+    observerAltitudeLabels.add(label);
+  }
+  for (let azimuth = 0; azimuth < 360; azimuth += 15) {
+    const label = textSprite(`${azimuth}°`, "#8fd0a8", 0.04, true);
+    label.position.set(0.44 * Math.sin(degrees(azimuth)), 0.44 * Math.cos(degrees(azimuth)), 0.055);
+    label.userData.interval = labelInterval(azimuth);
+    observerAzimuthLabels.add(label);
+  }
+  observerVisuals.add(observerDot, globalPerson, globalGnomon, observerDragProxy);
   observer.add(
-    observerDot,
-    globalPerson,
-    globalGnomon,
-    observerDragProxy,
+    observerVisuals,
     tangent,
     observerDome,
-    observerHorizonGrid,
+    observerHorizonLine,
+    observerAltitudeLines,
+    observerAzimuthLines,
+    observerMeridianCircle,
+    observerPrimeVertical,
+    observerCompassLabels,
+    observerAltitudeLabels,
+    observerAzimuthLabels,
   );
   globalScene.add(observer);
 
@@ -455,67 +568,69 @@ function setupScenes(
   dome.rotation.x = Math.PI / 2;
   localScene.add(dome);
 
-  // Horizontal coordinates: altitude circles and azimuth great semicircles.
-  const horizontalGrid = new THREE.Group();
-  horizontalGrid.add(makeLine(circle(1), 0xb8dce8, 0.78));
+  // Horizontal coordinates: independent altitude circles, azimuth semicircles, and labels.
+  const localHorizonLine = makeLine(circle(1), 0x9bddb3, 0.84);
+  const horizontalAltitudeLines = new THREE.Group();
   for (const altitude of [30, 60]) {
-    horizontalGrid.add(makeLine(circle(Math.cos(degrees(altitude)), Math.sin(degrees(altitude))), 0x70a9c3, 0.34));
+    horizontalAltitudeLines.add(makeLine(circle(Math.cos(degrees(altitude)), Math.sin(degrees(altitude))), 0x71bd91, 0.4));
   }
+  const horizontalAzimuthLines = new THREE.Group();
   for (let azimuth = 0; azimuth < 360; azimuth += 30) {
-    const points = Array.from({ length: 91 }, (_, index) => {
-      const altitude = degrees(index);
-      return new THREE.Vector3(
-        Math.cos(altitude) * Math.sin(degrees(azimuth)),
-        Math.cos(altitude) * Math.cos(degrees(azimuth)),
-        Math.sin(altitude),
-      );
-    });
-    horizontalGrid.add(makeLine(points, 0x6598b2, 0.28));
+    if (azimuth % 90 === 0) continue;
+    horizontalAzimuthLines.add(makeLine(horizonArc(1, azimuth), 0x62ad83, 0.34));
   }
+  const localMeridianCircle = new THREE.Group();
+  localMeridianCircle.add(
+    makeLine(horizonArc(1, 0), 0xa3dfb8, 0.82),
+    makeLine(horizonArc(1, 180), 0xa3dfb8, 0.82),
+  );
+  const localPrimeVertical = new THREE.Group();
+  localPrimeVertical.add(
+    makeLine(horizonArc(1, 90), 0x8ed3a8, 0.76),
+    makeLine(horizonArc(1, 270), 0x8ed3a8, 0.76),
+  );
   const zenithAxis = makeLine(
     [new THREE.Vector3(0, 0, -0.16), new THREE.Vector3(0, 0, 1.18)],
-    0xc1dfeb,
+    0xb5e5c6,
     0.78,
   );
-  horizontalGrid.add(zenithAxis);
-  localScene.add(horizontalGrid);
+  localScene.add(localHorizonLine, horizontalAltitudeLines, horizontalAzimuthLines, localMeridianCircle, localPrimeVertical, zenithAxis);
 
-  const localLabels = new THREE.Group();
-  const compass: Record<string, [number, number, number]> = {
-    東: [1.1, 0, 0], 西: [-1.1, 0, 0], 北: [0, 1.1, 0], 南: [0, -1.1, 0],
-  };
-  Object.entries(compass).forEach(([label, position]) => {
-    const sprite = textSprite(label, "#ffffff", 0.12);
-    sprite.position.set(...position);
-    localLabels.add(sprite);
+  const localCompassLabels = new THREE.Group();
+  const localAltitudeLabels = new THREE.Group();
+  const localAzimuthLabels = new THREE.Group();
+  compassPoints.forEach(([azimuth, name]) => {
+    const label = textSprite(name, "#d4f3df", 0.1);
+    label.position.set(1.12 * Math.sin(degrees(azimuth)), 1.12 * Math.cos(degrees(azimuth)), 0.018);
+    label.userData.points = azimuth % 90 === 0 ? 4 : azimuth % 45 === 0 ? 8 : 16;
+    localCompassLabels.add(label);
   });
   const zenith = textSprite("天頂", "#ffffff", 0.12);
   zenith.position.set(0, 0, 1.12);
-  const altitude30 = textSprite("高度 30°", "#91bdd0", 0.1);
-  altitude30.position.set(0.86, 0, 0.53);
-  const altitude60 = textSprite("高度 60°", "#91bdd0", 0.1);
-  altitude60.position.set(0.48, 0, 0.9);
-  localLabels.add(zenith, altitude30, altitude60);
-  localScene.add(localLabels);
+  for (let altitude = 15; altitude <= 75; altitude += 15) {
+    const label = textSprite(`${altitude}°`, "#a9e2bd", 0.085);
+    label.position.set(
+      1.04 * Math.cos(degrees(altitude)) * Math.sin(degrees(118)),
+      1.04 * Math.cos(degrees(altitude)) * Math.cos(degrees(118)),
+      1.04 * Math.sin(degrees(altitude)),
+    );
+    label.userData.interval = altitude % 30 === 0 ? 30 : 15;
+    localAltitudeLabels.add(label);
+  }
+  for (let azimuth = 0; azimuth < 360; azimuth += 15) {
+    const label = textSprite(`${azimuth}°`, "#98d9af", 0.072);
+    label.position.set(1.03 * Math.sin(degrees(azimuth)), 1.03 * Math.cos(degrees(azimuth)), 0.13);
+    label.userData.interval = labelInterval(azimuth);
+    localAzimuthLabels.add(label);
+  }
+  localScene.add(localCompassLabels, localAltitudeLabels, localAzimuthLabels, zenith);
 
   const localDot = new THREE.Mesh(
     new THREE.CircleGeometry(0.0275, 24),
     new THREE.MeshBasicMaterial({ color: 0xff8f75, side: THREE.DoubleSide }),
   );
   localDot.position.z = 0.008;
-  const localPerson = new THREE.Group();
-  const localHead = new THREE.Mesh(
-    new THREE.SphereGeometry(0.035, 12, 8),
-    new THREE.MeshBasicMaterial({ color: 0xffb09d }),
-  );
-  localHead.position.z = 0.18;
-  localPerson.add(
-    localHead,
-    makeLine([new THREE.Vector3(0, 0, 0.04), new THREE.Vector3(0, 0, 0.15)], 0xffb09d, 1),
-    makeLine([new THREE.Vector3(-0.07, 0, 0.11), new THREE.Vector3(0.07, 0, 0.11)], 0xffb09d, 1),
-    makeLine([new THREE.Vector3(0, 0, 0.05), new THREE.Vector3(-0.055, 0, 0)], 0xffb09d, 1),
-    makeLine([new THREE.Vector3(0, 0, 0.05), new THREE.Vector3(0.055, 0, 0)], 0xffb09d, 1),
-  );
+  const localPerson = chibiPerson(0.3);
   localScene.add(localDot, localPerson);
 
   const currentPath = new THREE.Group();
@@ -659,21 +774,29 @@ function setupScenes(
   let animation = 0;
   const draw = () => {
     animation = requestAnimationFrame(draw);
-    const distance = globalCamera.position.distanceTo(globalControls.target);
-    const minimumInterval = distance > 7 ? 90 : distance > 5 ? 30 : 15;
-    coordinateLabels.children.forEach((label) => {
-      const isEcliptic = Boolean(label.userData.ecliptic);
-      label.visible = Boolean(
-        activeLayers?.coordinateLabels &&
-        label.userData.interval >= minimumInterval &&
-        (!isEcliptic || activeLayers.eclipticGrid),
-      );
-    });
-    eclipticLongitudeLabels.children.forEach((label) => {
-      label.visible = Boolean(activeLayers?.eclipticLongitudeLabels && label.userData.interval >= minimumInterval);
-    });
+    const globalDistance = globalCamera.position.distanceTo(globalControls.target);
+    const globalMinimum = globalDistance > 7 ? 90 : globalDistance > 5 ? 30 : 15;
+    const localDistance = localCamera.position.distanceTo(localControls.target);
+    const localMinimum = localDistance > 4 ? 45 : localDistance > 2.8 ? 30 : 15;
+    const adaptive = (group: THREE.Group, enabled: boolean, minimum: number) => {
+      group.children.forEach((label) => { label.visible = enabled && label.userData.interval >= minimum; });
+    };
+    adaptive(rightAscensionLabels, Boolean(activeLayers?.rightAscensionLabels), globalMinimum);
+    adaptive(declinationLabels, Boolean(activeLayers?.declinationLabels), globalMinimum);
+    adaptive(eclipticLongitudeLabels, Boolean(activeLayers?.eclipticLongitudeLabels), globalMinimum);
+    adaptive(eclipticLatitudeLabels, Boolean(activeLayers?.eclipticLatitudeLabels), globalMinimum);
+    adaptive(observerAltitudeLabels, Boolean(activeLayers?.horizontalAltitudeLabels), globalMinimum);
+    adaptive(observerAzimuthLabels, Boolean(activeLayers?.horizontalAzimuthLabels), globalMinimum);
+    adaptive(localAltitudeLabels, Boolean(activeLayers?.horizontalAltitudeLabels), localMinimum);
+    adaptive(localAzimuthLabels, Boolean(activeLayers?.horizontalAzimuthLabels), localMinimum);
     solarTermLabels.children.forEach((label) => {
-      label.visible = Boolean(activeLayers?.solarTermLabels && label.userData.interval >= minimumInterval);
+      label.visible = Boolean(activeLayers?.solarTermLabels && label.userData.interval >= globalMinimum);
+    });
+    observerCompassLabels.children.forEach((label) => {
+      label.visible = Boolean(activeLayers?.compassLabels && label.userData.points <= (activeAppearance?.compassPoints ?? 4));
+    });
+    localCompassLabels.children.forEach((label) => {
+      label.visible = Boolean(activeLayers?.compassLabels && label.userData.points <= (activeAppearance?.compassPoints ?? 4));
     });
     globalControls.update();
     localControls.update();
@@ -692,31 +815,52 @@ function setupScenes(
       activeAppearance = appearance;
       activeState = state;
       celestial.visible = layers.celestialSphere;
-      equatorialGrid.visible = layers.equatorialGrid;
-      celestialEquator.visible = layers.equatorialGrid;
+      rightAscensionLines.visible = layers.rightAscensionLines;
+      declinationLines.visible = layers.declinationLines;
+      celestialEquator.visible = layers.celestialEquator;
       ecliptic.visible = layers.ecliptic;
-      eclipticGrid.visible = layers.eclipticGrid;
+      eclipticLongitudeLines.visible = layers.eclipticLongitudeLines;
+      eclipticLatitudeLines.visible = layers.eclipticLatitudeLines;
       seasonalMarkers.visible = layers.seasonalMarkers;
+      apsides.visible = layers.apsides;
       axis.visible = layers.celestialAxis;
-      observer.visible = layers.observer;
+      observerVisuals.visible = layers.observer;
+      tangent.visible = layers.tangentPlane;
       geographicGrid.visible = layers.geographicGrid;
       observerLatitude.visible = layers.observerLatitude;
+      observerMeridian.visible = layers.observerMeridian;
       subsolarPoint.visible = layers.subsolarPoint;
-      subsolarLabel.visible = layers.subsolarPoint && layers.labels;
-      horizontalGrid.visible = layers.horizontalGrid;
-      dome.visible = layers.horizontalGrid;
-      globalLabels.visible = layers.labels;
-      localLabels.visible = layers.labels;
+      subsolarLabel.visible = layers.subsolarPoint;
+      observerAltitudeLines.visible = layers.horizontalAltitudeLines;
+      observerAzimuthLines.visible = layers.horizontalAzimuthLines;
+      observerMeridianCircle.visible = layers.meridianCircle;
+      observerPrimeVertical.visible = layers.primeVertical;
+      horizontalAltitudeLines.visible = layers.horizontalAltitudeLines;
+      horizontalAzimuthLines.visible = layers.horizontalAzimuthLines;
+      localMeridianCircle.visible = layers.meridianCircle;
+      localPrimeVertical.visible = layers.primeVertical;
+      observerHorizonLine.visible = layers.compassLabels || layers.horizontalAltitudeLines || layers.horizontalAzimuthLines;
+      localHorizonLine.visible = observerHorizonLine.visible;
+      observerDome.visible = observerHorizonLine.visible;
+      dome.visible = observerHorizonLine.visible;
+      floor.visible = layers.tangentPlane;
+      zenith.visible = layers.compassLabels;
+      zenithAxis.visible = layers.horizontalAzimuthLines;
+      northLabel.visible = layers.celestialAxis;
       eclipticLabel.visible = layers.ecliptic;
       currentPath.visible = layers.currentPath;
       comparisonPaths.visible = layers.seasonalPaths;
       shadowGroup.visible = layers.shadow;
-      observerDot.visible = appearance.globalObserver === "dot";
-      globalPerson.visible = appearance.globalObserver === "person";
-      globalGnomon.visible = appearance.globalObserver === "gnomon";
-      localDot.visible = appearance.localObserver === "dot";
-      localPerson.visible = appearance.localObserver === "person";
-      shadowGroup.visible = layers.shadow && appearance.localObserver === "gnomon";
+      observerDot.visible = layers.observer && appearance.globalObserver === "dot";
+      globalPerson.visible = layers.observer && appearance.globalObserver === "person";
+      globalGnomon.visible = layers.observer && appearance.globalObserver === "gnomon";
+      localDot.visible = layers.observer && appearance.localObserver === "dot";
+      localPerson.visible = layers.observer && appearance.localObserver === "person";
+      shadowGroup.visible = appearance.localObserver === "gnomon" && (layers.observer || layers.shadow);
+      gnomon.visible = layers.observer && appearance.localObserver === "gnomon";
+      earthMaterial.transparent = !appearance.earthOpaque;
+      earthMaterial.opacity = appearance.earthOpaque ? 1 : 0.3;
+      earthMaterial.depthWrite = appearance.earthOpaque;
       globalControls.enabled = !appearance.directManipulation;
       localControls.enabled = !appearance.directManipulation;
       globalRenderer.domElement.style.cursor = appearance.directManipulation ? "grab" : "move";
@@ -745,10 +889,16 @@ function setupScenes(
         Math.cos(phi) * Math.sin(observerLongitude),
         Math.sin(phi),
       );
+      const east = new THREE.Vector3(-Math.sin(observerLongitude), Math.cos(observerLongitude), 0);
+      const north = new THREE.Vector3(
+        -Math.sin(phi) * Math.cos(observerLongitude),
+        -Math.sin(phi) * Math.sin(observerLongitude),
+        Math.cos(phi),
+      );
       observer.position.copy(normal.clone().multiplyScalar(1.01));
-      observer.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+      observer.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(east, north, normal));
       const globalSunLocal = eclipticSun.clone().normalize().applyQuaternion(observer.quaternion.clone().invert());
-      globalShadow.visible = globalSunLocal.z > 0.002;
+      globalShadow.visible = layers.shadow && appearance.globalObserver === "gnomon" && globalSunLocal.z > 0.002;
       if (globalSunLocal.z > 0.002) {
         const scale = 0.16 / globalSunLocal.z;
         globalShadow.geometry.setFromPoints([
@@ -797,7 +947,7 @@ function setupScenes(
       (localSun.material as THREE.MeshBasicMaterial).opacity = vector.z >= 0 ? 1 : 0.25;
       (localSun.material as THREE.MeshBasicMaterial).transparent = true;
       const cast = shadowForUnitGnomon(vector);
-      shadow.visible = shadowBar.visible = ray.visible = Boolean(cast) && layers.shadow;
+      shadow.visible = shadowBar.visible = ray.visible = Boolean(cast) && layers.shadow && appearance.localObserver === "gnomon";
       if (cast) {
         const tip = new THREE.Vector3(cast.x * rodHeight, cast.y * rodHeight, 0);
         shadow.geometry.setFromPoints([new THREE.Vector3(), tip]);
@@ -841,7 +991,23 @@ function setupScenes(
       });
 
       if (target === "shadow") {
-        [horizontalGrid, dome, currentPath, comparisonPaths, localLabels, localSun, localDot, localPerson].forEach((object) => {
+        [
+          horizontalAltitudeLines,
+          horizontalAzimuthLines,
+          localMeridianCircle,
+          localPrimeVertical,
+          localHorizonLine,
+          dome,
+          currentPath,
+          comparisonPaths,
+          localCompassLabels,
+          localAltitudeLabels,
+          localAzimuthLabels,
+          zenith,
+          localSun,
+          localDot,
+          localPerson,
+        ].forEach((object) => {
           visibilitySnapshots.set(object, object.visible);
           object.visible = false;
         });
@@ -975,23 +1141,38 @@ export default function SolarLab() {
     globalObserver: "dot",
     localObserver: "gnomon",
     directManipulation: false,
+    earthOpaque: true,
+    compassPoints: 4,
   });
   const [layers, setLayers] = useState<LayerState>({
     celestialSphere: true,
-    equatorialGrid: true,
+    rightAscensionLines: true,
+    declinationLines: true,
+    rightAscensionLabels: true,
+    declinationLabels: true,
+    celestialEquator: true,
     ecliptic: true,
-    eclipticGrid: false,
+    eclipticLongitudeLines: false,
+    eclipticLatitudeLines: false,
     eclipticLongitudeLabels: false,
-    coordinateLabels: true,
+    eclipticLatitudeLabels: false,
     seasonalMarkers: true,
     solarTermLabels: false,
+    apsides: true,
     celestialAxis: true,
     observer: true,
+    tangentPlane: true,
     geographicGrid: true,
     observerLatitude: true,
+    observerMeridian: true,
     subsolarPoint: true,
-    horizontalGrid: true,
-    labels: true,
+    compassLabels: true,
+    horizontalAltitudeLines: true,
+    horizontalAzimuthLines: true,
+    horizontalAltitudeLabels: true,
+    horizontalAzimuthLabels: false,
+    meridianCircle: true,
+    primeVertical: true,
     seasonalPaths: true,
     currentPath: true,
     belowHorizon: true,
@@ -1052,7 +1233,12 @@ export default function SolarLab() {
   }, []);
 
   const toggleLayer = useCallback((key: keyof LayerState) => {
-    setLayers((current) => ({ ...current, [key]: !current[key] }));
+    setLayers((current) => {
+      const next = { ...current, [key]: !current[key] };
+      if (key === "solarTermLabels" && next.solarTermLabels) next.seasonalMarkers = false;
+      if (key === "seasonalMarkers" && next.seasonalMarkers) next.solarTermLabels = false;
+      return next;
+    });
   }, []);
 
   const chooseDirectory = async () => {
@@ -1139,34 +1325,43 @@ export default function SolarLab() {
       <aside className={`layer-drawer ${showLayers ? "open" : ""}`} aria-hidden={!showLayers}>
         <header><div><Layers3 size={18} /><strong>視圖圖層</strong></div><button onClick={() => setShowLayers(false)} aria-label="關閉圖層"><X size={17} /></button></header>
         <div className="drawer-scroll">
-          <details open><summary>天球與赤道坐標</summary><div className="layer-list">
+          <details open><summary>天球與赤道坐標</summary><div className="layer-list coordinate-controls">
             <label><input type="checkbox" checked={layers.celestialSphere} onChange={() => toggleLayer("celestialSphere")} />天球外框</label>
-            <label><input type="checkbox" checked={layers.equatorialGrid} onChange={() => toggleLayer("equatorialGrid")} />赤經／赤緯格線</label>
-            <label><input type="checkbox" checked={layers.coordinateLabels} onChange={() => toggleLayer("coordinateLabels")} />自適應坐標標籤</label>
+            <div className="coordinate-row"><strong>赤經</strong><label><input type="checkbox" checked={layers.rightAscensionLines} onChange={() => toggleLayer("rightAscensionLines")} />線</label><label><input type="checkbox" checked={layers.rightAscensionLabels} onChange={() => toggleLayer("rightAscensionLabels")} />標籤</label></div>
+            <div className="coordinate-row"><strong>赤緯</strong><label><input type="checkbox" checked={layers.declinationLines} onChange={() => toggleLayer("declinationLines")} />線</label><label><input type="checkbox" checked={layers.declinationLabels} onChange={() => toggleLayer("declinationLabels")} />標籤</label></div>
+            <label><input type="checkbox" checked={layers.celestialEquator} onChange={() => toggleLayer("celestialEquator")} />天赤道</label>
             <label><input type="checkbox" checked={layers.celestialAxis} onChange={() => toggleLayer("celestialAxis")} />天軸</label>
           </div></details>
-          <details open><summary>黃道坐標與節氣</summary><div className="layer-list">
+          <details open><summary>黃道坐標與節氣</summary><div className="layer-list coordinate-controls">
             <label><input type="checkbox" checked={layers.ecliptic} onChange={() => toggleLayer("ecliptic")} />黃道</label>
-            <label><input type="checkbox" checked={layers.eclipticGrid} onChange={() => toggleLayer("eclipticGrid")} />黃道坐標格線</label>
-            <label><input type="checkbox" checked={layers.eclipticLongitudeLabels} onChange={() => toggleLayer("eclipticLongitudeLabels")} />黃經度數</label>
-            <label><input type="checkbox" checked={layers.seasonalMarkers} onChange={() => toggleLayer("seasonalMarkers")} />二分二至點與符號</label>
-            <label><input type="checkbox" checked={layers.solarTermLabels} onChange={() => toggleLayer("solarTermLabels")} />中文節氣名稱</label>
+            <div className="coordinate-row"><strong>黃經</strong><label><input type="checkbox" checked={layers.eclipticLongitudeLines} onChange={() => toggleLayer("eclipticLongitudeLines")} />線</label><label><input type="checkbox" checked={layers.eclipticLongitudeLabels} onChange={() => toggleLayer("eclipticLongitudeLabels")} />標籤</label></div>
+            <div className="coordinate-row"><strong>黃緯</strong><label><input type="checkbox" checked={layers.eclipticLatitudeLines} onChange={() => toggleLayer("eclipticLatitudeLines")} />線</label><label><input type="checkbox" checked={layers.eclipticLatitudeLabels} onChange={() => toggleLayer("eclipticLatitudeLabels")} />標籤</label></div>
+            <label><input type="checkbox" checked={layers.seasonalMarkers} onChange={() => toggleLayer("seasonalMarkers")} />分至點</label>
+            <label><input type="checkbox" checked={layers.solarTermLabels} onChange={() => toggleLayer("solarTermLabels")} />節氣</label>
+            <label><input type="checkbox" checked={layers.apsides} onChange={() => toggleLayer("apsides")} />近日點／遠日點</label>
           </div></details>
           <details open><summary>地球與觀察者</summary><div className="layer-list">
+            <span className="field-label">地球外觀</span><select value={appearance.earthOpaque ? "opaque" : "transparent"} onChange={(event) => setAppearance((current) => ({ ...current, earthOpaque: event.target.value === "opaque" }))}><option value="opaque">不透明</option><option value="transparent">透明</option></select>
             <label><input type="checkbox" checked={layers.geographicGrid} onChange={() => toggleLayer("geographicGrid")} />一般經緯線</label>
             <label><input type="checkbox" checked={layers.observerLatitude} onChange={() => toggleLayer("observerLatitude")} />觀察者緯線</label>
+            <label><input type="checkbox" checked={layers.observerMeridian} onChange={() => toggleLayer("observerMeridian")} />觀察者經線</label>
             <label><input type="checkbox" checked={layers.subsolarPoint} onChange={() => toggleLayer("subsolarPoint")} />日下點</label>
-            <label><input type="checkbox" checked={layers.observer} onChange={() => toggleLayer("observer")} />觀察者與切平面</label>
-            <span className="field-label">地心模型觀察者</span><select value={appearance.globalObserver} onChange={(event) => setAppearance((current) => ({ ...current, globalObserver: event.target.value as ObserverMode }))}><option value="person">人形</option><option value="dot">圓形點</option><option value="gnomon">竿與影</option></select>
+            <label><input type="checkbox" checked={layers.observer} onChange={() => toggleLayer("observer")} />觀察者</label>
+            <label><input type="checkbox" checked={layers.tangentPlane} onChange={() => toggleLayer("tangentPlane")} />切平面</label>
+            <span className="field-label">地心模型觀察者</span><select disabled={!layers.observer} value={appearance.globalObserver} onChange={(event) => setAppearance((current) => ({ ...current, globalObserver: event.target.value as ObserverMode }))}><option value="person">人形</option><option value="dot">圓形點</option><option value="gnomon">竿與影</option></select>
           </div></details>
-          <details open><summary>觀察者天空</summary><div className="layer-list">
-            <label><input type="checkbox" checked={layers.horizontalGrid} onChange={() => toggleLayer("horizontalGrid")} />高度／方位格線</label>
-            <label><input type="checkbox" checked={layers.currentPath} onChange={() => toggleLayer("currentPath")} />當日日行跡</label>
-            <label><input type="checkbox" checked={layers.seasonalPaths} onChange={() => toggleLayer("seasonalPaths")} />三季代表軌跡</label>
+          <details open><summary>地平坐標與觀察者天空</summary><div className="layer-list coordinate-controls">
+            <label><input type="checkbox" checked={layers.compassLabels} onChange={() => toggleLayer("compassLabels")} />方位</label>
+            <select aria-label="方位數量" disabled={!layers.compassLabels} value={appearance.compassPoints} onChange={(event) => setAppearance((current) => ({ ...current, compassPoints: Number(event.target.value) as 4 | 8 | 16 }))}><option value="4">4 方位</option><option value="8">8 方位</option><option value="16">16 方位</option></select>
+            <div className="coordinate-row"><strong>高度角</strong><label><input type="checkbox" checked={layers.horizontalAltitudeLines} onChange={() => toggleLayer("horizontalAltitudeLines")} />線</label><label><input type="checkbox" checked={layers.horizontalAltitudeLabels} onChange={() => toggleLayer("horizontalAltitudeLabels")} />標籤</label></div>
+            <div className="coordinate-row"><strong>方位角</strong><label><input type="checkbox" checked={layers.horizontalAzimuthLines} onChange={() => toggleLayer("horizontalAzimuthLines")} />線</label><label><input type="checkbox" checked={layers.horizontalAzimuthLabels} onChange={() => toggleLayer("horizontalAzimuthLabels")} />標籤</label></div>
+            <label><input type="checkbox" checked={layers.meridianCircle} onChange={() => toggleLayer("meridianCircle")} />子午圈</label>
+            <label><input type="checkbox" checked={layers.primeVertical} onChange={() => toggleLayer("primeVertical")} />酉卯圈</label>
+            <label><input type="checkbox" checked={layers.currentPath} onChange={() => toggleLayer("currentPath")} />當日太陽週日運動軌跡</label>
+            <label><input type="checkbox" checked={layers.seasonalPaths} onChange={() => toggleLayer("seasonalPaths")} />二分二至太陽週日運動軌跡</label>
             <label><input type="checkbox" checked={layers.belowHorizon} onChange={() => toggleLayer("belowHorizon")} />地平線以下</label>
             <label><input type="checkbox" checked={layers.shadow} onChange={() => toggleLayer("shadow")} />竿與影線</label>
-            <label><input type="checkbox" checked={layers.labels} onChange={() => toggleLayer("labels")} />方位與高度標示</label>
-            <span className="field-label">觀察者模型中心</span><select value={appearance.localObserver} onChange={(event) => setAppearance((current) => ({ ...current, localObserver: event.target.value as ObserverMode }))}><option value="person">人形</option><option value="dot">圓形點</option><option value="gnomon">竿與影</option></select>
+            <span className="field-label">觀察者模型中心</span><select disabled={!layers.observer} value={appearance.localObserver} onChange={(event) => setAppearance((current) => ({ ...current, localObserver: event.target.value as ObserverMode }))}><option value="person">人形</option><option value="dot">圓形點</option><option value="gnomon">竿與影</option></select>
           </div></details>
         </div>
       </aside>
