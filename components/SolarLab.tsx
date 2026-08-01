@@ -339,10 +339,11 @@ function setupScenes(
   ] as const;
   cardinalPoints.forEach(([longitude, symbol, name]) => {
     const marker = new THREE.Mesh(
-      new THREE.SphereGeometry(0.055, 16, 10),
-      new THREE.MeshBasicMaterial({ color: 0xffd66f }),
+      new THREE.CircleGeometry(0.032, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffd66f, side: THREE.DoubleSide }),
     );
-    marker.position.copy(eclipticPoint(longitude));
+    marker.position.copy(eclipticPoint(longitude, 0, 3.018));
+    marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), marker.position.clone().normalize());
     const label = textSprite(`${symbol} ${name}`, "#ffe29a", 0.13);
     label.position.copy(eclipticPoint(longitude, 0, 3.3));
     seasonalMarkers.add(marker, label);
@@ -1170,14 +1171,14 @@ export default function SolarLab() {
         </div>
       </aside>
 
-      <section className={`control-drawer ${showControls ? "open" : ""}`} aria-label="同步控制台">
-        <button className="drawer-handle" onClick={() => setShowControls((value) => !value)}>{showControls ? <ChevronDown size={17} /> : <ChevronUp size={17} />}<span>同步控制台</span></button>
-        <div className="control-deck">
+      <section className="control-panel" aria-label="同步控制台">
+        <header className="control-panel-heading"><div><Settings2 size={17} /><strong>同步控制台</strong></div><button onClick={() => setShowControls((value) => !value)} aria-expanded={showControls} aria-label={showControls ? "收合同步控制台" : "展開同步控制台"}>{showControls ? <ChevronUp size={17} /> : <ChevronDown size={17} />}</button></header>
+        {showControls && <div className="control-deck">
           <label><span>緯度 <b>{formatLatitude(state.latitude)}</b></span><input type="range" min="-90" max="90" step="0.5" value={state.latitude} onChange={(event) => setNumber("latitude", event.target.value)} /><div className="preset-row latitude-presets">{latitudePresets.map(([label, latitude]) => <button type="button" key={label} className={state.latitude === latitude ? "selected" : ""} onClick={() => { setPlaying(null); setState((current) => ({ ...current, latitude })); }}>{label}</button>)}</div></label>
           <label><span>日期 <b>{dateFromDay(state.day)}</b></span><input type="range" min="1" max="365" step="0.1" value={state.day} onChange={(event) => setNumber("day", event.target.value)} /><div className="preset-row">{datePresets.map(([label, day]) => <button type="button" key={label} className={Math.round(state.day) === day ? "selected" : ""} onClick={() => { setPlaying(null); setState((current) => ({ ...current, day })); }}>{label}</button>)}</div><select className="term-select" value="" onChange={(event) => { const index = Number(event.target.value); if (Number.isNaN(index)) return; const day = ((80 + index * 365 / 24 - 1) % 365) + 1; setPlaying(null); setState((current) => ({ ...current, day })); }}><option value="">24 節氣…</option>{solarTerms.map((term, index) => <option key={term} value={index}>{term}</option>)}</select></label>
           <label><span>地方太陽時 <b>{formatTime(state.time)}</b></span><input type="range" min="0" max="24" step="0.05" value={state.time} onChange={(event) => setNumber("time", event.target.value)} /></label>
           <div className="play-actions"><button className={playing === "day" ? "active" : ""} onClick={() => setPlaying((value) => value === "day" ? null : "day")}>{playing === "day" ? <Pause size={14} /> : <Play size={14} />}一天</button><button className={playing === "year" ? "active year-play" : "year-play"} onClick={() => setPlaying((value) => value === "year" ? null : "year")}>{playing === "year" ? <Pause size={14} /> : <Play size={14} />}一年</button><button onClick={() => { setPlaying(null); setState((current) => ({ ...current, time: 12 })); }}>正午</button></div>
-        </div>
+        </div>}
       </section>
 
       {exportOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setExportOpen(false); }}>
