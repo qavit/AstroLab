@@ -41,6 +41,8 @@ type LabState = { latitude: number; day: number; time: number };
 type ObserverMode = "person" | "dot" | "gnomon";
 type ExportTarget = "global" | "local" | "shadow";
 type ExportMode = "color" | "grayscale" | "line";
+type ShadowSample = { time: number; day: number };
+type ShadowTrace = { enabled: boolean; samples: ShadowSample[] };
 type AppearanceState = {
   globalObserver: ObserverMode;
   localObserver: ObserverMode;
@@ -70,6 +72,8 @@ type LayerState = {
   observerLatitude: boolean;
   observerMeridian: boolean;
   subsolarPoint: boolean;
+  timeLabels: boolean;
+  nadir: boolean;
   compassLabels: boolean;
   horizontalAltitudeLines: boolean;
   horizontalAzimuthLines: boolean;
@@ -78,14 +82,15 @@ type LayerState = {
   meridianCircle: boolean;
   primeVertical: boolean;
   seasonalPaths: boolean;
+  seasonalPathLabels: boolean;
   currentPath: boolean;
   belowHorizon: boolean;
   shadow: boolean;
 };
 type SceneApi = {
-  update: (state: LabState, layers: LayerState, appearance: AppearanceState) => void;
+  update: (state: LabState, layers: LayerState, appearance: AppearanceState, shadowTrace: ShadowTrace) => void;
   reset: () => void;
-  capture: (target: ExportTarget, mode: ExportMode, lineWidth: number) => string;
+  capture: (target: ExportTarget, mode: ExportMode, lineWidth: number, includeShadowTimes: boolean) => string;
   dispose: () => void;
 };
 
@@ -160,6 +165,17 @@ function circle(radius = 1, z = 0, count = 180) {
 function horizonArc(radius: number, azimuth: number, count = 90) {
   return Array.from({ length: count + 1 }, (_, index) => {
     const altitude = degrees((90 * index) / count);
+    return new THREE.Vector3(
+      radius * Math.cos(altitude) * Math.sin(degrees(azimuth)),
+      radius * Math.cos(altitude) * Math.cos(degrees(azimuth)),
+      radius * Math.sin(altitude),
+    );
+  });
+}
+
+function belowHorizonArc(radius: number, azimuth: number, count = 90) {
+  return Array.from({ length: count + 1 }, (_, index) => {
+    const altitude = degrees((-90 * index) / count);
     return new THREE.Vector3(
       radius * Math.cos(altitude) * Math.sin(degrees(azimuth)),
       radius * Math.cos(altitude) * Math.cos(degrees(azimuth)),
@@ -315,6 +331,8 @@ function setupScenes(
 
   const observerLatitude = new THREE.Group();
   globalScene.add(observerLatitude);
+  const globalTimeLabels = new THREE.Group();
+  globalScene.add(globalTimeLabels);
   const observerMeridian = new THREE.Group();
   const observerMeridianPoints = Array.from({ length: 361 }, (_, index) => {
     const latitude = degrees(-90 + index / 2);
@@ -522,10 +540,13 @@ function setupScenes(
     );
   }
   const observerAzimuthLines = new THREE.Group();
+  const observerBelowGrid = new THREE.Group();
   for (let azimuth = 0; azimuth < 360; azimuth += 30) {
     if (azimuth % 90 === 0) continue;
     observerAzimuthLines.add(makeLine(horizonArc(0.42, azimuth, 60), 0x62ad83, 0.34));
+    observerBelowGrid.add(makeLine(belowHorizonArc(0.42, azimuth, 60), 0x62ad83, 0.18, true));
   }
+  for (const altitude of [-30, -60]) observerBelowGrid.add(makeLine(circle(0.42 * Math.cos(degrees(altitude)), 0.42 * Math.sin(degrees(altitude)), 120), 0x71bd91, 0.22, true));
   const observerMeridianCircle = new THREE.Group();
   observerMeridianCircle.add(
     makeLine(horizonArc(0.42, 0, 60), 0xa3dfb8, 0.78),
@@ -569,6 +590,7 @@ function setupScenes(
     observerHorizonLine,
     observerAltitudeLines,
     observerAzimuthLines,
+    observerBelowGrid,
     observerMeridianCircle,
     observerPrimeVertical,
     observerCompassLabels,
@@ -586,6 +608,9 @@ function setupScenes(
   localControls.enableDamping = true;
   localControls.target.set(0, 0, 0.42);
   localScene.add(new THREE.AmbientLight(0xbcd7e8, 1.8));
+  const localLight = new THREE.DirectionalLight(0xffe0a1, 2.4);
+  localLight.position.set(1.8, 1.3, 2.2);
+  localScene.add(localLight);
   const floor = new THREE.Mesh(
     new THREE.CircleGeometry(1.28, 80),
     new THREE.MeshPhongMaterial({ color: 0x173b58, transparent: true, opacity: 0.94, side: THREE.DoubleSide }),
@@ -605,10 +630,13 @@ function setupScenes(
     horizontalAltitudeLines.add(makeLine(circle(Math.cos(degrees(altitude)), Math.sin(degrees(altitude))), 0x71bd91, 0.4));
   }
   const horizontalAzimuthLines = new THREE.Group();
+  const localBelowGrid = new THREE.Group();
   for (let azimuth = 0; azimuth < 360; azimuth += 30) {
     if (azimuth % 90 === 0) continue;
     horizontalAzimuthLines.add(makeLine(horizonArc(1, azimuth), 0x62ad83, 0.34));
+    localBelowGrid.add(makeLine(belowHorizonArc(1, azimuth), 0x62ad83, 0.2, true));
   }
+  for (const altitude of [-30, -60]) localBelowGrid.add(makeLine(circle(Math.cos(degrees(altitude)), Math.sin(degrees(altitude)), 120), 0x71bd91, 0.24, true));
   const localMeridianCircle = new THREE.Group();
   localMeridianCircle.add(
     makeLine(horizonArc(1, 0), 0xa3dfb8, 0.82),
@@ -624,7 +652,7 @@ function setupScenes(
     0xb5e5c6,
     0.78,
   );
-  localScene.add(localHorizonLine, horizontalAltitudeLines, horizontalAzimuthLines, localMeridianCircle, localPrimeVertical, zenithAxis);
+  localScene.add(localHorizonLine, horizontalAltitudeLines, horizontalAzimuthLines, localBelowGrid, localMeridianCircle, localPrimeVertical, zenithAxis);
 
   const localCompassLabels = new THREE.Group();
   const localAltitudeLabels = new THREE.Group();
@@ -637,6 +665,8 @@ function setupScenes(
   });
   const zenith = textSprite("天頂", "#ffffff", 0.12);
   zenith.position.set(0, 0, 1.12);
+  const nadir = textSprite("天底", "#d4f3df", 0.11);
+  nadir.position.set(0, 0, -1.1);
   for (let altitude = 15; altitude <= 75; altitude += 15) {
     const label = textSprite(`${altitude}°`, "#a9e2bd", 0.085);
     label.position.set(
@@ -653,7 +683,9 @@ function setupScenes(
     label.userData.interval = labelInterval(azimuth);
     localAzimuthLabels.add(label);
   }
-  localScene.add(localCompassLabels, localAltitudeLabels, localAzimuthLabels, zenith);
+  const localTimeLabels = new THREE.Group();
+  const seasonalPathLabels = new THREE.Group();
+  localScene.add(localCompassLabels, localAltitudeLabels, localAzimuthLabels, zenith, nadir, localTimeLabels, seasonalPathLabels);
 
   const localDot = new THREE.Mesh(
     new THREE.CircleGeometry(0.0275, 24),
@@ -665,8 +697,9 @@ function setupScenes(
 
   const currentPath = new THREE.Group();
   const comparisonPaths = new THREE.Group();
+  const shadowTraceGroup = new THREE.Group();
   let comparisonLineMaterials: LineMaterial[] = [];
-  localScene.add(currentPath, comparisonPaths);
+  localScene.add(currentPath, comparisonPaths, shadowTraceGroup);
   const localSun = new THREE.Mesh(new THREE.SphereGeometry(0.058, 20, 14), sunMaterial.clone());
   localScene.add(localSun);
   const localSunDragProxy = new THREE.Mesh(
@@ -716,6 +749,7 @@ function setupScenes(
 
   let activeLayers: LayerState | null = null;
   let activeAppearance: AppearanceState | null = null;
+  let activeShadowTrace: ShadowTrace = { enabled: false, samples: [] };
   let activeState: LabState = { latitude: 23.5, day: 172, time: 12 };
   let globalDrag: "observer" | "sun" | null = null;
   let localDrag: "sun" | "path" | null = null;
@@ -821,6 +855,10 @@ function setupScenes(
     adaptive(observerAzimuthLabels, Boolean(activeLayers?.horizontalAzimuthLabels), globalMinimum);
     adaptive(localAltitudeLabels, Boolean(activeLayers?.horizontalAltitudeLabels), localMinimum);
     adaptive(localAzimuthLabels, Boolean(activeLayers?.horizontalAzimuthLabels), localMinimum);
+    const globalTimeMinimum = globalDistance > 7 ? 6 : globalDistance > 5 ? 4 : 2;
+    const localTimeMinimum = localDistance > 4 ? 6 : localDistance > 2.8 ? 4 : 2;
+    adaptive(globalTimeLabels, Boolean(activeLayers?.timeLabels), globalTimeMinimum);
+    adaptive(localTimeLabels, Boolean(activeLayers?.timeLabels), localTimeMinimum);
     solarTermLabels.children.forEach((label) => {
       label.visible = Boolean(activeLayers?.solarTermLabels && label.userData.interval >= globalMinimum);
     });
@@ -840,11 +878,14 @@ function setupScenes(
   let lastObserverLatitude = Number.NaN;
   let lastCurrentPathKey = "";
   let lastSeasonPathKey = "";
+  let lastTimeLabelKey = "";
+  let lastShadowTraceKey = "";
 
   return {
-    update(state, layers, appearance) {
+    update(state, layers, appearance, shadowTrace) {
       activeLayers = layers;
       activeAppearance = appearance;
+      activeShadowTrace = shadowTrace;
       activeState = state;
       celestial.visible = layers.celestialSphere;
       rightAscensionLines.visible = layers.rightAscensionLines;
@@ -865,10 +906,12 @@ function setupScenes(
       subsolarLabel.visible = layers.subsolarPoint;
       observerAltitudeLines.visible = layers.horizontalAltitudeLines;
       observerAzimuthLines.visible = layers.horizontalAzimuthLines;
+      observerBelowGrid.visible = layers.belowHorizon && (layers.horizontalAltitudeLines || layers.horizontalAzimuthLines);
       observerMeridianCircle.visible = layers.meridianCircle;
       observerPrimeVertical.visible = layers.primeVertical;
       horizontalAltitudeLines.visible = layers.horizontalAltitudeLines;
       horizontalAzimuthLines.visible = layers.horizontalAzimuthLines;
+      localBelowGrid.visible = layers.belowHorizon && (layers.horizontalAltitudeLines || layers.horizontalAzimuthLines);
       localMeridianCircle.visible = layers.meridianCircle;
       localPrimeVertical.visible = layers.primeVertical;
       observerHorizonLine.visible = layers.compassLabels || layers.horizontalAltitudeLines || layers.horizontalAzimuthLines;
@@ -877,11 +920,13 @@ function setupScenes(
       dome.visible = observerHorizonLine.visible;
       floor.visible = layers.tangentPlane;
       zenith.visible = layers.compassLabels;
+      nadir.visible = layers.nadir && layers.belowHorizon;
       zenithAxis.visible = layers.horizontalAzimuthLines;
       northLabel.visible = layers.celestialAxis;
       eclipticLabel.visible = layers.ecliptic;
       currentPath.visible = layers.currentPath;
       comparisonPaths.visible = layers.seasonalPaths;
+      seasonalPathLabels.visible = layers.seasonalPaths && layers.seasonalPathLabels;
       shadowGroup.visible = layers.shadow;
       observerDot.visible = layers.observer && appearance.globalObserver === "dot";
       globalPerson.visible = layers.observer && appearance.globalObserver === "person";
@@ -947,6 +992,30 @@ function setupScenes(
         observerLatitude.add(makeLine(circle(radius, z), 0xff8f75, 0.98));
       }
 
+      const timeLabelKey = `${state.latitude}:${state.day.toFixed(2)}`;
+      if (timeLabelKey !== lastTimeLabelKey) {
+        lastTimeLabelKey = timeLabelKey;
+        clearGroup(globalTimeLabels);
+        clearGroup(localTimeLabels);
+        for (let time = 0; time < 24; time += 2) {
+          const longitude = sunRightAscension + degrees(15 * (time - 12));
+          const point = new THREE.Vector3(
+            1.065 * Math.cos(phi) * Math.cos(longitude),
+            1.065 * Math.cos(phi) * Math.sin(longitude),
+            1.065 * Math.sin(phi),
+          );
+          const globalLabel = textSprite(formatTime(time), "#ffd9a1", 0.072, true);
+          globalLabel.position.copy(point);
+          globalLabel.userData.interval = time % 6 === 0 ? 6 : 2;
+          globalTimeLabels.add(globalLabel);
+          const localVector = sunHorizontal(state.latitude, declination, degrees(15 * (time - 12)));
+          const localLabel = textSprite(formatTime(time), "#ffe2ad", 0.072);
+          localLabel.position.copy(localVector).multiplyScalar(1.06);
+          localLabel.userData.interval = time % 6 === 0 ? 6 : 2;
+          localTimeLabels.add(localLabel);
+        }
+      }
+
       const currentPathKey = `${state.latitude}:${state.day.toFixed(2)}:${layers.currentPath}:${layers.belowHorizon}`;
       if (currentPathKey !== lastCurrentPathKey) {
         lastCurrentPathKey = currentPathKey;
@@ -959,6 +1028,7 @@ function setupScenes(
       if (seasonPathKey !== lastSeasonPathKey) {
         lastSeasonPathKey = seasonPathKey;
         clearGroup(comparisonPaths);
+        clearGroup(seasonalPathLabels);
         comparisonLineMaterials = [];
         if (layers.seasonalPaths) {
           seasons.forEach((season) => {
@@ -972,12 +1042,16 @@ function setupScenes(
               true,
               comparisonLineMaterials,
             );
+            const label = textSprite(season.declination > 0 ? "夏至" : season.declination < 0 ? "冬至" : "春／秋分", "#ffffff", 0.09);
+            label.position.copy(sunHorizontal(state.latitude, season.declination, 0)).multiplyScalar(1.09);
+            seasonalPathLabels.add(label);
           });
           comparisonLineMaterials.forEach((material) => material.resolution.set(localRenderer.domElement.width, localRenderer.domElement.height));
         }
       }
 
       const vector = sunHorizontal(state.latitude, declination, hourAngle);
+      localLight.position.copy(vector).multiplyScalar(3.2);
       localSun.position.set(vector.x, vector.y, vector.z);
       localSunDragProxy.position.copy(localSun.position);
       (localSun.material as THREE.MeshBasicMaterial).opacity = vector.z >= 0 ? 1 : 0.25;
@@ -996,6 +1070,26 @@ function setupScenes(
         ray.geometry.setFromPoints([new THREE.Vector3(0, 0, rodHeight), tip]);
         ray.computeLineDistances();
       }
+      const traceKey = `${state.latitude}:${state.day.toFixed(2)}:${activeShadowTrace.enabled}:${activeShadowTrace.samples.map((sample) => sample.time.toFixed(2)).join(",")}`;
+      if (traceKey !== lastShadowTraceKey) {
+        lastShadowTraceKey = traceKey;
+        clearGroup(shadowTraceGroup);
+        if (activeShadowTrace.enabled) {
+          activeShadowTrace.samples.forEach((sample) => {
+            const sampleVector = sunHorizontal(state.latitude, solarDeclination(sample.day), degrees(15 * (sample.time - 12)));
+            const sampleCast = shadowForUnitGnomon(sampleVector);
+            if (!sampleCast) return;
+            const tip = new THREE.Vector3(sampleCast.x * rodHeight, sampleCast.y * rodHeight, 0.009);
+            shadowTraceGroup.add(makeLine([new THREE.Vector3(), tip], 0xd8e4e6, 0.86));
+            const label = textSprite(formatTime(sample.time), "#e3eff0", 0.065);
+            label.position.copy(tip).multiplyScalar(1.08);
+            label.position.z = 0.02;
+            label.userData.shadowTime = true;
+            shadowTraceGroup.add(label);
+          });
+        }
+      }
+      shadowTraceGroup.visible = activeShadowTrace.enabled;
     },
     reset() {
       globalCamera.position.set(4.6, 3.15, 4.6);
@@ -1005,7 +1099,7 @@ function setupScenes(
       globalControls.update();
       localControls.update();
     },
-    capture(target, mode, lineWidth) {
+    capture(target, mode, lineWidth, includeShadowTimes) {
       const scene = target === "global" ? globalScene : localScene;
       const renderer = target === "global" ? globalRenderer : localRenderer;
       const snapshots: Array<{
@@ -1030,6 +1124,7 @@ function setupScenes(
         [
           horizontalAltitudeLines,
           horizontalAzimuthLines,
+          localBelowGrid,
           localMeridianCircle,
           localPrimeVertical,
           localHorizonLine,
@@ -1049,6 +1144,14 @@ function setupScenes(
         });
         visibilitySnapshots.set(shadowGroup, shadowGroup.visible);
         shadowGroup.visible = true;
+        if (!includeShadowTimes) {
+          shadowTraceGroup.children.forEach((object) => {
+            if (object.userData.shadowTime) {
+              visibilitySnapshots.set(object, object.visible);
+              object.visible = false;
+            }
+          });
+        }
       }
 
       if (mode === "line") {
@@ -1171,6 +1274,11 @@ export default function SolarLab() {
   const [exportTarget, setExportTarget] = useState<ExportTarget>("local");
   const [exportMode, setExportMode] = useState<ExportMode>("color");
   const [lineWidth, setLineWidth] = useState(1);
+  const [shadowTraceEnabled, setShadowTraceEnabled] = useState(false);
+  const [shadowTraceInterval, setShadowTraceInterval] = useState(30);
+  const [shadowSamples, setShadowSamples] = useState<ShadowSample[]>([]);
+  const [exportShadowTimes, setExportShadowTimes] = useState(true);
+  const previousTraceTime = useRef<number | null>(null);
   const [exportPreview, setExportPreview] = useState("");
   const [directoryName, setDirectoryName] = useState("瀏覽器下載資料夾");
   const [appearance, setAppearance] = useState<AppearanceState>({
@@ -1202,6 +1310,8 @@ export default function SolarLab() {
     observerLatitude: true,
     observerMeridian: true,
     subsolarPoint: true,
+    timeLabels: false,
+    nadir: false,
     compassLabels: true,
     horizontalAltitudeLines: true,
     horizontalAzimuthLines: true,
@@ -1210,6 +1320,7 @@ export default function SolarLab() {
     meridianCircle: true,
     primeVertical: true,
     seasonalPaths: true,
+    seasonalPathLabels: false,
     currentPath: true,
     belowHorizon: true,
     shadow: true,
@@ -1224,16 +1335,16 @@ export default function SolarLab() {
     return () => sceneRef.current?.dispose();
   }, []);
 
-  useEffect(() => sceneRef.current?.update(state, layers, appearance), [state, layers, appearance]);
+  useEffect(() => sceneRef.current?.update(state, layers, appearance, { enabled: shadowTraceEnabled, samples: shadowSamples }), [state, layers, appearance, shadowTraceEnabled, shadowSamples]);
 
   useEffect(() => {
     if (!exportOpen) return;
     const frame = requestAnimationFrame(() => {
-      const preview = sceneRef.current?.capture(exportTarget, exportMode, lineWidth);
+      const preview = sceneRef.current?.capture(exportTarget, exportMode, lineWidth, exportShadowTimes);
       if (preview) setExportPreview(preview);
     });
     return () => cancelAnimationFrame(frame);
-  }, [exportOpen, exportTarget, exportMode, lineWidth, state, layers, appearance]);
+  }, [exportOpen, exportTarget, exportMode, lineWidth, exportShadowTimes, state, layers, appearance, shadowSamples, shadowTraceEnabled]);
 
   useEffect(() => {
     if (!playing) return;
@@ -1257,6 +1368,24 @@ export default function SolarLab() {
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [playing]);
+
+  useEffect(() => {
+    const previous = previousTraceTime.current;
+    previousTraceTime.current = state.time;
+    if (!shadowTraceEnabled) return;
+    if (playing === "day" && previous !== null && state.time < previous) {
+      const frame = requestAnimationFrame(() => setShadowSamples([]));
+      return () => cancelAnimationFrame(frame);
+    }
+    if (playing !== "day") return;
+    const vector = sunHorizontal(state.latitude, solarDeclination(state.day), degrees(15 * (state.time - 12)));
+    if (vector.z <= 0) return;
+    const slot = Math.round((state.time * 60) / shadowTraceInterval);
+    const frame = requestAnimationFrame(() => {
+      setShadowSamples((current) => current.some((sample) => Math.round((sample.time * 60) / shadowTraceInterval) === slot) ? current : [...current, { time: state.time, day: state.day }]);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [state, playing, shadowTraceEnabled, shadowTraceInterval]);
 
   const declination = solarDeclination(state.day);
   const vector = sunHorizontal(state.latitude, declination, degrees(15 * (state.time - 12)));
@@ -1293,7 +1422,7 @@ export default function SolarLab() {
   };
 
   const saveExport = async () => {
-    const dataUrl = sceneRef.current?.capture(exportTarget, exportMode, lineWidth);
+    const dataUrl = sceneRef.current?.capture(exportTarget, exportMode, lineWidth, exportShadowTimes);
     if (!dataUrl) return;
     const filename = `astrolab-${exportTarget}-${Math.round(state.latitude)}-${Math.round(state.day)}-${exportMode}.png`;
     const blob = await fetch(dataUrl).then((response) => response.blob());
@@ -1382,6 +1511,7 @@ export default function SolarLab() {
             <label><input type="checkbox" checked={layers.observerLatitude} onChange={() => toggleLayer("observerLatitude")} />觀察者緯線</label>
             <label><input type="checkbox" checked={layers.observerMeridian} onChange={() => toggleLayer("observerMeridian")} />觀察者經線</label>
             <label><input type="checkbox" checked={layers.subsolarPoint} onChange={() => toggleLayer("subsolarPoint")} />日下點</label>
+            <label><input type="checkbox" checked={layers.timeLabels} onChange={() => toggleLayer("timeLabels")} />時間標籤</label>
             <label><input type="checkbox" checked={layers.observer} onChange={() => toggleLayer("observer")} />觀察者</label>
             <label><input type="checkbox" checked={layers.tangentPlane} onChange={() => toggleLayer("tangentPlane")} />切平面</label>
             <span className="field-label">地心模型觀察者</span><select disabled={!layers.observer} value={appearance.globalObserver} onChange={(event) => setAppearance((current) => ({ ...current, globalObserver: event.target.value as ObserverMode }))}><option value="person">人形</option><option value="dot">圓形點</option><option value="gnomon">竿與影</option></select>
@@ -1391,11 +1521,13 @@ export default function SolarLab() {
             <select aria-label="方位數量" disabled={!layers.compassLabels} value={appearance.compassPoints} onChange={(event) => setAppearance((current) => ({ ...current, compassPoints: Number(event.target.value) as 4 | 8 | 16 }))}><option value="4">4 方位</option><option value="8">8 方位</option><option value="16">16 方位</option></select>
             <div className="coordinate-row"><strong>高度角</strong><label><input type="checkbox" checked={layers.horizontalAltitudeLines} onChange={() => toggleLayer("horizontalAltitudeLines")} />線</label><label><input type="checkbox" checked={layers.horizontalAltitudeLabels} onChange={() => toggleLayer("horizontalAltitudeLabels")} />標籤</label></div>
             <div className="coordinate-row"><strong>方位角</strong><label><input type="checkbox" checked={layers.horizontalAzimuthLines} onChange={() => toggleLayer("horizontalAzimuthLines")} />線</label><label><input type="checkbox" checked={layers.horizontalAzimuthLabels} onChange={() => toggleLayer("horizontalAzimuthLabels")} />標籤</label></div>
+            <label><input type="checkbox" checked={layers.nadir} onChange={() => toggleLayer("nadir")} />天底</label>
             <label><input type="checkbox" checked={layers.meridianCircle} onChange={() => toggleLayer("meridianCircle")} />子午圈</label>
             <label><input type="checkbox" checked={layers.primeVertical} onChange={() => toggleLayer("primeVertical")} />酉卯圈</label>
             <label><input type="checkbox" checked={layers.currentPath} onChange={() => toggleLayer("currentPath")} />當日太陽週日運動軌跡</label>
             <label><input type="checkbox" checked={layers.seasonalPaths} onChange={() => toggleLayer("seasonalPaths")} />二分二至太陽週日運動軌跡</label>
-            <label><input type="checkbox" checked={layers.belowHorizon} onChange={() => toggleLayer("belowHorizon")} />地平線以下</label>
+            <label><input type="checkbox" checked={layers.seasonalPathLabels} onChange={() => toggleLayer("seasonalPathLabels")} />二分二至軌跡標籤</label>
+            <label><input type="checkbox" checked={layers.belowHorizon} onChange={() => toggleLayer("belowHorizon")} />地平面以下</label>
             <label><input type="checkbox" checked={layers.shadow} onChange={() => toggleLayer("shadow")} />竿與影線</label>
             <span className="field-label">觀察者模型中心</span><select disabled={!layers.observer} value={appearance.localObserver} onChange={(event) => setAppearance((current) => ({ ...current, localObserver: event.target.value as ObserverMode }))}><option value="person">人形</option><option value="dot">圓形點</option><option value="gnomon">竿與影</option></select>
           </div></details>
@@ -1407,7 +1539,7 @@ export default function SolarLab() {
         {showControls && <div className="control-deck">
           <label><span>緯度 <b>{formatLatitude(state.latitude)}</b></span><input type="range" min="-90" max="90" step="0.5" value={state.latitude} onChange={(event) => setNumber("latitude", event.target.value)} /><div className="preset-row latitude-presets">{latitudePresets.map(([label, latitude]) => <button type="button" key={label} className={state.latitude === latitude ? "selected" : ""} onClick={() => { setPlaying(null); setState((current) => ({ ...current, latitude })); }}>{label}</button>)}</div></label>
           <label><span>日期 <b>{dateFromDay(state.day)}</b></span><input type="range" min="1" max="365" step="0.1" value={state.day} onChange={(event) => setNumber("day", event.target.value)} /><div className="preset-row">{datePresets.map(([label, day]) => <button type="button" key={label} className={Math.round(state.day) === day ? "selected" : ""} onClick={() => { setPlaying(null); setState((current) => ({ ...current, day })); }}>{label}</button>)}</div><select className="term-select" value="" onChange={(event) => { const index = Number(event.target.value); if (Number.isNaN(index)) return; const day = ((80 + index * 365 / 24 - 1) % 365) + 1; setPlaying(null); setState((current) => ({ ...current, day })); }}><option value="">24 節氣…</option>{solarTerms.map((term, index) => <option key={term} value={index}>{term}</option>)}</select></label>
-          <label><span>地方太陽時 <b>{formatTime(state.time)}</b></span><input type="range" min="0" max="24" step="0.05" value={state.time} onChange={(event) => setNumber("time", event.target.value)} /></label>
+          <label className="time-control"><span>地方太陽時 <b>{formatTime(state.time)}</b></span><input type="range" min="0" max="24" step="0.05" value={state.time} onChange={(event) => setNumber("time", event.target.value)} /><div className="shadow-trace-controls"><label><input type="checkbox" checked={shadowTraceEnabled} onChange={(event) => { setShadowTraceEnabled(event.target.checked); if (!event.target.checked) setShadowSamples([]); }} />描繪竿影</label><select disabled={!shadowTraceEnabled} value={shadowTraceInterval} onChange={(event) => setShadowTraceInterval(Number(event.target.value))}><option value="15">每 15 分</option><option value="30">每 30 分</option><option value="60">每 1 小時</option><option value="120">每 2 小時</option></select><button type="button" disabled={!shadowSamples.length} onClick={() => setShadowSamples([])}>清除</button></div></label>
           <div className="play-actions"><button className={playing === "day" ? "active" : ""} onClick={() => setPlaying((value) => value === "day" ? null : "day")}>{playing === "day" ? <Pause size={14} /> : <Play size={14} />}一天</button><button className={playing === "year" ? "active year-play" : "year-play"} onClick={() => setPlaying((value) => value === "year" ? null : "year")}>{playing === "year" ? <Pause size={14} /> : <Play size={14} />}一年</button><button onClick={() => { setPlaying(null); setState((current) => ({ ...current, time: 12 })); }}>正午</button></div>
         </div>}
       </section>
@@ -1420,6 +1552,7 @@ export default function SolarLab() {
               <label><span>輸出內容</span><select value={exportTarget} onChange={(event) => setExportTarget(event.target.value as ExportTarget)}><option value="global">地心模型</option><option value="local">觀察者模型</option><option value="shadow">當日竿影圖</option></select></label>
               <label><span>呈現方式</span><select value={exportMode} onChange={(event) => setExportMode(event.target.value as ExportMode)}><option value="color">螢幕所見・彩色</option><option value="grayscale">螢幕所見・灰階</option><option value="line">黑白線稿</option></select></label>
               {exportMode === "line" && <label><span>線條粗細 <b>{lineWidth}</b></span><input type="range" min="1" max="4" step="1" value={lineWidth} onChange={(event) => setLineWidth(Number(event.target.value))} /></label>}
+              {exportTarget === "shadow" && <label className="export-check"><input type="checkbox" checked={exportShadowTimes} onChange={(event) => setExportShadowTimes(event.target.checked)} />標記竿影時間</label>}
               <div className="directory-choice"><span>輸出目錄</span><button onClick={chooseDirectory}><FolderOpen size={15} />{directoryName}</button></div>
               <p>黑白線稿會保留太陽實心圓與外框，適合講義排版及影印。</p>
             </div>
