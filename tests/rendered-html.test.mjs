@@ -23,6 +23,10 @@ test("server-renders the AstroLab model shell", async () => {
   assert.match(html, /地心模型/);
   assert.match(html, /觀察者模型/);
   assert.match(html, /同步控制台/);
+  assert.match(html, /赤經／赤緯格線/);
+  assert.match(html, /高度／方位格線/);
+  assert.match(html, /天球外框/);
+  assert.match(html, /黑白線稿 PNG/);
   assert.match(html, /影長（竿高 = 1）/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
 });
