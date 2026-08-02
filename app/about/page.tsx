@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <main className="about-page">
-      <nav><Link href="/">← 返回模型</Link></nav>
+      <nav><Link href="/solar">← 返回模型</Link></nav>
       <article>
         <div className="eyebrow">AstroLab · Model notes</div>
         <h1>模型的理想化設計</h1>

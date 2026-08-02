@@ -159,8 +159,8 @@ export default function SolarLab() {
           <button className={showLayers ? "active" : ""} onClick={() => setShowLayers((value) => !value)}><Layers3 size={15} />圖層</button>
           <button className={showControls ? "active" : ""} onClick={() => setShowControls((value) => !value)}><Settings2 size={15} />控制台</button>
           <button onClick={() => sceneRef.current?.reset()} aria-label="重設視角"><RotateCcw size={15} />重設</button>
-          <Link className="toolbar-link" href="/about"><Info size={15} />模型說明</Link>
-          <Link className="toolbar-link" href="/magnetism">磁場模型 →</Link>
+          <Link className="model-index-link" href="/">模型目錄</Link>
+          <Link className="model-index-link" href="/about"><Info size={15} />模型說明</Link>
           <button className="primary-action" onClick={() => setExportOpen(true)}><Download size={15} />匯出</button>
         </div>
       </header>

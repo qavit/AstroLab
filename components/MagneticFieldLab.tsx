@@ -229,7 +229,7 @@ export default function MagneticFieldLab() {
           </h1>
         </div>
         <div className="header-actions">
-          <Link className="toolbar-link" href="/">← 太陽模型</Link>
+          <Link className="model-index-link" href="/">模型目錄</Link>
           <button onClick={reset}><RotateCcw size={14} /> 重設為範例題</button>
         </div>
       </div>

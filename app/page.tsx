@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import SolarLab from "@/components/SolarLab";
+import ModelCatalog from "@/components/ModelCatalog";
 
 export const metadata: Metadata = {
-  title: "太陽、天球與竿影｜AstroLab",
-  description: "同步探索地心天球與觀察者天空的互動式科學模型。",
+  title: "AstroLab｜互動式科學模型",
+  description: "用可操作的科學模型探索天文、地球科學與物理概念。",
 };
 
 export default function Home() {
-  return <SolarLab />;
+  return <ModelCatalog />;
 }

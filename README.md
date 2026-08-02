@@ -13,8 +13,10 @@ Open `http://localhost:3000`.
 
 ## Structure
 
-- `lib/science/solar.ts`: 純天文與座標計算
-- `components/SolarLab.tsx`: 互動控制及同步 3D 視圖
-- `docs/architecture.md`: 平台分層及下一階段整合方式
+- `lib/science/`: 純科學計算與座標轉換，不依賴 DOM 或渲染
+- `lib/render/`: 與模型無關的 Three.js 基礎層（viewport、繪圖原件、拖曳、匯出）
+- `models/`: 各模型的狀態、預設值、時間演化與衍生量
+- `components/`: 同步互動視圖與控制介面
+- `docs/architecture.md`: 平台分層、相依方向及各模型的設計取捨
 
-Current calculations use a classroom approximation for solar declination. A future precision mode can adopt Astronomy Engine without changing the view contract.
+太陽模型的赤緯仍採課堂用的平滑近似式（全年誤差在 2° 以內）。需要真實星曆的部分改走 `lib/science/ephemeris.ts` —— 全平台唯一接觸 `astronomy-engine` 的檔案，由測試強制維持。
