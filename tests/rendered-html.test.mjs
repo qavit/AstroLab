@@ -60,20 +60,70 @@ test("server-renders the model explanation page", async () => {
 });
 
 test("keeps science calculations separate from the Three.js view", async () => {
-  const [science, view, packageJson] = await Promise.all([
+  const [science, model, view, geocentric, packageJson] = await Promise.all([
     readFile(new URL("../lib/science/solar.ts", import.meta.url), "utf8"),
+    readFile(new URL("../models/solar.ts", import.meta.url), "utf8"),
     readFile(new URL("../components/SolarLab.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/solar/geocentricScene.ts", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
   assert.match(science, /export function solarDeclination/);
   assert.match(science, /export function sunHorizontal/);
   assert.doesNotMatch(science, /three|document|window/i);
+  assert.match(model, /export function deriveSolarModel/);
+  assert.match(model, /export function advanceSolarState/);
   assert.match(view, /from "@\/lib\/science\/solar"/);
-  assert.match(view, /OrbitControls/);
-  assert.match(view, /makeBasis\(east, north, normal\)/);
-  assert.match(view, /CapsuleGeometry/);
+  assert.match(view, /from "@\/models\/solar"/);
+  assert.match(view, /from "@\/components\/solar\/scene"/);
+  assert.match(geocentric, /makeBasis\(east, north, normal\)/);
   assert.match(packageJson, /"three"/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
+});
+
+test("drives both solar views from one shared frame", async () => {
+  const [scene, frame, observer] = await Promise.all([
+    readFile(new URL("../components/solar/scene.ts", import.meta.url), "utf8"),
+    readFile(new URL("../components/solar/frame.ts", import.meta.url), "utf8"),
+    readFile(new URL("../components/solar/observerScene.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(frame, /export function solarFrame/);
+  // One frame per update, handed to both scenes, so the two views cannot drift apart.
+  assert.match(scene, /const frame = solarFrame\(state\)/);
+  assert.match(scene, /geocentric\.update\(state, layers, appearance, frame\)/);
+  assert.match(scene, /observer\.update\(state, layers, appearance, frame, shadowTrace\)/);
+  assert.match(observer, /setPathsRebuiltHandler/);
+});
+
+test("keeps the shared render layer free of model and framework knowledge", async () => {
+  const files = ["viewport", "primitives", "interaction", "export"];
+  const sources = await Promise.all(
+    files.map((name) => readFile(new URL(`../lib/render/${name}.ts`, import.meta.url), "utf8")),
+  );
+  for (const source of sources) {
+    assert.doesNotMatch(source, /@\/lib\/science/);
+    assert.doesNotMatch(source, /@\/models/);
+    assert.doesNotMatch(source, /from "react"/);
+    assert.doesNotMatch(source, /from "next\//);
+  }
+  const [viewport, primitives, interaction, exporter] = sources;
+  assert.match(viewport, /OrbitControls/);
+  assert.match(viewport, /export function createViewport/);
+  assert.match(primitives, /CapsuleGeometry/);
+  assert.match(interaction, /setPointerCapture/);
+  assert.match(exporter, /export function toLineArt/);
+});
+
+test("keeps the model layer free of rendering and React", async () => {
+  const sources = await Promise.all([
+    readFile(new URL("../models/solar.ts", import.meta.url), "utf8"),
+    readFile(new URL("../models/magnetism.ts", import.meta.url), "utf8"),
+  ]);
+  for (const source of sources) {
+    assert.doesNotMatch(source, /from "three/);
+    assert.doesNotMatch(source, /@\/lib\/render/);
+    assert.doesNotMatch(source, /from "react"/);
+    assert.match(source, /@\/lib\/science\//);
+  }
 });
 
 test("server-renders the magnetic field model page", async () => {
@@ -89,13 +139,16 @@ test("server-renders the magnetic field model page", async () => {
 });
 
 test("keeps magnetism science calculations independent of the Three.js view", async () => {
-  const [science, view] = await Promise.all([
+  const [science, model, view] = await Promise.all([
     readFile(new URL("../lib/science/magnetism.ts", import.meta.url), "utf8"),
+    readFile(new URL("../models/magnetism.ts", import.meta.url), "utf8"),
     readFile(new URL("../components/MagneticFieldLab.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(science, /export function fieldFromWire/);
   assert.match(science, /export function totalField/);
   assert.doesNotMatch(science, /three|document|window/i);
+  assert.match(model, /export function deriveMagnetismModel/);
   assert.match(view, /from "@\/lib\/science\/magnetism"/);
-  assert.match(view, /OrbitControls/);
+  assert.match(view, /from "@\/models\/magnetism"/);
+  assert.match(view, /from "@\/lib\/render\/viewport"/);
 });

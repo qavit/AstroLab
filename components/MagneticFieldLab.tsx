@@ -3,24 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RotateCcw, Scissors, Sparkles } from "lucide-react";
 import {
   crossV,
-  distanceToWire,
-  examplePoint,
-  exampleWires,
-  fieldFromWire,
   formatField,
-  hasWireSingularity,
   normalizeV,
-  pageComponent,
-  totalField,
   vec,
   wireGeometry,
   type Vec3,
   type Wire,
 } from "@/lib/science/magnetism";
+import { arrowGroup, clearGroup, makeLine, textSprite } from "@/lib/render/primitives";
+import { createRenderLoop, createViewport } from "@/lib/render/viewport";
+import {
+  deriveMagnetismModel,
+  initialMagnetismState,
+  type MagnetismReadout,
+  type MagnetismState,
+} from "@/models/magnetism";
 
 const WIRE_COLORS: Record<string, { hex: number; css: string }> = {
   I1: { hex: 0xef6c57, css: "#ef6c57" },
@@ -40,48 +40,6 @@ function arrowLength(microTesla: number) {
   return Math.min(1.6, Math.max(0.22, 0.22 + 0.55 * Math.sqrt(Math.abs(microTesla))));
 }
 
-function textSprite(text: string, color = "#eaf3f7", scale = 0.17) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 128;
-  const context = canvas.getContext("2d")!;
-  context.font = "600 48px 'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif";
-  context.fillStyle = color;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillText(text, 256, 64);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false }),
-  );
-  sprite.scale.set(scale * 4, scale, 1);
-  return sprite;
-}
-
-function arrowGroup(from: Vec3, direction: Vec3, length: number, color: number, opacity = 1, headSize = 0.09, shaftRadius = 0.016) {
-  const group = new THREE.Group();
-  const dir = normalizeV(direction);
-  const to = { x: from.x + dir.x * length, y: from.y + dir.y * length, z: from.z + dir.z * length };
-  const shaftEnd = { x: from.x + dir.x * (length - headSize * 1.7), y: from.y + dir.y * (length - headSize * 1.7), z: from.z + dir.z * (length - headSize * 1.7) };
-  const shaftLength = Math.hypot(shaftEnd.x - from.x, shaftEnd.y - from.y, shaftEnd.z - from.z);
-  const shaftMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity });
-  if (shaftLength > 0.001) {
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLength, 10), shaftMaterial);
-    shaft.position.set((from.x + shaftEnd.x) / 2, (from.y + shaftEnd.y) / 2, (from.z + shaftEnd.z) / 2);
-    shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dir.x, dir.y, dir.z));
-    group.add(shaft);
-  }
-  const cone = new THREE.Mesh(
-    new THREE.ConeGeometry(headSize * 0.55, headSize * 1.7, 12),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity }),
-  );
-  cone.position.set((shaftEnd.x + to.x) / 2, (shaftEnd.y + to.y) / 2, (shaftEnd.z + to.z) / 2);
-  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dir.x, dir.y, dir.z));
-  group.add(cone);
-  return group;
-}
-
 function fieldRing(wire: Wire, color: number, radius: number, ticks = 8, opacity = 0.4) {
   const group = new THREE.Group();
   const { point, direction } = wireGeometry(wire);
@@ -93,7 +51,7 @@ function fieldRing(wire: Wire, color: number, radius: number, ticks = 8, opacity
     const radial = { x: uv.x * Math.cos(angle) + w.x * Math.sin(angle), y: uv.y * Math.cos(angle) + w.y * Math.sin(angle), z: uv.z * Math.cos(angle) + w.z * Math.sin(angle) };
     circlePoints.push(new THREE.Vector3(point.x + radial.x * radius, point.y + radial.y * radius, point.z + radial.z * radius));
   }
-  group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(circlePoints), new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.6 })));
+  group.add(makeLine(circlePoints, color, opacity * 0.6));
   for (let i = 0; i < ticks; i += 1) {
     const angle = (i / ticks) * Math.PI * 2;
     const radial = normalizeV({ x: uv.x * Math.cos(angle) + w.x * Math.sin(angle), y: uv.y * Math.cos(angle) + w.y * Math.sin(angle), z: uv.z * Math.cos(angle) + w.z * Math.sin(angle) });
@@ -104,39 +62,18 @@ function fieldRing(wire: Wire, color: number, radius: number, ticks = 8, opacity
   return group;
 }
 
-function clearGroup(group: THREE.Group) {
-  for (const item of [...group.children]) {
-    group.remove(item);
-    item.traverse((node) => {
-      const mesh = node as THREE.Mesh;
-      mesh.geometry?.dispose?.();
-      const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
-      if (Array.isArray(material)) material.forEach((m) => m.dispose());
-      else material?.dispose();
-    });
-  }
-}
-
-type SceneApi = { update: (wires: Wire[], point: Vec3) => void; dispose: () => void };
+type SceneApi = { update: (state: MagnetismState, readout: MagnetismReadout) => void; dispose: () => void };
 
 function setupScene(host: HTMLDivElement): SceneApi {
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 100);
-  camera.position.set(4.5, -4.2, 1.25);
-  camera.up.set(0, 0, 1);
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  host.appendChild(renderer.domElement);
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.target.set(0, 0, 0);
+  const viewport = createViewport({ host, fov: 42, position: [4.5, -4.2, 1.25] });
+  const { scene } = viewport;
 
   const gridSize = 4.6;
   const grid = new THREE.Group();
   for (let i = -gridSize / 2; i <= gridSize / 2 + 0.01; i += 0.5) {
-    grid.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(i, -gridSize / 2, 0), new THREE.Vector3(i, gridSize / 2, 0)]), new THREE.LineBasicMaterial({ color: 0x2c5a76, transparent: true, opacity: Math.abs(i) < 0.01 ? 0.55 : 0.16 })));
-    grid.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-gridSize / 2, i, 0), new THREE.Vector3(gridSize / 2, i, 0)]), new THREE.LineBasicMaterial({ color: 0x2c5a76, transparent: true, opacity: Math.abs(i) < 0.01 ? 0.55 : 0.16 })));
+    const opacity = Math.abs(i) < 0.01 ? 0.55 : 0.16;
+    grid.add(makeLine([new THREE.Vector3(i, -gridSize / 2, 0), new THREE.Vector3(i, gridSize / 2, 0)], 0x2c5a76, opacity));
+    grid.add(makeLine([new THREE.Vector3(-gridSize / 2, i, 0), new THREE.Vector3(gridSize / 2, i, 0)], 0x2c5a76, opacity));
   }
   scene.add(grid);
   const plane = new THREE.Mesh(new THREE.PlaneGeometry(gridSize, gridSize), new THREE.MeshBasicMaterial({ color: 0x0d2b41, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }));
@@ -146,45 +83,27 @@ function setupScene(host: HTMLDivElement): SceneApi {
   const zLabel = textSprite("z（出紙面）", "#9fd3e8", 0.13);
   zLabel.position.set(0, 0, 1.55);
   scene.add(zLabel);
-  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 1.4)]), new THREE.LineBasicMaterial({ color: 0x6fa8c0, transparent: true, opacity: 0.5 })));
+  scene.add(makeLine([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 1.4)], 0x6fa8c0, 0.5));
 
   const dynamic = new THREE.Group();
   scene.add(dynamic);
 
-  const resize = () => {
-    const width = host.clientWidth;
-    const height = host.clientHeight;
-    if (!width || !height) return;
-    renderer.setSize(width, height, false);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-  };
-  const observer = new ResizeObserver(resize);
-  observer.observe(host);
-  resize();
+  const stopLoop = createRenderLoop(() => viewport.tick());
 
-  let frame = 0;
-  const animate = () => {
-    frame = requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  };
-  animate();
-
-  const update = (wires: Wire[], point: Vec3) => {
+  const update = ({ wires, point }: MagnetismState, readout: MagnetismReadout) => {
     clearGroup(dynamic);
     for (const wire of wires) {
       const info = WIRE_COLORS[wire.id] ?? { hex: 0xffffff, css: "#ffffff" };
       const { point: base, direction } = wireGeometry(wire);
-      const start = { x: base.x - direction.x * HALF_LENGTH, y: base.y - direction.y * HALF_LENGTH, z: base.z - direction.z * HALF_LENGTH };
-      const end = { x: base.x + direction.x * HALF_LENGTH, y: base.y + direction.y * HALF_LENGTH, z: base.z + direction.z * HALF_LENGTH };
+      const start = new THREE.Vector3(base.x - direction.x * HALF_LENGTH, base.y - direction.y * HALF_LENGTH, base.z - direction.z * HALF_LENGTH);
+      const end = new THREE.Vector3(base.x + direction.x * HALF_LENGTH, base.y + direction.y * HALF_LENGTH, base.z + direction.z * HALF_LENGTH);
       const opacity = wire.active ? 0.95 : 0.28;
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(start.x, start.y, start.z), new THREE.Vector3(end.x, end.y, end.z)]),
-        wire.active
-          ? new THREE.LineBasicMaterial({ color: info.hex, transparent: true, opacity })
-          : new THREE.LineDashedMaterial({ color: 0x5b6b76, transparent: true, opacity, dashSize: 0.08, gapSize: 0.06 }),
-      );
+      const line = wire.active
+        ? makeLine([start, end], info.hex, opacity)
+        : new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([start, end]),
+            new THREE.LineDashedMaterial({ color: 0x5b6b76, transparent: true, opacity, dashSize: 0.08, gapSize: 0.06 }),
+          );
       if (!wire.active) line.computeLineDistances();
       dynamic.add(line);
       if (wire.active) {
@@ -203,27 +122,20 @@ function setupScene(host: HTMLDivElement): SceneApi {
     oLabel.position.set(point.x + 0.1, point.y + 0.1, point.z + 0.14);
     dynamic.add(oLabel);
 
-    const field = totalField(wires, point);
-    const fieldDefined = !hasWireSingularity(wires, point);
-    const { magnitude, sign } = pageComponent(field);
-    if (fieldDefined && sign !== "none") {
-      const microTesla = magnitude * 1e6;
-      const zDir = sign === "out" ? vec(0, 0, 1) : vec(0, 0, -1);
-      dynamic.add(arrowGroup(point, zDir, arrowLength(microTesla), 0xffd166, 1, 0.14, 0.03));
+    if (readout.defined && readout.sign !== "none") {
+      const zDir = readout.sign === "out" ? vec(0, 0, 1) : vec(0, 0, -1);
+      dynamic.add(arrowGroup(point, zDir, arrowLength(readout.baselineMicroTesla), 0xffd166, 1, 0.14, 0.03));
     }
 
-    renderer.render(scene, camera);
+    viewport.render();
   };
 
   return {
     update,
     dispose: () => {
-      observer.disconnect();
-      cancelAnimationFrame(frame);
-      controls.dispose();
+      stopLoop();
       clearGroup(dynamic);
-      renderer.dispose();
-      host.removeChild(renderer.domElement);
+      viewport.dispose();
     },
   };
 }
@@ -232,11 +144,8 @@ function toSvg(x: number, y: number): [number, number] {
   return [x * SVG_SCALE, -y * SVG_SCALE];
 }
 
-function DiagramView({ wires, point }: { wires: Wire[]; point: Vec3 }) {
-  const field = totalField(wires, point);
-  const fieldDefined = !hasWireSingularity(wires, point);
-  const { magnitude, sign } = pageComponent(field);
-  const microTesla = magnitude * 1e6;
+function DiagramView({ wires, point, readout }: { wires: Wire[]; point: Vec3; readout: MagnetismReadout }) {
+  const { defined: fieldDefined, sign, baselineMicroTesla: microTesla } = readout;
   const [ox, oy] = toSvg(point.x, point.y);
   const resultRadius = Math.min(26, Math.max(9, microTesla * 1.4));
 
@@ -283,13 +192,12 @@ function DiagramView({ wires, point }: { wires: Wire[]; point: Vec3 }) {
   );
 }
 
-const defaultWires = exampleWires.map((wire) => ({ ...wire }));
-
 export default function MagneticFieldLab() {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SceneApi | null>(null);
-  const [wires, setWires] = useState<Wire[]>(defaultWires);
-  const [point, setPoint] = useState<Vec3>({ ...examplePoint });
+  const [{ wires, point }, setState] = useState<MagnetismState>(initialMagnetismState);
+
+  const readout = useMemo(() => deriveMagnetismModel({ wires, point }), [wires, point]);
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -297,48 +205,18 @@ export default function MagneticFieldLab() {
     return () => sceneRef.current?.dispose();
   }, []);
 
-  useEffect(() => sceneRef.current?.update(wires, point), [wires, point]);
+  useEffect(() => sceneRef.current?.update({ wires, point }, readout), [wires, point, readout]);
 
   const updateWire = useCallback((id: string, patch: Partial<Wire>) => {
-    setWires((current) => current.map((wire) => (wire.id === id ? { ...wire, ...patch } : wire)));
+    setState((current) => ({
+      ...current,
+      wires: current.wires.map((wire) => (wire.id === id ? { ...wire, ...patch } : wire)),
+    }));
   }, []);
 
-  const reset = useCallback(() => {
-    setWires(exampleWires.map((wire) => ({ ...wire })));
-    setPoint({ ...examplePoint });
-  }, []);
+  const reset = useCallback(() => setState(initialMagnetismState()), []);
 
-  const field = totalField(wires, point);
-  const fieldDefined = !hasWireSingularity(wires, point);
-  const { magnitude, sign } = pageComponent(field);
-
-  const contributions = useMemo(
-    () =>
-      wires.map((wire) => {
-        const contribution = fieldFromWire(wire, point);
-        const component = pageComponent(contribution);
-        const distance = distanceToWire(wire, point);
-        return { wire, component, distance, singular: wire.active && distance < 1e-6 };
-      }),
-    [wires, point],
-  );
-
-  const cutComparison = useMemo(
-    () =>
-      wires
-        .filter((wire) => wire.active)
-        .map((wire) => {
-          const trial = wires.map((candidate) => (candidate.id === wire.id ? { ...candidate, active: false } : candidate));
-          const trialField = totalField(trial, point);
-          const trialComponent = pageComponent(trialField);
-          return { wire, magnitude: trialComponent.magnitude * 1e6, sign: trialComponent.sign };
-        })
-        .sort((a, b) => b.magnitude - a.magnitude),
-    [wires, point],
-  );
-
-  const baselineMicroTesla = magnitude * 1e6;
-  const strongestCut = fieldDefined ? cutComparison[0] : undefined;
+  const { defined: fieldDefined, magnitude, sign, contributions, cutComparison, baselineMicroTesla, strongestCut, activeCount } = readout;
 
   return (
     <main className="lab-shell">
@@ -377,7 +255,7 @@ export default function MagneticFieldLab() {
               <span>2D</span>
               <div><strong>俯視示意圖</strong><small>對照課本 ⊙／⊗ 符號</small></div>
             </div>
-            <div className="canvas-host"><DiagramView wires={wires} point={point} /></div>
+            <div className="canvas-host"><DiagramView wires={wires} point={point} readout={readout} /></div>
           </section>
 
           <div className="metrics">
@@ -391,7 +269,7 @@ export default function MagneticFieldLab() {
             </div>
             <div>
               <span>啟用導線數</span>
-              <strong>{wires.filter((wire) => wire.active).length} / {wires.length}</strong>
+              <strong>{activeCount} / {wires.length}</strong>
             </div>
           </div>
         </div>
@@ -434,11 +312,11 @@ export default function MagneticFieldLab() {
         <div className="magnet-o-controls">
           <label>
             <span>O 點 x<b>{point.x.toFixed(2)} m</b></span>
-            <input type="range" min={-2.2} max={2.2} step={0.05} value={point.x} onChange={(event) => setPoint((current) => ({ ...current, x: Number(event.target.value) }))} />
+            <input type="range" min={-2.2} max={2.2} step={0.05} value={point.x} onChange={(event) => setState((current) => ({ ...current, point: { ...current.point, x: Number(event.target.value) } }))} />
           </label>
           <label>
             <span>O 點 y<b>{point.y.toFixed(2)} m</b></span>
-            <input type="range" min={-2.2} max={2.2} step={0.05} value={point.y} onChange={(event) => setPoint((current) => ({ ...current, y: Number(event.target.value) }))} />
+            <input type="range" min={-2.2} max={2.2} step={0.05} value={point.y} onChange={(event) => setState((current) => ({ ...current, point: { ...current.point, y: Number(event.target.value) } }))} />
           </label>
         </div>
       </div>
