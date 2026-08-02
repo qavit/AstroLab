@@ -1378,11 +1378,12 @@ export default function SolarLab() {
       return () => cancelAnimationFrame(frame);
     }
     if (playing !== "day") return;
-    const vector = sunHorizontal(state.latitude, solarDeclination(state.day), degrees(15 * (state.time - 12)));
+    const slot = Math.floor((state.time * 60) / shadowTraceInterval);
+    const sampleTime = (slot * shadowTraceInterval) / 60;
+    const vector = sunHorizontal(state.latitude, solarDeclination(state.day), degrees(15 * (sampleTime - 12)));
     if (vector.z <= 0) return;
-    const slot = Math.round((state.time * 60) / shadowTraceInterval);
     const frame = requestAnimationFrame(() => {
-      setShadowSamples((current) => current.some((sample) => Math.round((sample.time * 60) / shadowTraceInterval) === slot) ? current : [...current, { time: state.time, day: state.day }]);
+      setShadowSamples((current) => current.some((sample) => Math.round((sample.time * 60) / shadowTraceInterval) === slot) ? current : [...current, { time: sampleTime, day: state.day }]);
     });
     return () => cancelAnimationFrame(frame);
   }, [state, playing, shadowTraceEnabled, shadowTraceInterval]);
