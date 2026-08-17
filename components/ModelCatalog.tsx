@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Compass, Magnet, Mountain, Orbit, Wind, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, Compass, Layers, Magnet, Mountain, Orbit, Wind, type LucideIcon } from "lucide-react";
 
 type CatalogModel = {
   href: string;
@@ -11,6 +11,8 @@ type CatalogModel = {
   tags: readonly string[];
   /** Preview image. Omitted for models whose card art is drawn in CSS instead. */
   image?: string;
+  /** CSS-drawn card art to use when `image` is omitted. */
+  cardArt?: "magnet" | "layers";
   icon: LucideIcon;
   tone: string;
 };
@@ -50,12 +52,24 @@ const models: readonly CatalogModel[] = [
     tone: "geology",
   },
   {
+    href: "/atmosphere-profile",
+    subject: "地球科學",
+    number: "05",
+    title: "大氣垂直結構",
+    description: "依美國標準大氣 1976 模式，繪製溫度、氣壓、密度隨高度變化的剖面。",
+    tags: ["標準大氣", "氣壓遞減", "大氣分層"],
+    cardArt: "layers",
+    icon: Layers,
+    tone: "atmosphere",
+  },
+  {
     href: "/magnetism",
     subject: "物理",
     number: "02",
     title: "多導線磁場疊加",
     description: "從空間視角與俯視圖同步理解安培定律與磁場向量疊加。",
     tags: ["安培定律", "向量疊加", "右手定則"],
+    cardArt: "magnet",
     icon: Magnet,
     tone: "magnetism",
   },
@@ -68,7 +82,7 @@ export default function ModelCatalog() {
         <Link href="/" className="catalog-brand" aria-label="AstroLab 模型目錄">
           <Compass size={20} /> <span>AstroLab</span>
         </Link>
-        <span className="catalog-count">04 interactive models</span>
+        <span className="catalog-count">05 interactive models</span>
       </header>
 
       <section className="catalog-hero">
@@ -88,7 +102,13 @@ export default function ModelCatalog() {
             return (
               <Link href={model.href} className={`model-card model-card-${model.tone}`} key={model.href}>
                 <div className="model-card-art">
-                  {model.image ? <div className="model-card-preview" style={{ backgroundImage: `url(${model.image})` }} /> : <div className="magnet-card-art"><span>⊙</span><span>⊗</span><i /><i /><i /></div>}
+                  {model.image ? (
+                    <div className="model-card-preview" style={{ backgroundImage: `url(${model.image})` }} />
+                  ) : model.cardArt === "layers" ? (
+                    <div className="layers-card-art"><i /><i /><i /><i /><i /></div>
+                  ) : (
+                    <div className="magnet-card-art"><span>⊙</span><span>⊗</span><i /><i /><i /></div>
+                  )}
                   <div className="model-card-art-overlay" />
                   <span className="model-card-number">{model.number}</span>
                 </div>
