@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import * as THREE from "three";
-import { Eye, EyeOff, Pause, Play, RotateCcw, Wind } from "lucide-react";
+import { Compass, Eye, EyeOff, Pause, Play, RotateCcw, Wind } from "lucide-react";
 import { surfaceWindAt, type PressureBand } from "@/lib/science/atmosphere";
 import { arrowGroup, clearGroup, makeLine, textSprite } from "@/lib/render/primitives";
 import { createRenderLoop, createViewport } from "@/lib/render/viewport";
@@ -358,7 +358,8 @@ export default function PlanetaryWindLab() {
     <main className="lab-shell wind-lab">
       <div className="topbar">
         <div>
-          <div className="eyebrow">AstroLab · Model 03</div>
+          <Link href="/" className="lab-brand" aria-label="AstroLab 模型目錄"><Compass size={15} />AstroLab</Link>
+          <div className="eyebrow">Model 03</div>
           <h1><span className="live-dot" />全球行星風系</h1>
         </div>
         <div className="header-actions">

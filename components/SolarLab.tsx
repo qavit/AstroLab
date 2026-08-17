@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Download, Info, Layers3, MousePointer2, RotateCcw, Settings2 } from "lucide-react";
+import { Compass, Download, Info, Layers3, MousePointer2, RotateCcw, Settings2 } from "lucide-react";
 import { formatLatitude, radians } from "@/lib/science/solar";
 import { pickDirectory, saveDataUrl, type DirectoryHandle } from "@/lib/render/export";
 import {
@@ -151,7 +151,8 @@ export default function SolarLab() {
     <main className="lab-shell">
       <header className="topbar">
         <div>
-          <div className="eyebrow"><span className="live-dot" /> AstroLab · 模型 01</div>
+          <Link href="/" className="lab-brand" aria-label="AstroLab 模型目錄"><Compass size={15} />AstroLab</Link>
+          <div className="eyebrow"><span className="live-dot" /> 模型 01</div>
           <h1>太陽、天球與竿影</h1>
         </div>
         <div className="header-actions">

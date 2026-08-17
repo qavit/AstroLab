@@ -309,7 +309,8 @@ export default function ValleyBeddingLab() {
     <main className="lab-shell geology-lab">
       <div className="topbar">
         <div>
-          <div className="eyebrow">AstroLab · Earth Science · Model 04</div>
+          <Link href="/" className="lab-brand" aria-label="AstroLab 模型目錄"><Compass size={15} />AstroLab</Link>
+          <div className="eyebrow">Earth Science · Model 04</div>
           <h1><span className="live-dot" />岩層位態 × 河谷地形</h1>
         </div>
         <div className="header-actions">
