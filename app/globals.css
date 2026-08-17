@@ -201,6 +201,11 @@ input[type=range] { display:block; width:100%; height:3px; accent-color:#356f91;
 .atmos-boundary-label { fill:#ef817b; font:9px ui-monospace,monospace; opacity:.85; }
 .atmos-cursor-line { stroke:rgba(255,255,255,.5); stroke-width:1; stroke-dasharray:3 3; }
 .atmos-metrics { grid-template-columns:repeat(4,1fr); }
+.atmos-svg { touch-action:none; }
+.atmos-hover-line { stroke:rgba(255,255,255,.85); stroke-width:1; }
+.atmos-hover-tooltip-bg { fill:rgba(6,20,32,.94); stroke:rgba(168,189,200,.4); stroke-width:1; }
+.atmos-hover-tooltip-title { fill:#f4f7f8; font:600 11px ui-monospace,monospace; }
+.atmos-hover-tooltip-row { font:10px ui-monospace,monospace; }
 
 .quantity-scale-list .coordinate-row { grid-template-columns:minmax(64px,1fr) 1fr 1fr; }
 .quantity-scale-list .coordinate-row strong { border-left-width:3px; border-left-style:solid; }

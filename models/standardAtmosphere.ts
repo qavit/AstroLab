@@ -5,6 +5,7 @@ import {
   sampleStandardAtmosphere,
   standardAtmosphereProfile,
   type PhysicalQuantity,
+  type TemperatureUnit,
 } from "@/lib/science/standardAtmosphere";
 
 export type AxisScale = "linear" | "log";
@@ -16,6 +17,7 @@ export type StandardAtmosphereState = {
   quantityA: PhysicalQuantity;
   quantityB: PhysicalQuantity;
   scaleByQuantity: Record<PhysicalQuantity, AxisScale>;
+  temperatureUnit: TemperatureUnit;
   showLayerLabels: boolean;
   showBoundaries: boolean;
   showOzoneLayer: boolean;
@@ -43,6 +45,7 @@ export function initialStandardAtmosphereState(): StandardAtmosphereState {
     quantityA: "temperature",
     quantityB: "pressure",
     scaleByQuantity: { temperature: "linear", pressure: "log", density: "log" },
+    temperatureUnit: "K",
     showLayerLabels: true,
     showBoundaries: true,
     showOzoneLayer: true,

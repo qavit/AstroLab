@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type PointerEvent } from "react";
 import Link from "next/link";
 import { ArrowLeftRight, Compass, ExternalLink, Layers3, RotateCcw } from "lucide-react";
 import {
   OZONE_LAYER,
   STANDARD_ATMOSPHERE_SOURCE,
-  quantityValue,
+  TEMPERATURE_UNIT_LABEL,
+  quantityDisplayValue,
+  sampleStandardAtmosphere,
   type AtmosphereSample,
   type PhysicalQuantity,
+  type TemperatureUnit,
 } from "@/lib/science/standardAtmosphere";
 import {
   ALTITUDE_PRESETS,
@@ -54,12 +57,14 @@ function linearTicks(min: number, max: number, count = 5) {
   return Array.from({ length: count }, (_, i) => min + ((max - min) * i) / (count - 1));
 }
 
+/** Only whole powers of 10 that fall inside [min, max] — anything outside would render
+ * beyond the plot area, since the axis is not padded for log scales. */
 function logTicks(min: number, max: number) {
-  const lo = Math.floor(Math.log10(Math.max(min, 1e-300)));
-  const hi = Math.ceil(Math.log10(Math.max(max, 1e-300)));
+  const lo = Math.ceil(Math.log10(Math.max(min, 1e-300)));
+  const hi = Math.floor(Math.log10(Math.max(max, 1e-300)));
   const ticks: number[] = [];
   for (let power = lo; power <= hi; power += 1) ticks.push(10 ** power);
-  return ticks;
+  return ticks.length > 0 ? ticks : [min, max];
 }
 
 function altitudeTicks(maxAltitude: number) {
@@ -73,8 +78,12 @@ function altitudeTicks(maxAltitude: number) {
   return ticks;
 }
 
-function computeDomain(profile: AtmosphereSample[], quantity: PhysicalQuantity, scale: AxisScale): Domain {
-  const values = profile.map((sample) => quantityValue(sample, quantity));
+function unitFor(quantity: PhysicalQuantity, temperatureUnit: TemperatureUnit) {
+  return quantity === "temperature" ? TEMPERATURE_UNIT_LABEL[temperatureUnit] : QUANTITY_META[quantity].unit;
+}
+
+function computeDomain(profile: AtmosphereSample[], quantity: PhysicalQuantity, scale: AxisScale, temperatureUnit: TemperatureUnit): Domain {
+  const values = profile.map((sample) => quantityDisplayValue(sample, quantity, temperatureUnit));
   let min = Math.min(...values);
   let max = Math.max(...values);
   if (scale === "linear") {
@@ -155,6 +164,7 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
   const { profile, layers, boundaries, cursor } = readout;
   const maxAltitude = state.maxAltitudeKm;
   const swap = state.swapAxes;
+  const [hoverAltitude, setHoverAltitude] = useState<number | null>(null);
 
   const plot: Plot = swap
     ? { left: 76, right: CHART_W - 76, top: 22, bottom: CHART_H - 60 }
@@ -162,8 +172,8 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
 
   const altPixel = useCallback((altitudeKm: number) => axisPixel(altitudeKm / maxAltitude, !swap, plot), [maxAltitude, swap, plot]);
 
-  const domainA = useMemo(() => computeDomain(profile, state.quantityA, state.scaleByQuantity[state.quantityA]), [profile, state.quantityA, state.scaleByQuantity]);
-  const domainB = useMemo(() => computeDomain(profile, state.quantityB, state.scaleByQuantity[state.quantityB]), [profile, state.quantityB, state.scaleByQuantity]);
+  const domainA = useMemo(() => computeDomain(profile, state.quantityA, state.scaleByQuantity[state.quantityA], state.temperatureUnit), [profile, state.quantityA, state.scaleByQuantity, state.temperatureUnit]);
+  const domainB = useMemo(() => computeDomain(profile, state.quantityB, state.scaleByQuantity[state.quantityB], state.temperatureUnit), [profile, state.quantityB, state.scaleByQuantity, state.temperatureUnit]);
 
   const valPixel = useCallback((quantity: PhysicalQuantity, value: number, domain: Domain) =>
     axisPixel(normalize(value, domain, state.scaleByQuantity[quantity]), swap, plot), [swap, plot, state.scaleByQuantity]);
@@ -176,7 +186,7 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
 
   const pathFor = (quantity: PhysicalQuantity, domain: Domain) => profile
     .map((sample, index) => {
-      const p = point(sample.altitudeKm, quantity, quantityValue(sample, quantity), domain);
+      const p = point(sample.altitudeKm, quantity, quantityDisplayValue(sample, quantity, state.temperatureUnit), domain);
       return `${index === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
     })
     .join(" ");
@@ -206,13 +216,49 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
     return swap ? { x: a, y: (plot.top + plot.bottom) / 2 } : { x: (plot.left + plot.right) / 2, y: a };
   };
 
-  const cursorPointA = point(cursor.altitudeKm, state.quantityA, quantityValue(cursor, state.quantityA), domainA);
-  const cursorPointB = point(cursor.altitudeKm, state.quantityB, quantityValue(cursor, state.quantityB), domainB);
+  const cursorPointA = point(cursor.altitudeKm, state.quantityA, quantityDisplayValue(cursor, state.quantityA, state.temperatureUnit), domainA);
+  const cursorPointB = point(cursor.altitudeKm, state.quantityB, quantityDisplayValue(cursor, state.quantityB, state.temperatureUnit), domainB);
   const cursorLine = boundaryLine(cursor.altitudeKm);
   const ozone = ozoneRect();
 
+  const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
+    const svg = event.currentTarget;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+    const svgPoint = svg.createSVGPoint();
+    svgPoint.x = event.clientX;
+    svgPoint.y = event.clientY;
+    const local = svgPoint.matrixTransform(ctm.inverse());
+    const t = swap
+      ? (local.x - plot.left) / (plot.right - plot.left)
+      : (plot.bottom - local.y) / (plot.bottom - plot.top);
+    if (t < -0.04 || t > 1.04) { setHoverAltitude(null); return; }
+    setHoverAltitude(Math.min(1, Math.max(0, t)) * maxAltitude);
+  };
+  const handlePointerLeave = () => setHoverAltitude(null);
+
+  const hoverSample = hoverAltitude !== null ? sampleStandardAtmosphere(hoverAltitude) : null;
+  const hoverPointA = hoverSample ? point(hoverSample.altitudeKm, state.quantityA, quantityDisplayValue(hoverSample, state.quantityA, state.temperatureUnit), domainA) : null;
+  const hoverPointB = hoverSample ? point(hoverSample.altitudeKm, state.quantityB, quantityDisplayValue(hoverSample, state.quantityB, state.temperatureUnit), domainB) : null;
+  const hoverLine = hoverSample ? boundaryLine(hoverSample.altitudeKm) : null;
+
+  let tooltip: { x: number; y: number } | null = null;
+  if (hoverSample && hoverPointA) {
+    const tooltipW = 148;
+    const tooltipH = 60;
+    const rawX = hoverPointA.x + 14;
+    const rawY = hoverPointA.y - tooltipH - 10;
+    tooltip = {
+      x: Math.min(Math.max(rawX, plot.left + 2), plot.right - tooltipW - 2),
+      y: Math.min(Math.max(rawY, plot.top + 2), plot.bottom - tooltipH - 2),
+    };
+  }
+
   return (
-    <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} role="img" aria-label="大氣垂直結構剖面圖" className="atmos-svg">
+    <svg
+      viewBox={`0 0 ${CHART_W} ${CHART_H}`} role="img" aria-label="大氣垂直結構剖面圖" className="atmos-svg"
+      onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave}
+    >
       {state.showOzoneLayer && ozone.width > 0 && ozone.height > 0 && (
         <g>
           <rect x={ozone.x} y={ozone.y} width={ozone.width} height={ozone.height} className="atmos-ozone-band" />
@@ -239,7 +285,7 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
         return (
           <g key={boundary.key}>
             <line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} className="atmos-boundary-line" />
-            <text x={labelPos.x} y={labelPos.y} textAnchor={labelPos.anchor} className="atmos-boundary-label">{boundary.label} {boundary.altitudeKm} km</text>
+            <text x={labelPos.x} y={labelPos.y} textAnchor={labelPos.anchor} className="atmos-boundary-label">{boundary.label}</text>
           </g>
         );
       })}
@@ -256,7 +302,7 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
         fixedCoord={swap ? plot.left : plot.bottom}
         spanFrom={swap ? plot.top : plot.left} spanTo={swap ? plot.bottom : plot.right}
         ticks={ticksA} posOf={(t) => valPixel(state.quantityA, t, domainA)} formatTick={(t) => formatQuantityValue(t, state.quantityA, 0)}
-        title={`${QUANTITY_META[state.quantityA].label}（${QUANTITY_META[state.quantityA].unit}）`}
+        title={`${QUANTITY_META[state.quantityA].label}（${unitFor(state.quantityA, state.temperatureUnit)}）`}
         color={QUANTITY_META[state.quantityA].color}
       />
       <AxisGroup
@@ -264,7 +310,7 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
         fixedCoord={swap ? plot.right : plot.top}
         spanFrom={swap ? plot.top : plot.left} spanTo={swap ? plot.bottom : plot.right}
         ticks={ticksB} posOf={(t) => valPixel(state.quantityB, t, domainB)} formatTick={(t) => formatQuantityValue(t, state.quantityB, 0)}
-        title={`${QUANTITY_META[state.quantityB].label}（${QUANTITY_META[state.quantityB].unit}）`}
+        title={`${QUANTITY_META[state.quantityB].label}（${unitFor(state.quantityB, state.temperatureUnit)}）`}
         color={QUANTITY_META[state.quantityB].color}
       />
 
@@ -274,6 +320,22 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
       <line x1={cursorLine.x1} y1={cursorLine.y1} x2={cursorLine.x2} y2={cursorLine.y2} className="atmos-cursor-line" />
       <circle cx={cursorPointA.x} cy={cursorPointA.y} r="4.5" fill={QUANTITY_META[state.quantityA].color} stroke="#0d2b41" strokeWidth="1.5" />
       <circle cx={cursorPointB.x} cy={cursorPointB.y} r="4.5" fill={QUANTITY_META[state.quantityB].color} stroke="#0d2b41" strokeWidth="1.5" />
+
+      {hoverSample && hoverLine && hoverPointA && hoverPointB && tooltip && (
+        <g className="atmos-hover">
+          <line x1={hoverLine.x1} y1={hoverLine.y1} x2={hoverLine.x2} y2={hoverLine.y2} className="atmos-hover-line" />
+          <circle cx={hoverPointA.x} cy={hoverPointA.y} r="4" fill={QUANTITY_META[state.quantityA].color} stroke="white" strokeWidth="1.5" />
+          <circle cx={hoverPointB.x} cy={hoverPointB.y} r="4" fill={QUANTITY_META[state.quantityB].color} stroke="white" strokeWidth="1.5" />
+          <rect x={tooltip.x} y={tooltip.y} width="148" height="60" rx="6" className="atmos-hover-tooltip-bg" />
+          <text x={tooltip.x + 10} y={tooltip.y + 18} className="atmos-hover-tooltip-title">{hoverSample.altitudeKm.toFixed(1)} km</text>
+          <text x={tooltip.x + 10} y={tooltip.y + 35} className="atmos-hover-tooltip-row" fill={QUANTITY_META[state.quantityA].color}>
+            {QUANTITY_META[state.quantityA].label} {formatQuantityValue(quantityDisplayValue(hoverSample, state.quantityA, state.temperatureUnit), state.quantityA, 2)} {unitFor(state.quantityA, state.temperatureUnit)}
+          </text>
+          <text x={tooltip.x + 10} y={tooltip.y + 51} className="atmos-hover-tooltip-row" fill={QUANTITY_META[state.quantityB].color}>
+            {QUANTITY_META[state.quantityB].label} {formatQuantityValue(quantityDisplayValue(hoverSample, state.quantityB, state.temperatureUnit), state.quantityB, 2)} {unitFor(state.quantityB, state.temperatureUnit)}
+          </text>
+        </g>
+      )}
     </svg>
   );
 }
@@ -324,8 +386,8 @@ export default function StandardAtmosphereLab() {
 
       <div className="wind-metrics atmos-metrics">
         <div><span>游標高度</span><strong>{readout.cursor.altitudeKm.toFixed(1)} km</strong></div>
-        <div><span>{QUANTITY_META[state.quantityA].label}</span><strong style={{ color: QUANTITY_META[state.quantityA].color }}>{formatQuantityValue(quantityValue(readout.cursor, state.quantityA), state.quantityA, 3)} {QUANTITY_META[state.quantityA].unit}</strong></div>
-        <div><span>{QUANTITY_META[state.quantityB].label}</span><strong style={{ color: QUANTITY_META[state.quantityB].color }}>{formatQuantityValue(quantityValue(readout.cursor, state.quantityB), state.quantityB, 3)} {QUANTITY_META[state.quantityB].unit}</strong></div>
+        <div><span>{QUANTITY_META[state.quantityA].label}</span><strong style={{ color: QUANTITY_META[state.quantityA].color }}>{formatQuantityValue(quantityDisplayValue(readout.cursor, state.quantityA, state.temperatureUnit), state.quantityA, 3)} {unitFor(state.quantityA, state.temperatureUnit)}</strong></div>
+        <div><span>{QUANTITY_META[state.quantityB].label}</span><strong style={{ color: QUANTITY_META[state.quantityB].color }}>{formatQuantityValue(quantityDisplayValue(readout.cursor, state.quantityB, state.temperatureUnit), state.quantityB, 3)} {unitFor(state.quantityB, state.temperatureUnit)}</strong></div>
         <div><span>顯示高度上限</span><strong>{state.maxAltitudeKm.toLocaleString()} km</strong></div>
       </div>
 
@@ -346,7 +408,15 @@ export default function StandardAtmosphereLab() {
             <label><span>讀值游標高度 <b>{readout.cursor.altitudeKm.toFixed(1)} km</b></span>
               <input type="range" min="0" max={state.maxAltitudeKm} step={state.maxAltitudeKm / 500} value={Math.min(state.cursorAltitudeKm, state.maxAltitudeKm)} onChange={(event) => patchState({ cursorAltitudeKm: Number(event.target.value) })} />
             </label>
-            <small>T = {readout.cursor.temperatureK.toFixed(1)} K（{readout.cursor.temperatureC.toFixed(1)} °C）</small>
+            <small>T = {formatQuantityValue(quantityDisplayValue(readout.cursor, "temperature", state.temperatureUnit), "temperature", 1)} {TEMPERATURE_UNIT_LABEL[state.temperatureUnit]}</small>
+          </div>
+          <div className="wind-control-block">
+            <label><span>溫度單位</span></label>
+            <div className="preset-row">
+              {(["K", "C", "F"] as const).map((unit) => (
+                <button key={unit} className={state.temperatureUnit === unit ? "selected" : ""} onClick={() => patchState({ temperatureUnit: unit })}>{TEMPERATURE_UNIT_LABEL[unit]}</button>
+              ))}
+            </div>
           </div>
           <div className="wind-control-block">
             <label><span>物理量 A（實線）</span>

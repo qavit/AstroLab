@@ -104,6 +104,21 @@ export function quantityValue(sample: AtmosphereSample, quantity: PhysicalQuanti
   return VALUE_OF[quantity](sample);
 }
 
+export type TemperatureUnit = "K" | "C" | "F";
+
+export const TEMPERATURE_UNIT_LABEL: Record<TemperatureUnit, string> = { K: "K", C: "°C", F: "°F" };
+
+export function convertTemperature(kelvin: number, unit: TemperatureUnit) {
+  if (unit === "K") return kelvin;
+  const celsius = kelvin - 273.15;
+  return unit === "C" ? celsius : (celsius * 9) / 5 + 32;
+}
+
+/** Like `quantityValue`, but reports temperature in the requested display unit. */
+export function quantityDisplayValue(sample: AtmosphereSample, quantity: PhysicalQuantity, temperatureUnit: TemperatureUnit) {
+  return quantity === "temperature" ? convertTemperature(sample.temperatureK, temperatureUnit) : quantityValue(sample, quantity);
+}
+
 /** Sample temperature, pressure and density at any altitude (km, 0–1000 km) via table interpolation. */
 export function sampleStandardAtmosphere(altitudeKm: number): AtmosphereSample {
   const clamped = Math.min(Math.max(altitudeKm, 0), STANDARD_ATMOSPHERE_MAX_ALTITUDE_KM);
