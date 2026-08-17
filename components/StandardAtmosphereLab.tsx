@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState, type PointerEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type PointerEvent, type RefObject } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, Compass, ExternalLink, Layers3, RotateCcw } from "lucide-react";
+import { ArrowLeftRight, Compass, Download, ExternalLink, Layers3, RotateCcw } from "lucide-react";
 import {
   OZONE_LAYER,
   STANDARD_ATMOSPHERE_SOURCE,
@@ -22,10 +22,38 @@ import {
   type StandardAtmosphereReadout,
   type StandardAtmosphereState,
 } from "@/models/standardAtmosphere";
+import { saveDataUrl } from "@/lib/render/export";
 import AtmosphereLayerDrawer from "@/components/atmosphere/AtmosphereLayerDrawer";
 
 const CHART_W = 760;
 const CHART_H = 560;
+
+/** Rasterizes the chart SVG onto an opaque background and downloads it as a PNG. */
+async function exportChartPng(svg: SVGSVGElement, filename: string) {
+  const svgString = new XMLSerializer().serializeToString(svg);
+  const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+  try {
+    const image = new Image();
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Failed to rasterize chart SVG"));
+      image.src = url;
+    });
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = CHART_W * scale;
+    canvas.height = CHART_H * scale;
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = "#0d2b41";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.scale(scale, scale);
+    context.drawImage(image, 0, 0, CHART_W, CHART_H);
+    await saveDataUrl(canvas.toDataURL("image/png"), filename, null);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 type Plot = { left: number; right: number; top: number; bottom: number };
 type Domain = { min: number; max: number };
@@ -52,9 +80,20 @@ function formatQuantityValue(value: number, quantity: PhysicalQuantity, digits =
   return abs >= 100 ? value.toFixed(0) : value.toPrecision(3);
 }
 
-function linearTicks(min: number, max: number, count = 5) {
+/** Round-number ticks (steps of 1/2/5×10ⁿ) spanning [min, max], e.g. -50,0,50,100 rather
+ * than the raw domain endpoints — the step adapts to the domain's own magnitude. */
+function niceLinearTicks(min: number, max: number, targetCount = 5) {
   if (max <= min) return [min];
-  return Array.from({ length: count }, (_, i) => min + ((max - min) * i) / (count - 1));
+  const roughStep = (max - min) / targetCount;
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const residual = roughStep / magnitude;
+  const niceResidual = residual >= 5 ? 10 : residual >= 2 ? 5 : residual >= 1 ? 2 : 1;
+  const step = niceResidual * magnitude;
+  const decimals = Math.max(0, -Math.floor(Math.log10(step)));
+  const round = (v: number) => Number(v.toFixed(decimals));
+  const ticks: number[] = [];
+  for (let v = Math.ceil(min / step) * step; v <= max + step * 1e-6; v += step) ticks.push(round(v));
+  return ticks.length > 0 ? ticks : [round(min), round(max)];
 }
 
 /** Only whole powers of 10 that fall inside [min, max] — anything outside would render
@@ -125,7 +164,7 @@ function AxisGroup({ vertical, side, fixedCoord, spanFrom, spanTo, ticks, posOf,
   const isLeft = side === "left";
   const isTop = side === "top";
   return (
-    <g className="atmos-axis" style={color ? { color } : undefined}>
+    <g className="atmos-axis" style={{ color: color ?? "#a8bdc8" }}>
       <line
         x1={vertical ? fixedCoord : spanFrom} y1={vertical ? spanFrom : fixedCoord}
         x2={vertical ? fixedCoord : spanTo} y2={vertical ? spanTo : fixedCoord}
@@ -160,7 +199,7 @@ function AxisGroup({ vertical, side, fixedCoord, spanFrom, spanTo, ticks, posOf,
   );
 }
 
-function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; readout: StandardAtmosphereReadout }) {
+function AtmosphereChart({ state, readout, svgRef }: { state: StandardAtmosphereState; readout: StandardAtmosphereReadout; svgRef: RefObject<SVGSVGElement | null> }) {
   const { profile, layers, boundaries, cursor } = readout;
   const maxAltitude = state.maxAltitudeKm;
   const swap = state.swapAxes;
@@ -192,8 +231,8 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
     .join(" ");
 
   const altTicks = altitudeTicks(maxAltitude);
-  const ticksA = state.scaleByQuantity[state.quantityA] === "log" ? logTicks(domainA.min, domainA.max) : linearTicks(domainA.min, domainA.max);
-  const ticksB = state.scaleByQuantity[state.quantityB] === "log" ? logTicks(domainB.min, domainB.max) : linearTicks(domainB.min, domainB.max);
+  const ticksA = state.scaleByQuantity[state.quantityA] === "log" ? logTicks(domainA.min, domainA.max) : niceLinearTicks(domainA.min, domainA.max);
+  const ticksB = state.scaleByQuantity[state.quantityB] === "log" ? logTicks(domainB.min, domainB.max) : niceLinearTicks(domainB.min, domainB.max);
 
   const boundaryLine = (altitudeKm: number) => {
     const a = altPixel(altitudeKm);
@@ -237,10 +276,17 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
   };
   const handlePointerLeave = () => setHoverAltitude(null);
 
+  /** A guide line from a hover point straight to its own quantity axis (perpendicular to
+   * that axis), so the reader can trace the value across without a legend. */
+  const axisGuideLine = (p: { x: number; y: number }, isQuantityA: boolean) => (swap
+    ? { x1: p.x, y1: p.y, x2: isQuantityA ? plot.left : plot.right, y2: p.y }
+    : { x1: p.x, y1: p.y, x2: p.x, y2: isQuantityA ? plot.bottom : plot.top });
+
   const hoverSample = hoverAltitude !== null ? sampleStandardAtmosphere(hoverAltitude) : null;
   const hoverPointA = hoverSample ? point(hoverSample.altitudeKm, state.quantityA, quantityDisplayValue(hoverSample, state.quantityA, state.temperatureUnit), domainA) : null;
   const hoverPointB = hoverSample ? point(hoverSample.altitudeKm, state.quantityB, quantityDisplayValue(hoverSample, state.quantityB, state.temperatureUnit), domainB) : null;
-  const hoverLine = hoverSample ? boundaryLine(hoverSample.altitudeKm) : null;
+  const hoverGuideA = hoverPointA ? axisGuideLine(hoverPointA, true) : null;
+  const hoverGuideB = hoverPointB ? axisGuideLine(hoverPointB, false) : null;
 
   let tooltip: { x: number; y: number } | null = null;
   if (hoverSample && hoverPointA) {
@@ -256,6 +302,7 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
 
   return (
     <svg
+      ref={svgRef}
       viewBox={`0 0 ${CHART_W} ${CHART_H}`} role="img" aria-label="大氣垂直結構剖面圖" className="atmos-svg"
       onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave}
     >
@@ -321,9 +368,10 @@ function AtmosphereChart({ state, readout }: { state: StandardAtmosphereState; r
       <circle cx={cursorPointA.x} cy={cursorPointA.y} r="4.5" fill={QUANTITY_META[state.quantityA].color} stroke="#0d2b41" strokeWidth="1.5" />
       <circle cx={cursorPointB.x} cy={cursorPointB.y} r="4.5" fill={QUANTITY_META[state.quantityB].color} stroke="#0d2b41" strokeWidth="1.5" />
 
-      {hoverSample && hoverLine && hoverPointA && hoverPointB && tooltip && (
+      {hoverSample && hoverPointA && hoverPointB && hoverGuideA && hoverGuideB && tooltip && (
         <g className="atmos-hover">
-          <line x1={hoverLine.x1} y1={hoverLine.y1} x2={hoverLine.x2} y2={hoverLine.y2} className="atmos-hover-line" />
+          <line x1={hoverGuideA.x1} y1={hoverGuideA.y1} x2={hoverGuideA.x2} y2={hoverGuideA.y2} className="atmos-hover-guide" stroke={QUANTITY_META[state.quantityA].color} />
+          <line x1={hoverGuideB.x1} y1={hoverGuideB.y1} x2={hoverGuideB.x2} y2={hoverGuideB.y2} className="atmos-hover-guide" stroke={QUANTITY_META[state.quantityB].color} />
           <circle cx={hoverPointA.x} cy={hoverPointA.y} r="4" fill={QUANTITY_META[state.quantityA].color} stroke="white" strokeWidth="1.5" />
           <circle cx={hoverPointB.x} cy={hoverPointB.y} r="4" fill={QUANTITY_META[state.quantityB].color} stroke="white" strokeWidth="1.5" />
           <rect x={tooltip.x} y={tooltip.y} width="148" height="60" rx="6" className="atmos-hover-tooltip-bg" />
@@ -344,6 +392,8 @@ export default function StandardAtmosphereLab() {
   const [state, setState] = useState<StandardAtmosphereState>(initialStandardAtmosphereState);
   const [showLayers, setShowLayers] = useState(false);
   const readout = useMemo(() => deriveStandardAtmosphereModel(state), [state]);
+  const chartSvgRef = useRef<SVGSVGElement | null>(null);
+  const usesTemperature = state.quantityA === "temperature" || state.quantityB === "temperature";
 
   const patchState = useCallback((patch: Partial<StandardAtmosphereState>) => {
     setState((current) => ({ ...current, ...patch }));
@@ -354,6 +404,12 @@ export default function StandardAtmosphereLab() {
   };
   const setQuantityB = (quantity: PhysicalQuantity) => {
     patchState(quantity === state.quantityA ? { quantityB: quantity, quantityA: state.quantityB } : { quantityB: quantity });
+  };
+
+  const handleExport = () => {
+    if (!chartSvgRef.current) return;
+    const filename = `astrolab-atmosphere-${state.quantityA}-${state.quantityB}-${Math.round(state.maxAltitudeKm)}km.png`;
+    void exportChartPng(chartSvgRef.current, filename);
   };
 
   return (
@@ -367,29 +423,18 @@ export default function StandardAtmosphereLab() {
         <div className="header-actions">
           <button className={state.swapAxes ? "active" : ""} onClick={() => patchState({ swapAxes: !state.swapAxes })}><ArrowLeftRight size={14} /> 對調座標軸</button>
           <button className={showLayers ? "active" : ""} onClick={() => setShowLayers((v) => !v)}><Layers3 size={14} /> 圖層</button>
-          <Link className="model-index-link" href="/">模型目錄</Link>
+          <button onClick={handleExport}><Download size={14} /> 匯出圖片</button>
           <button onClick={() => setState(initialStandardAtmosphereState())}><RotateCcw size={14} /> 重設</button>
         </div>
       </div>
-
-      <p className="profile-intro">
-        依 1976 年美國標準大氣模式（US Standard Atmosphere, 1976）之官方數據表，呈現溫度、氣壓、密度隨高度的變化。
-      </p>
 
       <section className="viewport-card atmos-chart-card">
         <div className="card-label">
           <span>2D</span>
           <div><strong>{QUANTITY_META[state.quantityA].label} × {QUANTITY_META[state.quantityB].label}</strong><small>虛線為第二物理量；灰色游標線為目前讀值高度</small></div>
         </div>
-        <div className="atmos-chart-wrap"><AtmosphereChart state={state} readout={readout} /></div>
+        <div className="atmos-chart-wrap"><AtmosphereChart state={state} readout={readout} svgRef={chartSvgRef} /></div>
       </section>
-
-      <div className="wind-metrics atmos-metrics">
-        <div><span>游標高度</span><strong>{readout.cursor.altitudeKm.toFixed(1)} km</strong></div>
-        <div><span>{QUANTITY_META[state.quantityA].label}</span><strong style={{ color: QUANTITY_META[state.quantityA].color }}>{formatQuantityValue(quantityDisplayValue(readout.cursor, state.quantityA, state.temperatureUnit), state.quantityA, 3)} {unitFor(state.quantityA, state.temperatureUnit)}</strong></div>
-        <div><span>{QUANTITY_META[state.quantityB].label}</span><strong style={{ color: QUANTITY_META[state.quantityB].color }}>{formatQuantityValue(quantityDisplayValue(readout.cursor, state.quantityB, state.temperatureUnit), state.quantityB, 3)} {unitFor(state.quantityB, state.temperatureUnit)}</strong></div>
-        <div><span>顯示高度上限</span><strong>{state.maxAltitudeKm.toLocaleString()} km</strong></div>
-      </div>
 
       <section className="control-panel profile-controls">
         <div className="control-panel-heading"><div>剖面控制台</div></div>
@@ -408,15 +453,16 @@ export default function StandardAtmosphereLab() {
             <label><span>讀值游標高度 <b>{readout.cursor.altitudeKm.toFixed(1)} km</b></span>
               <input type="range" min="0" max={state.maxAltitudeKm} step={state.maxAltitudeKm / 500} value={Math.min(state.cursorAltitudeKm, state.maxAltitudeKm)} onChange={(event) => patchState({ cursorAltitudeKm: Number(event.target.value) })} />
             </label>
-            <small>T = {formatQuantityValue(quantityDisplayValue(readout.cursor, "temperature", state.temperatureUnit), "temperature", 1)} {TEMPERATURE_UNIT_LABEL[state.temperatureUnit]}</small>
-          </div>
-          <div className="wind-control-block">
-            <label><span>溫度單位</span></label>
-            <div className="preset-row">
-              {(["K", "C", "F"] as const).map((unit) => (
-                <button key={unit} className={state.temperatureUnit === unit ? "selected" : ""} onClick={() => patchState({ temperatureUnit: unit })}>{TEMPERATURE_UNIT_LABEL[unit]}</button>
-              ))}
-            </div>
+            {usesTemperature && (
+              <div className="temp-unit-toggle">
+                <span>溫度單位</span>
+                <div className="preset-row">
+                  {(["K", "C", "F"] as const).map((unit) => (
+                    <button key={unit} className={state.temperatureUnit === unit ? "selected" : ""} onClick={() => patchState({ temperatureUnit: unit })}>{TEMPERATURE_UNIT_LABEL[unit]}</button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <div className="wind-control-block">
             <label><span>物理量 A（實線）</span>

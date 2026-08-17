@@ -45,7 +45,7 @@ export function initialStandardAtmosphereState(): StandardAtmosphereState {
     quantityA: "temperature",
     quantityB: "pressure",
     scaleByQuantity: { temperature: "linear", pressure: "log", density: "log" },
-    temperatureUnit: "K",
+    temperatureUnit: "C",
     showLayerLabels: true,
     showBoundaries: true,
     showOzoneLayer: true,
