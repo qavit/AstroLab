@@ -39,7 +39,7 @@ export const QUANTITY_META: Record<PhysicalQuantity, { label: string; unit: stri
 
 export function initialStandardAtmosphereState(): StandardAtmosphereState {
   return {
-    maxAltitudeKm: 100,
+    maxAltitudeKm: 120,
     cursorAltitudeKm: 11,
     swapAxes: false,
     quantityA: "temperature",

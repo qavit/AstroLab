@@ -376,6 +376,17 @@ function AtmosphereChart({ state, readout, svgRef, onHoverAltitude }: {
       {hoverAltitude === null && (
         <>
           <line x1={cursorLine.x1} y1={cursorLine.y1} x2={cursorLine.x2} y2={cursorLine.y2} className="atmos-cursor-line" />
+          {swap ? (
+            <>
+              <line x1={cursorLine.x1} y1={plot.bottom} x2={cursorLine.x1} y2={plot.bottom + 8} className="atmos-cursor-axis-tick" />
+              <text x={cursorLine.x1} y={plot.bottom + 20} textAnchor="middle" className="atmos-cursor-axis-label">{cursor.altitudeKm.toFixed(1)}</text>
+            </>
+          ) : (
+            <>
+              <line x1={plot.left - 8} y1={cursorLine.y1} x2={plot.left} y2={cursorLine.y1} className="atmos-cursor-axis-tick" />
+              <text x={plot.left - 12} y={cursorLine.y1 + 4} textAnchor="end" className="atmos-cursor-axis-label">{cursor.altitudeKm.toFixed(1)}</text>
+            </>
+          )}
           <circle cx={cursorPointA.x} cy={cursorPointA.y} r="4.5" fill={QUANTITY_META[state.quantityA].color} stroke="#0d2b41" strokeWidth="1.5" />
           <circle cx={cursorPointB.x} cy={cursorPointB.y} r="4.5" fill={QUANTITY_META[state.quantityB].color} stroke="#0d2b41" strokeWidth="1.5" />
         </>
