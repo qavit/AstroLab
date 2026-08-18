@@ -199,7 +199,14 @@ function AxisGroup({ vertical, side, fixedCoord, spanFrom, spanTo, ticks, posOf,
   );
 }
 
-function AtmosphereChart({ state, readout, svgRef }: { state: StandardAtmosphereState; readout: StandardAtmosphereReadout; svgRef: RefObject<SVGSVGElement | null> }) {
+function AtmosphereChart({ state, readout, svgRef, onHoverAltitude }: {
+  state: StandardAtmosphereState;
+  readout: StandardAtmosphereReadout;
+  svgRef: RefObject<SVGSVGElement | null>;
+  /** Called with the hovered altitude while the pointer is over the plot, so the read-cursor
+   * can follow the mouse the way a candlestick chart's crosshair drives its OHLC readout. */
+  onHoverAltitude: (altitudeKm: number) => void;
+}) {
   const { profile, layers, boundaries, cursor } = readout;
   const maxAltitude = state.maxAltitudeKm;
   const swap = state.swapAxes;
@@ -272,7 +279,9 @@ function AtmosphereChart({ state, readout, svgRef }: { state: StandardAtmosphere
       ? (local.x - plot.left) / (plot.right - plot.left)
       : (plot.bottom - local.y) / (plot.bottom - plot.top);
     if (t < -0.04 || t > 1.04) { setHoverAltitude(null); return; }
-    setHoverAltitude(Math.min(1, Math.max(0, t)) * maxAltitude);
+    const altitude = Math.min(1, Math.max(0, t)) * maxAltitude;
+    setHoverAltitude(altitude);
+    onHoverAltitude(altitude);
   };
   const handlePointerLeave = () => setHoverAltitude(null);
 
@@ -364,9 +373,13 @@ function AtmosphereChart({ state, readout, svgRef }: { state: StandardAtmosphere
       <path d={pathFor(state.quantityA, domainA)} fill="none" stroke={QUANTITY_META[state.quantityA].color} strokeWidth="2.6" />
       <path d={pathFor(state.quantityB, domainB)} fill="none" stroke={QUANTITY_META[state.quantityB].color} strokeWidth="2.6" strokeDasharray="1 5" strokeLinecap="round" />
 
-      <line x1={cursorLine.x1} y1={cursorLine.y1} x2={cursorLine.x2} y2={cursorLine.y2} className="atmos-cursor-line" />
-      <circle cx={cursorPointA.x} cy={cursorPointA.y} r="4.5" fill={QUANTITY_META[state.quantityA].color} stroke="#0d2b41" strokeWidth="1.5" />
-      <circle cx={cursorPointB.x} cy={cursorPointB.y} r="4.5" fill={QUANTITY_META[state.quantityB].color} stroke="#0d2b41" strokeWidth="1.5" />
+      {hoverAltitude === null && (
+        <>
+          <line x1={cursorLine.x1} y1={cursorLine.y1} x2={cursorLine.x2} y2={cursorLine.y2} className="atmos-cursor-line" />
+          <circle cx={cursorPointA.x} cy={cursorPointA.y} r="4.5" fill={QUANTITY_META[state.quantityA].color} stroke="#0d2b41" strokeWidth="1.5" />
+          <circle cx={cursorPointB.x} cy={cursorPointB.y} r="4.5" fill={QUANTITY_META[state.quantityB].color} stroke="#0d2b41" strokeWidth="1.5" />
+        </>
+      )}
 
       {hoverSample && hoverPointA && hoverPointB && hoverGuideA && hoverGuideB && tooltip && (
         <g className="atmos-hover">
@@ -433,7 +446,12 @@ export default function StandardAtmosphereLab() {
           <span>2D</span>
           <div><strong>{QUANTITY_META[state.quantityA].label} × {QUANTITY_META[state.quantityB].label}</strong><small>虛線為第二物理量；灰色游標線為目前讀值高度</small></div>
         </div>
-        <div className="atmos-chart-wrap"><AtmosphereChart state={state} readout={readout} svgRef={chartSvgRef} /></div>
+        <div className="atmos-chart-wrap">
+          <AtmosphereChart
+            state={state} readout={readout} svgRef={chartSvgRef}
+            onHoverAltitude={(altitudeKm) => patchState({ cursorAltitudeKm: altitudeKm })}
+          />
+        </div>
       </section>
 
       <section className="control-panel profile-controls">
