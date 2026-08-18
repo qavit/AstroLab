@@ -21,6 +21,7 @@ export type StandardAtmosphereState = {
   showLayerLabels: boolean;
   showBoundaries: boolean;
   showOzoneLayer: boolean;
+  showTooltip: boolean;
 };
 
 export const ALTITUDE_PRESETS = {
@@ -49,6 +50,7 @@ export function initialStandardAtmosphereState(): StandardAtmosphereState {
     showLayerLabels: true,
     showBoundaries: true,
     showOzoneLayer: true,
+    showTooltip: true,
   };
 }
 

@@ -297,12 +297,14 @@ function AtmosphereChart({ state, readout, svgRef, onHoverAltitude }: {
   const hoverGuideA = hoverPointA ? axisGuideLine(hoverPointA, true) : null;
   const hoverGuideB = hoverPointB ? axisGuideLine(hoverPointB, false) : null;
 
+  /** Tracks cursorAltitudeKm rather than the transient hover state, so it stays visible
+   * (when enabled) whether the position came from hovering or from dragging the slider. */
   let tooltip: { x: number; y: number } | null = null;
-  if (hoverSample && hoverPointA) {
+  if (state.showTooltip) {
     const tooltipW = 148;
     const tooltipH = 60;
-    const rawX = hoverPointA.x + 14;
-    const rawY = hoverPointA.y - tooltipH - 10;
+    const rawX = cursorPointA.x + 14;
+    const rawY = cursorPointA.y - tooltipH - 10;
     tooltip = {
       x: Math.min(Math.max(rawX, plot.left + 2), plot.right - tooltipW - 2),
       y: Math.min(Math.max(rawY, plot.top + 2), plot.bottom - tooltipH - 2),
@@ -396,19 +398,24 @@ function AtmosphereChart({ state, readout, svgRef, onHoverAltitude }: {
         </>
       )}
 
-      {hoverSample && hoverPointA && hoverPointB && hoverGuideA && hoverGuideB && tooltip && (
+      {hoverSample && hoverPointA && hoverPointB && hoverGuideA && hoverGuideB && (
         <g className="atmos-hover">
           <line x1={hoverGuideA.x1} y1={hoverGuideA.y1} x2={hoverGuideA.x2} y2={hoverGuideA.y2} className="atmos-hover-guide" stroke={QUANTITY_META[state.quantityA].color} />
           <line x1={hoverGuideB.x1} y1={hoverGuideB.y1} x2={hoverGuideB.x2} y2={hoverGuideB.y2} className="atmos-hover-guide" stroke={QUANTITY_META[state.quantityB].color} />
           <circle cx={hoverPointA.x} cy={hoverPointA.y} r="4" fill={QUANTITY_META[state.quantityA].color} stroke="white" strokeWidth="1.5" />
           <circle cx={hoverPointB.x} cy={hoverPointB.y} r="4" fill={QUANTITY_META[state.quantityB].color} stroke="white" strokeWidth="1.5" />
+        </g>
+      )}
+
+      {tooltip && (
+        <g className="atmos-tooltip">
           <rect x={tooltip.x} y={tooltip.y} width="148" height="60" rx="6" className="atmos-hover-tooltip-bg" />
-          <text x={tooltip.x + 10} y={tooltip.y + 18} className="atmos-hover-tooltip-title">{hoverSample.altitudeKm.toFixed(1)} km</text>
+          <text x={tooltip.x + 10} y={tooltip.y + 18} className="atmos-hover-tooltip-title">{cursor.altitudeKm.toFixed(1)} km</text>
           <text x={tooltip.x + 10} y={tooltip.y + 35} className="atmos-hover-tooltip-row" fill={QUANTITY_META[state.quantityA].color}>
-            {QUANTITY_META[state.quantityA].label} {formatQuantityValue(quantityDisplayValue(hoverSample, state.quantityA, state.temperatureUnit), state.quantityA, 2)} {unitFor(state.quantityA, state.temperatureUnit)}
+            {QUANTITY_META[state.quantityA].label} {formatQuantityValue(quantityDisplayValue(cursor, state.quantityA, state.temperatureUnit), state.quantityA, 2)} {unitFor(state.quantityA, state.temperatureUnit)}
           </text>
           <text x={tooltip.x + 10} y={tooltip.y + 51} className="atmos-hover-tooltip-row" fill={QUANTITY_META[state.quantityB].color}>
-            {QUANTITY_META[state.quantityB].label} {formatQuantityValue(quantityDisplayValue(hoverSample, state.quantityB, state.temperatureUnit), state.quantityB, 2)} {unitFor(state.quantityB, state.temperatureUnit)}
+            {QUANTITY_META[state.quantityB].label} {formatQuantityValue(quantityDisplayValue(cursor, state.quantityB, state.temperatureUnit), state.quantityB, 2)} {unitFor(state.quantityB, state.temperatureUnit)}
           </text>
         </g>
       )}

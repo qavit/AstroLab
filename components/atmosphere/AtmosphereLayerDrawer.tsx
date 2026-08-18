@@ -14,7 +14,7 @@ type Props = {
 const QUANTITIES: PhysicalQuantity[] = ["temperature", "pressure", "density"];
 
 export default function AtmosphereLayerDrawer({ open, state, onClose, onPatch }: Props) {
-  const check = (key: "showLayerLabels" | "showBoundaries" | "showOzoneLayer", label: string) => (
+  const check = (key: "showLayerLabels" | "showBoundaries" | "showOzoneLayer" | "showTooltip", label: string) => (
     <label><input type="checkbox" checked={state[key]} onChange={() => onPatch({ [key]: !state[key] })} />{label}</label>
   );
   const setScale = (quantity: PhysicalQuantity, scale: AxisScale) => {
@@ -32,6 +32,10 @@ export default function AtmosphereLayerDrawer({ open, state, onClose, onPatch }:
           {check("showLayerLabels", "分層文字標籤")}
           {check("showBoundaries", "分層界線與標籤")}
           {check("showOzoneLayer", "臭氧層帶狀區域")}
+        </div></details>
+
+        <details open><summary>讀值游標</summary><div className="layer-list">
+          {check("showTooltip", "數值卡片")}
         </div></details>
 
         <details open><summary>物理量座標軸</summary><div className="layer-list quantity-scale-list">
