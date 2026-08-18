@@ -105,8 +105,33 @@ export function quantityValue(sample: AtmosphereSample, quantity: PhysicalQuanti
 }
 
 export type TemperatureUnit = "K" | "C" | "F";
+export type PressureUnit = "Pa" | "hPa" | "bar" | "atm" | "cmHg" | "mmHg" | "Torr";
+export type DensityUnit = "kg/m3" | "g/cm3";
+
+export type DisplayUnits = {
+  temperature: TemperatureUnit;
+  pressure: PressureUnit;
+  density: DensityUnit;
+};
 
 export const TEMPERATURE_UNIT_LABEL: Record<TemperatureUnit, string> = { K: "K", C: "°C", F: "°F" };
+
+export const PRESSURE_UNIT_LABEL: Record<PressureUnit, string> = {
+  Pa: "Pa", hPa: "hPa", bar: "bar", atm: "atm", cmHg: "cmHg", mmHg: "mmHg", Torr: "Torr",
+};
+
+export const DENSITY_UNIT_LABEL: Record<DensityUnit, string> = { "kg/m3": "kg/m³", "g/cm3": "g/cm³" };
+
+/** Pascals per unit, so `pascals / PASCALS_PER_UNIT[unit]` converts to that unit. */
+const PASCALS_PER_UNIT: Record<PressureUnit, number> = {
+  Pa: 1,
+  hPa: 100,
+  bar: 1e5,
+  atm: 101325,
+  cmHg: 1333.22387415,
+  mmHg: 133.322387415,
+  Torr: 101325 / 760,
+};
 
 export function convertTemperature(kelvin: number, unit: TemperatureUnit) {
   if (unit === "K") return kelvin;
@@ -114,9 +139,19 @@ export function convertTemperature(kelvin: number, unit: TemperatureUnit) {
   return unit === "C" ? celsius : (celsius * 9) / 5 + 32;
 }
 
-/** Like `quantityValue`, but reports temperature in the requested display unit. */
-export function quantityDisplayValue(sample: AtmosphereSample, quantity: PhysicalQuantity, temperatureUnit: TemperatureUnit) {
-  return quantity === "temperature" ? convertTemperature(sample.temperatureK, temperatureUnit) : quantityValue(sample, quantity);
+export function convertPressure(pascals: number, unit: PressureUnit) {
+  return pascals / PASCALS_PER_UNIT[unit];
+}
+
+export function convertDensity(kilogramsPerCubicMeter: number, unit: DensityUnit) {
+  return unit === "kg/m3" ? kilogramsPerCubicMeter : kilogramsPerCubicMeter / 1000;
+}
+
+/** Like `quantityValue`, but reports the value in the requested display unit. */
+export function quantityDisplayValue(sample: AtmosphereSample, quantity: PhysicalQuantity, units: DisplayUnits) {
+  if (quantity === "temperature") return convertTemperature(sample.temperatureK, units.temperature);
+  if (quantity === "pressure") return convertPressure(sample.pressurePa, units.pressure);
+  return convertDensity(sample.densityKgM3, units.density);
 }
 
 /** Sample temperature, pressure and density at any altitude (km, 0–1000 km) via table interpolation. */

@@ -4,7 +4,9 @@ import {
   STANDARD_ATMOSPHERE_MAX_ALTITUDE_KM,
   sampleStandardAtmosphere,
   standardAtmosphereProfile,
+  type DensityUnit,
   type PhysicalQuantity,
+  type PressureUnit,
   type TemperatureUnit,
 } from "@/lib/science/standardAtmosphere";
 
@@ -18,6 +20,8 @@ export type StandardAtmosphereState = {
   quantityB: PhysicalQuantity;
   scaleByQuantity: Record<PhysicalQuantity, AxisScale>;
   temperatureUnit: TemperatureUnit;
+  pressureUnit: PressureUnit;
+  densityUnit: DensityUnit;
   showLayerLabels: boolean;
   showBoundaries: boolean;
   showOzoneLayer: boolean;
@@ -47,6 +51,8 @@ export function initialStandardAtmosphereState(): StandardAtmosphereState {
     quantityB: "pressure",
     scaleByQuantity: { temperature: "linear", pressure: "log", density: "log" },
     temperatureUnit: "C",
+    pressureUnit: "hPa",
+    densityUnit: "kg/m3",
     showLayerLabels: true,
     showBoundaries: true,
     showOzoneLayer: true,

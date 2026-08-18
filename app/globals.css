@@ -210,9 +210,9 @@ input[type=range] { display:block; width:100%; height:3px; accent-color:#356f91;
 .quantity-scale-list .coordinate-row strong { border-left-width:3px; border-left-style:solid; }
 .quantity-scale-list label.selected-inline { border-color:#739bb0; background:#e1edf2; color:#123d56; }
 
-.temp-unit-toggle { display:flex; align-items:center; gap:8px; margin-top:9px; }
-.temp-unit-toggle > span { color:var(--muted); font-size:13px; }
-.temp-unit-toggle .preset-row { margin-top:0; }
+.unit-toggle { display:flex; align-items:center; gap:8px; margin-top:9px; }
+.unit-toggle > span { color:var(--muted); font-size:13px; flex-shrink:0; }
+.unit-toggle .preset-row { margin-top:0; }
 
 .atmosphere-profile-lab .wind-control-block label>span { font-size:13px; }
 .atmosphere-profile-lab .wind-control-block label b { font-size:14px; }
