@@ -27,6 +27,9 @@ import AtmosphereLayerDrawer from "@/components/atmosphere/AtmosphereLayerDrawer
 
 const CHART_W = 760;
 const CHART_H = 560;
+/** How close a label may get to the plot edge before it risks overlapping that edge's
+ * own axis tick labels. */
+const AXIS_LABEL_MARGIN = 20;
 
 /** Rasterizes the chart SVG onto an opaque background and downloads it as a PNG. */
 async function exportChartPng(svg: SVGSVGElement, filename: string) {
@@ -96,14 +99,29 @@ function niceLinearTicks(min: number, max: number, targetCount = 5) {
   return ticks.length > 0 ? ticks : [round(min), round(max)];
 }
 
-/** Only whole powers of 10 that fall inside [min, max] — anything outside would render
- * beyond the plot area, since the axis is not padded for log scales. */
+/** Log-scale ticks confined to [min, max] — anything outside would render beyond the plot
+ * area, since the axis isn't padded for log scales. Whole powers of 10 alone go sparse (or
+ * empty) once the domain is zoomed to less than a decade, so this backs off to 1/2/5×10ⁿ
+ * sub-ticks, and finally to plain nice-number ticks for a very narrow domain. */
 function logTicks(min: number, max: number) {
-  const lo = Math.ceil(Math.log10(Math.max(min, 1e-300)));
-  const hi = Math.floor(Math.log10(Math.max(max, 1e-300)));
-  const ticks: number[] = [];
-  for (let power = lo; power <= hi; power += 1) ticks.push(10 ** power);
-  return ticks.length > 0 ? ticks : [min, max];
+  const lo = Math.log10(Math.max(min, 1e-300));
+  const hi = Math.log10(Math.max(max, 1e-300));
+  if (hi <= lo) return [min];
+
+  const wholePowers: number[] = [];
+  for (let power = Math.ceil(lo); power <= Math.floor(hi); power += 1) wholePowers.push(10 ** power);
+  if (wholePowers.length >= 4) return wholePowers;
+
+  const subTicks: number[] = [];
+  for (let power = Math.floor(lo); power <= Math.ceil(hi); power += 1) {
+    for (const multiplier of [1, 2, 5]) {
+      const value = multiplier * 10 ** power;
+      if (value >= min * 0.999 && value <= max * 1.001) subTicks.push(value);
+    }
+  }
+  if (subTicks.length >= 3) return subTicks;
+
+  return niceLinearTicks(min, max);
 }
 
 function altitudeTicks(maxAltitude: number) {
@@ -317,17 +335,21 @@ function AtmosphereChart({ state, readout, svgRef, onHoverAltitude }: {
       viewBox={`0 0 ${CHART_W} ${CHART_H}`} role="img" aria-label="大氣垂直結構剖面圖" className="atmos-svg"
       onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave}
     >
-      {state.showOzoneLayer && ozone.width > 0 && ozone.height > 0 && (
-        <g>
-          <rect x={ozone.x} y={ozone.y} width={ozone.width} height={ozone.height} className="atmos-ozone-band" />
-          <text
-            x={swap ? ozone.x + ozone.width / 2 : plot.right - 8}
-            y={swap ? plot.top + 27 : ozone.y + ozone.height / 2 + 3}
-            textAnchor={swap ? "middle" : "end"}
-            className="atmos-ozone-label"
-          >{OZONE_LAYER.label}（{OZONE_LAYER.from}–{OZONE_LAYER.to} km）</text>
-        </g>
-      )}
+      {state.showOzoneLayer && ozone.width > 0 && ozone.height > 0 && (() => {
+        const bandMidY = ozone.y + ozone.height / 2;
+        const nearTopEdge = !swap && bandMidY < plot.top + AXIS_LABEL_MARGIN;
+        return (
+          <g>
+            <rect x={ozone.x} y={ozone.y} width={ozone.width} height={ozone.height} className="atmos-ozone-band" />
+            <text
+              x={swap ? ozone.x + ozone.width / 2 : plot.right - 8}
+              y={swap ? plot.top + 27 : nearTopEdge ? bandMidY + 14 : bandMidY + 3}
+              textAnchor={swap ? "middle" : "end"}
+              className="atmos-ozone-label"
+            >{OZONE_LAYER.label}（{OZONE_LAYER.from}–{OZONE_LAYER.to} km）</text>
+          </g>
+        );
+      })()}
 
       {state.showLayerLabels && layers.map((layer) => {
         const mid = (layer.from + layer.to) / 2;
@@ -337,9 +359,16 @@ function AtmosphereChart({ state, readout, svgRef, onHoverAltitude }: {
 
       {state.showBoundaries && boundaries.map((boundary) => {
         const line = boundaryLine(boundary.altitudeKm);
+        // Boundary labels default to hugging the top-right corner of the plot, which is
+        // exactly where the top/right quantity axis's own tick labels live — flip the label
+        // to the other side of the line whenever it would land in that zone.
         const labelPos = swap
-          ? { x: line.x1 + 4, y: plot.top + 12, anchor: "start" as const }
-          : { x: plot.right - 6, y: line.y1 - 5, anchor: "end" as const };
+          ? (line.x1 > plot.right - AXIS_LABEL_MARGIN
+            ? { x: line.x1 - 4, y: plot.top + 12, anchor: "end" as const }
+            : { x: line.x1 + 4, y: plot.top + 12, anchor: "start" as const })
+          : (line.y1 < plot.top + AXIS_LABEL_MARGIN
+            ? { x: plot.right - 6, y: line.y1 + 14, anchor: "end" as const }
+            : { x: plot.right - 6, y: line.y1 - 5, anchor: "end" as const });
         return (
           <g key={boundary.key}>
             <line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} className="atmos-boundary-line" />
