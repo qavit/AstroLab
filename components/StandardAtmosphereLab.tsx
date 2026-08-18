@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type PointerEvent, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type RefObject } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, Compass, Download, ExternalLink, Layers3, RotateCcw } from "lucide-react";
+import { ArrowLeftRight, Compass, Download, ExternalLink, Layers3, Maximize2, Minimize2, RotateCcw } from "lucide-react";
 import {
   DENSITY_UNIT_LABEL,
   OZONE_LAYER,
@@ -470,9 +470,25 @@ export default function StandardAtmosphereLab() {
   const [sliderActive, setSliderActive] = useState(false);
   const readout = useMemo(() => deriveStandardAtmosphereModel(state), [state]);
   const chartSvgRef = useRef<SVGSVGElement | null>(null);
+  const chartCardRef = useRef<HTMLElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const usesTemperature = state.quantityA === "temperature" || state.quantityB === "temperature";
   const usesPressure = state.quantityA === "pressure" || state.quantityB === "pressure";
   const usesDensity = state.quantityA === "density" || state.quantityB === "density";
+
+  useEffect(() => {
+    const handleFullscreenChange = () => setIsFullscreen(document.fullscreenElement === chartCardRef.current);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      chartCardRef.current?.requestFullscreen().catch(() => {});
+    }
+  };
 
   const patchState = useCallback((patch: Partial<StandardAtmosphereState>) => {
     setState((current) => ({ ...current, ...patch }));
@@ -507,7 +523,7 @@ export default function StandardAtmosphereLab() {
         </div>
       </div>
 
-      <section className="viewport-card atmos-chart-card">
+      <section className="viewport-card atmos-chart-card" ref={chartCardRef}>
         <div className="card-label">
           <span>2D</span>
           <div><strong>{QUANTITY_META[state.quantityA].label} × {QUANTITY_META[state.quantityB].label}</strong></div>
@@ -518,6 +534,9 @@ export default function StandardAtmosphereLab() {
             onHoverAltitude={(altitudeKm) => patchState({ cursorAltitudeKm: altitudeKm })}
           />
         </div>
+        <button className="atmos-fullscreen-btn" onClick={toggleFullscreen} aria-label={isFullscreen ? "退出全螢幕" : "全螢幕檢視"}>
+          {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+        </button>
       </section>
 
       <section className="control-panel profile-controls">
