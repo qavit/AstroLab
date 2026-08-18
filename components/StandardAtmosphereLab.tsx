@@ -217,10 +217,13 @@ function AxisGroup({ vertical, side, fixedCoord, spanFrom, spanTo, ticks, posOf,
   );
 }
 
-function AtmosphereChart({ state, readout, svgRef, onHoverAltitude }: {
+function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude }: {
   state: StandardAtmosphereState;
   readout: StandardAtmosphereReadout;
   svgRef: RefObject<SVGSVGElement | null>;
+  /** True while the cursor-altitude slider is actively being dragged, so its readout can
+   * also show the value card even though the pointer isn't over the chart. */
+  sliderActive: boolean;
   /** Called with the hovered altitude while the pointer is over the plot, so the read-cursor
    * can follow the mouse the way a candlestick chart's crosshair drives its OHLC readout. */
   onHoverAltitude: (altitudeKm: number) => void;
@@ -315,10 +318,11 @@ function AtmosphereChart({ state, readout, svgRef, onHoverAltitude }: {
   const hoverGuideA = hoverPointA ? axisGuideLine(hoverPointA, true) : null;
   const hoverGuideB = hoverPointB ? axisGuideLine(hoverPointB, false) : null;
 
-  /** Tracks cursorAltitudeKm rather than the transient hover state, so it stays visible
-   * (when enabled) whether the position came from hovering or from dragging the slider. */
+  /** Tracks cursorAltitudeKm rather than only the hover point, so dragging the slider shows
+   * the same card — but only while actually interacting (hovering or dragging), not left
+   * permanently on screen at whatever position the cursor last happened to be. */
   let tooltip: { x: number; y: number } | null = null;
-  if (state.showTooltip) {
+  if (state.showTooltip && (hoverAltitude !== null || sliderActive)) {
     const tooltipW = 148;
     const tooltipH = 60;
     const rawX = cursorPointA.x + 14;
@@ -455,6 +459,7 @@ function AtmosphereChart({ state, readout, svgRef, onHoverAltitude }: {
 export default function StandardAtmosphereLab() {
   const [state, setState] = useState<StandardAtmosphereState>(initialStandardAtmosphereState);
   const [showLayers, setShowLayers] = useState(false);
+  const [sliderActive, setSliderActive] = useState(false);
   const readout = useMemo(() => deriveStandardAtmosphereModel(state), [state]);
   const chartSvgRef = useRef<SVGSVGElement | null>(null);
   const usesTemperature = state.quantityA === "temperature" || state.quantityB === "temperature";
@@ -495,11 +500,11 @@ export default function StandardAtmosphereLab() {
       <section className="viewport-card atmos-chart-card">
         <div className="card-label">
           <span>2D</span>
-          <div><strong>{QUANTITY_META[state.quantityA].label} × {QUANTITY_META[state.quantityB].label}</strong><small>虛線為第二物理量；灰色游標線為目前讀值高度</small></div>
+          <div><strong>{QUANTITY_META[state.quantityA].label} × {QUANTITY_META[state.quantityB].label}</strong></div>
         </div>
         <div className="atmos-chart-wrap">
           <AtmosphereChart
-            state={state} readout={readout} svgRef={chartSvgRef}
+            state={state} readout={readout} svgRef={chartSvgRef} sliderActive={sliderActive}
             onHoverAltitude={(altitudeKm) => patchState({ cursorAltitudeKm: altitudeKm })}
           />
         </div>
@@ -520,7 +525,16 @@ export default function StandardAtmosphereLab() {
           </div>
           <div className="wind-control-block">
             <label><span>讀值游標高度 <b>{readout.cursor.altitudeKm.toFixed(1)} km</b></span>
-              <input type="range" min="0" max={state.maxAltitudeKm} step={state.maxAltitudeKm / 500} value={Math.min(state.cursorAltitudeKm, state.maxAltitudeKm)} onChange={(event) => patchState({ cursorAltitudeKm: Number(event.target.value) })} />
+              <input
+                type="range" min="0" max={state.maxAltitudeKm} step={state.maxAltitudeKm / 500}
+                value={Math.min(state.cursorAltitudeKm, state.maxAltitudeKm)}
+                onChange={(event) => patchState({ cursorAltitudeKm: Number(event.target.value) })}
+                onPointerDown={() => setSliderActive(true)}
+                onPointerUp={() => setSliderActive(false)}
+                onKeyDown={() => setSliderActive(true)}
+                onKeyUp={() => setSliderActive(false)}
+                onBlur={() => setSliderActive(false)}
+              />
             </label>
             {usesTemperature && (
               <div className="temp-unit-toggle">

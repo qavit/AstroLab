@@ -25,10 +25,10 @@ export type StandardAtmosphereState = {
 };
 
 export const ALTITUDE_PRESETS = {
-  troposphere: { label: "對流層 0–13 km", maxAltitudeKm: 13 },
-  stratosphere: { label: "平流層 0–52 km", maxAltitudeKm: 52 },
-  mesosphere: { label: "中氣層 0–90 km", maxAltitudeKm: 90 },
-  thermosphere: { label: "增溫層 0–600 km", maxAltitudeKm: 600 },
+  troposphere: { label: "至對流層頂", maxAltitudeKm: 13 },
+  stratosphere: { label: "至平流層頂", maxAltitudeKm: 52 },
+  mesosphere: { label: "至中氣層頂", maxAltitudeKm: 83 },
+  thermosphere: { label: "至增溫層頂", maxAltitudeKm: 600 },
   full: { label: "全剖面 0–1000 km", maxAltitudeKm: STANDARD_ATMOSPHERE_MAX_ALTITUDE_KM },
 } as const;
 
