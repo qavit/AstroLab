@@ -61,6 +61,7 @@ test("server-renders the AstroLab model catalog", async () => {
   assert.match(html, /全球行星風系/);
   assert.match(html, /岩層位態/);
   assert.match(html, /多導線磁場疊加/);
+  assert.match(html, /科氏力效應/);
   assert.match(html, /風場粒子/);
   assert.doesNotMatch(html, /同步控制台/);
 });
@@ -134,6 +135,7 @@ test("keeps the model layer free of rendering and React", async () => {
     readFile(new URL("../models/magnetism.ts", import.meta.url), "utf8"),
     readFile(new URL("../models/atmosphere.ts", import.meta.url), "utf8"),
     readFile(new URL("../models/geology.ts", import.meta.url), "utf8"),
+    readFile(new URL("../models/coriolis.ts", import.meta.url), "utf8"),
   ]);
   for (const source of sources) {
     assert.doesNotMatch(source, /from "three/);
@@ -226,4 +228,38 @@ test("keeps valley-rule science independent of its synchronized views", async ()
   assert.match(view, /from "@\/lib\/science\/geology"/);
   assert.match(view, /from "@\/models\/geology"/);
   assert.match(view, /from "@\/lib\/render\/viewport"/);
+});
+
+test("server-renders the Coriolis-force model page", async () => {
+  const response = await render("/coriolis");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<title>科氏力效應｜AstroLab<\/title>/);
+  assert.match(html, /慣性系與旋轉系同框/);
+  assert.match(html, /平台觀察者視角/);
+  assert.match(html, /旋轉平台/);
+  assert.match(html, /地球緯度/);
+  assert.match(html, /局部角速度/);
+  assert.match(html, /傅科擺/);
+  assert.match(html, /模型目錄/);
+});
+
+test("keeps Coriolis science independent of the Three.js view, and shares its formula with atmosphere.ts", async () => {
+  const [science, model, view, atmosphereScience] = await Promise.all([
+    readFile(new URL("../lib/science/coriolis.ts", import.meta.url), "utf8"),
+    readFile(new URL("../models/coriolis.ts", import.meta.url), "utf8"),
+    readFile(new URL("../components/CoriolisLab.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/science/atmosphere.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(science, /export function rotatingFramePosition/);
+  assert.match(science, /export function coriolisParameter/);
+  assert.doesNotMatch(science, /three|document|window/i);
+  assert.match(model, /export function deriveCoriolisModel/);
+  assert.match(view, /from "@\/lib\/science\/coriolis"/);
+  assert.match(view, /from "@\/models\/coriolis"/);
+  assert.match(view, /from "@\/lib\/render\/viewport"/);
+  // atmosphere.ts keeps exporting coriolisParameter, but delegates to the shared implementation
+  // instead of maintaining a second copy of 2Ω sinφ.
+  assert.match(atmosphereScience, /export function coriolisParameter/);
+  assert.match(atmosphereScience, /from "\.\/coriolis\.ts"/);
 });

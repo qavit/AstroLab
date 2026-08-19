@@ -49,3 +49,13 @@ The model is intentionally zonally averaged. It excludes continents, topography,
 ## Fourth model
 
 `/geology` — a synchronized topographic-map and 3D block model for the valley rule. `lib/science/geology.ts` owns the terrain surface, planar bedding, strike/dip conventions, outcrop test, and marching-squares contour extraction. Both views therefore show the exact same contact rather than two hand-drawn approximations. The question preset isolates the downstream-pointing outcrop V, the east–west strike, and the south-dipping layer used in the classroom problem.
+
+## The Coriolis-force model
+
+`/coriolis` (catalogue number 06) pulls the mechanism the wind model only used as an ingredient — `coriolisParameter` in `lib/science/atmosphere.ts` — out into its own topic. `lib/science/coriolis.ts` is now the one place that owns it; `atmosphere.ts` keeps its own `coriolisParameter(latitude, rotationRate)` signature but delegates to the shared implementation, so both models compute the same number instead of maintaining two formulas.
+
+The model's core move is a coordinate transform, not a simulation: a launched object always moves in a straight line in the inertial frame, and `rotatingFramePosition` re-expresses that same straight line in coordinates that co-rotate with a disc or a patch of ground. No fictitious-force ODE is integrated anywhere — the curvature a rotating observer sees falls straight out of the rotation matrix, which is also why it's exact rather than a small-angle approximation.
+
+One engine serves two scenarios. A turntable's angular velocity is a direct slider; a latitude on a spinning planet supplies the same quantity indirectly, as the local vertical component Ω sinφ — so "turntable" and "earth" differ only in where that one number comes from, not in how the trajectory is drawn. Real Earth's rate is too slow to show visible curvature at a legible disc size in a few seconds of animation, so the earth scenario's *animation* uses an exaggerated angular velocity (`EARTH_VISUAL_SCALE` in `models/coriolis.ts`); the readout panel's Coriolis parameter and Foucault-pendulum period are computed separately from the real `EARTH_ANGULAR_VELOCITY`, so the exaggeration never leaks into the numbers shown as fact.
+
+The two synchronized views split the same launch into "what actually happened" and "what it looks like from here": the 3D view keeps one ball in true straight-line motion in a non-rotating world group while a disc group spins beneath it, and the 2D view is the flattened diagram a rider on that disc would draw — the aim line, the curved trace, and how far the two disagree by the time the object leaves the disc.

@@ -6,6 +6,7 @@ import * as ephemeris from "../lib/science/ephemeris.ts";
 import * as frames from "../lib/science/frames.ts";
 import * as time from "../lib/science/time.ts";
 import * as atmosphere from "../lib/science/atmosphere.ts";
+import * as coriolis from "../lib/science/coriolis.ts";
 import * as geology from "../lib/science/geology.ts";
 import { radians, solarDeclination } from "../lib/science/solar.ts";
 
@@ -30,6 +31,53 @@ test("idealized planetary wind belts have the textbook directions", () => {
   assert.ok(atmosphere.coriolisParameter(45) > 0);
   assert.ok(atmosphere.coriolisParameter(-45) < 0);
   assert.equal(atmosphere.coriolisParameter(0), 0);
+});
+
+test("rotating-frame coordinates match the inertial frame at t=0 and preserve distance from the axis", () => {
+  const origin = { x: 0, y: 0 };
+  const velocity = { x: 0.4, y: 1.6 };
+  for (const omega of [-2, -0.3, 0.9, 2.7]) {
+    const start = coriolis.inertialPosition(origin, velocity, 0);
+    assert.deepEqual(coriolis.rotatingFramePosition(start, omega, 0), start);
+    for (const t of [0.2, 0.5, 1.3, 2.4]) {
+      const inertial = coriolis.inertialPosition(origin, velocity, t);
+      const rotating = coriolis.rotatingFramePosition(inertial, omega, t);
+      // A pure coordinate rotation cannot change a point's distance from the origin.
+      const distanceInertial = Math.hypot(inertial.x, inertial.y);
+      const distanceRotating = Math.hypot(rotating.x, rotating.y);
+      assert.ok(Math.abs(distanceInertial - distanceRotating) < 1e-9, `distance preserved at omega=${omega} t=${t}`);
+    }
+  }
+});
+
+test("a body launched due north deflects to the right when the local spin matches the northern hemisphere", () => {
+  // Positive angular velocity here plays the role of the northern hemisphere's sense of spin
+  // (counterclockwise seen from above); real Coriolis deflection in the north is to the right.
+  const origin = { x: 0, y: 0 };
+  const dueNorth = { x: 0, y: 1 };
+  const northOmega = coriolis.rotatingFramePosition(coriolis.inertialPosition(origin, dueNorth, 0.3), 1.2, 0.3);
+  assert.ok(northOmega.x > 0, "northern-hemisphere-like spin should deflect a northward launch eastward (right)");
+  const southOmega = coriolis.rotatingFramePosition(coriolis.inertialPosition(origin, dueNorth, 0.3), -1.2, 0.3);
+  assert.ok(southOmega.x < 0, "southern-hemisphere-like spin should deflect a northward launch westward (left)");
+  assert.equal(coriolis.deflectionSide(1.2), "right");
+  assert.equal(coriolis.deflectionSide(-1.2), "left");
+  assert.equal(coriolis.deflectionSide(0), "none");
+});
+
+test("Coriolis parameter and Foucault period follow their textbook latitude dependence", () => {
+  assert.equal(coriolis.coriolisParameter(0, 1), 0);
+  assert.ok(coriolis.coriolisParameter(45, 1) > 0);
+  assert.ok(coriolis.coriolisParameter(-45, 1) < 0);
+  assert.equal(coriolis.localAngularVelocity(90, 2), 2);
+
+  assert.equal(coriolis.foucaultPeriodHours(0), Infinity);
+  const pole = coriolis.foucaultPeriodHours(90);
+  const midLatitude = coriolis.foucaultPeriodHours(45);
+  // A pendulum at the pole completes one apparent rotation in one sidereal day (~23.93 h); at
+  // lower latitudes it takes longer, diverging toward the equator.
+  assert.ok(pole > 23.9 && pole < 24, `pole Foucault period ${pole}`);
+  assert.ok(midLatitude > pole, "Foucault period must grow moving away from the pole");
+  assert.ok(coriolis.foucaultPeriodHours(45, 2) < midLatitude, "doubling rotation rate halves the period");
 });
 
 test("season shifts the ITCZ without breaking pressure-belt order", () => {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Compass, Layers, Magnet, Mountain, Orbit, Wind, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, Compass, Layers, Magnet, Mountain, Orbit, RotateCw, Wind, type LucideIcon } from "lucide-react";
 
 type CatalogModel = {
   href: string;
@@ -12,7 +12,7 @@ type CatalogModel = {
   /** Preview image. Omitted for models whose card art is drawn in CSS instead. */
   image?: string;
   /** CSS-drawn card art to use when `image` is omitted. */
-  cardArt?: "magnet" | "layers";
+  cardArt?: "magnet" | "layers" | "coriolis";
   icon: LucideIcon;
   tone: string;
 };
@@ -73,6 +73,17 @@ const models: readonly CatalogModel[] = [
     icon: Magnet,
     tone: "magnetism",
   },
+  {
+    href: "/coriolis",
+    subject: "物理",
+    number: "06",
+    title: "科氏力效應",
+    description: "同步顯示慣性系直線與旋轉系彎曲路徑，理解科氏偏轉如何隨緯度與轉速改變。",
+    tags: ["旋轉參考系", "科氏參數", "傅科擺"],
+    cardArt: "coriolis",
+    icon: RotateCw,
+    tone: "coriolis",
+  },
 ];
 
 export default function ModelCatalog() {
@@ -82,7 +93,7 @@ export default function ModelCatalog() {
         <Link href="/" className="catalog-brand" aria-label="AstroLab 模型目錄">
           <Compass size={20} /> <span>AstroLab</span>
         </Link>
-        <span className="catalog-count">05 interactive models</span>
+        <span className="catalog-count">06 interactive models</span>
       </header>
 
       <section className="catalog-hero">
@@ -106,6 +117,19 @@ export default function ModelCatalog() {
                     <div className="model-card-preview" style={{ backgroundImage: `url(${model.image})` }} />
                   ) : model.cardArt === "layers" ? (
                     <div className="layers-card-art"><i /><i /><i /><i /><i /></div>
+                  ) : model.cardArt === "coriolis" ? (
+                    <div className="coriolis-card-art">
+                      <i /><i />
+                      <svg viewBox="0 0 100 100" className="coriolis-card-path" aria-hidden="true">
+                        <defs>
+                          <marker id="coriolis-card-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                            <path d="M0,0 L6,3 L0,6 Z" fill="#5ed8c3" />
+                          </marker>
+                        </defs>
+                        <path d="M50 18 L66 60" stroke="#f2c66d" strokeWidth="1.6" strokeDasharray="4 4" fill="none" />
+                        <path d="M50 18 C68 26 76 46 66 60" stroke="#5ed8c3" strokeWidth="3" strokeLinecap="round" fill="none" markerEnd="url(#coriolis-card-arrow)" />
+                      </svg>
+                    </div>
                   ) : (
                     <div className="magnet-card-art"><span>⊙</span><span>⊗</span><i /><i /><i /></div>
                   )}

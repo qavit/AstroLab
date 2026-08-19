@@ -1,5 +1,7 @@
 /** Pure, idealized tri-cell atmospheric-circulation calculations. */
 
+import { EARTH_ANGULAR_VELOCITY, coriolisParameter as localCoriolisParameter } from "./coriolis.ts";
+
 export type CirculationCell = "hadley" | "ferrel" | "polar";
 export type VerticalMotion = "rising" | "sinking";
 
@@ -62,8 +64,7 @@ export function pressureBands(solarDeclination: number): PressureBand[] {
 
 /** Coriolis parameter in s⁻¹, scaled from Earth's sidereal rotation. */
 export function coriolisParameter(latitude: number, rotationRate = 1) {
-  const earthAngularVelocity = 7.2921159e-5;
-  return 2 * earthAngularVelocity * rotationRate * Math.sin((latitude * Math.PI) / 180);
+  return localCoriolisParameter(latitude, EARTH_ANGULAR_VELOCITY * rotationRate);
 }
 
 /**
