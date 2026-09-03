@@ -9,6 +9,7 @@ import {
   Compass,
   Eye,
   EyeOff,
+  Maximize2,
   Pause,
   Play,
   RotateCcw,
@@ -17,6 +18,8 @@ import {
   SlidersHorizontal,
   Undo2,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import TheoryNotes from "@/components/projectile/TheoryNotes";
 import type { TrajectorySample, Vec2 } from "@/lib/science/projectile";
@@ -255,6 +258,35 @@ function centredFrame(domain: Domain, width: number, height: number, pad: Pad, p
   return frameFromRect(domain, { left, right: left + plotW, top, bottom: top + plotH });
 }
 
+/**
+ * The user's own pan/zoom, expressed as a centre and a single meters-per-pixel scale shared by
+ * both axes — the same equal-scale invariant the auto-fit view holds, but now a scale the user
+ * can pick rather than one derived from the flight. `null` means "no manual view yet": the chart
+ * follows the auto-fit target, as it always has.
+ */
+type ManualView = { centerX: number; centerY: number; mpp: number };
+
+function domainFromView(view: ManualView, plotW: number, plotH: number): Domain {
+  const halfW = (plotW / 2) * view.mpp;
+  const halfH = (plotH / 2) * view.mpp;
+  return { xMin: view.centerX - halfW, xMax: view.centerX + halfW, yMin: view.centerY - halfH, yMax: view.centerY + halfH };
+}
+
+/**
+ * The one primitive every pan/zoom gesture reduces to: choose centre and scale so that
+ * `domainPoint` continues to land at `screenPoint`. Dragging is this with `mpp` unchanged (the
+ * point under the pointer doesn't move); zooming toward the cursor or a pinch midpoint is this
+ * with `mpp` changed first, so the point under the gesture is what stays fixed rather than the
+ * plot's corner.
+ */
+function recenterOn(domainPoint: Vec2, screenPoint: Vec2, mpp: number, plot: Frame["plot"], plotW: number, plotH: number): ManualView {
+  const xMin = domainPoint.x - (screenPoint.x - plot.left) * mpp;
+  const yMin = domainPoint.y - (plot.bottom - screenPoint.y) * mpp;
+  return { centerX: xMin + (plotW * mpp) / 2, centerY: yMin + (plotH * mpp) / 2, mpp };
+}
+
+const clamp = (value: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, value));
+
 const pathFrom = (points: readonly Vec2[], frame: Frame) =>
   points.map((p, index) => `${index === 0 ? "M" : "L"}${frame.px(p.x).toFixed(2)} ${frame.py(p.y).toFixed(2)}`).join(" ");
 
@@ -323,15 +355,18 @@ function Arrow({ x1, y1, x2, y2, color, width = 2, dash }: {
 
 type Probe = { t: number; point: Vec2; velocity: Vec2; speed: number; angle: number };
 
-function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
+function TrajectoryView({ state, model, cursor, geometry, manualView, onManualViewChange, onScrubTo }: {
   state: ProjectileState;
   model: ProjectileReadout;
   cursor: CursorReadout;
   geometry: Geometry;
+  manualView: ManualView | null;
+  onManualViewChange: (view: ManualView | null) => void;
   onScrubTo: (t: number) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [probe, setProbe] = useState<Probe | null>(null);
+  const [dragging, setDragging] = useState(false);
   const isStairs = state.scenario === "staircase";
   const { stairs } = state;
 
@@ -368,16 +403,47 @@ function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
     };
   }, [isStairs, stairs.count, stairs.rise, stairs.width, model.landing?.step, model.apex.point.y, model.groundRange, model.maxRange, model.envelope, model.dragLanding?.point.x, model.complementary?.range, complementaryMaxY, state.height]);
 
+  const availW = geometry.w - geometry.pad.left - geometry.pad.right;
+  const availH = geometry.h - geometry.pad.top - geometry.pad.bottom;
+
   const settled = useSettledDomain(target);
-  const fitted = fitEqualAspect(
-    settled,
-    geometry.w - geometry.pad.left - geometry.pad.right,
-    geometry.h - geometry.pad.top - geometry.pad.bottom,
-    isStairs ? "down" : "up",
-  );
-  const domain = fitted.domain;
-  const frame = centredFrame(domain, geometry.w, geometry.h, geometry.pad, fitted.plotW, fitted.plotH);
+  const fitted = fitEqualAspect(settled, availW, availH, isStairs ? "down" : "up");
+
+  /* Once the user has framed their own view, parameter changes leave it alone — a preset that
+   * silently yanked the picture back to auto-fit would undo the very thing panning or zooming
+   * was for. The auto-fit result above is still computed every render regardless, both to drive
+   * the settling animation that resumes the moment the user asks for it (the "fit" button), and
+   * to keep the zoom bounds below anchored to the flight's own scale rather than a fixed number. */
+  const isManual = manualView !== null;
+  const plotW = isManual ? availW : fitted.plotW;
+  const plotH = isManual ? availH : fitted.plotH;
+  const domain = isManual ? domainFromView(manualView, plotW, plotH) : fitted.domain;
+  const frame = centredFrame(domain, geometry.w, geometry.h, geometry.pad, plotW, plotH);
   const { plot } = frame;
+
+  /* Bounds scale with the flight rather than being a fixed number of metres, so a 2 m toy hop and
+   * a 130 m bomb offer the same *relative* room to zoom rather than wildly different absolute ones. */
+  const naturalMpp = (fitted.domain.xMax - fitted.domain.xMin) / fitted.plotW;
+  const minMpp = naturalMpp / 20;
+  const maxMpp = naturalMpp * 8;
+
+  /** Screen → domain, the inverse of `frame.px`/`frame.py`. Only valid while `mpp` is the same on
+   * both axes, which every view here maintains by construction. */
+  const domainAt = (screenX: number, screenY: number): Vec2 => ({
+    x: domain.xMin + ((screenX - plot.left) / plotW) * (domain.xMax - domain.xMin),
+    y: domain.yMin + ((plot.bottom - screenY) / plotH) * (domain.yMax - domain.yMin),
+  });
+
+  /** The view a gesture starts from: the user's own if one exists, otherwise the auto-fit view
+   * showing right now — seeding manual mode from whatever was already on screen keeps the first
+   * pan or scroll from jumping. */
+  const currentView = (): ManualView =>
+    manualView ?? { centerX: (domain.xMin + domain.xMax) / 2, centerY: (domain.yMin + domain.yMax) / 2, mpp: naturalMpp };
+
+  const zoomBy = (factor: number) => {
+    const base = currentView();
+    onManualViewChange({ ...base, mpp: clamp(base.mpp * factor, minMpp, maxMpp) });
+  };
 
   /* Follows the axis inboard when the plot is centred, but never off the left edge. */
   const yTitleX = Math.max(14, plot.left - 46);
@@ -423,20 +489,22 @@ function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
     stairPoints.push({ x: step * stairs.width, y: -(step + 1) * stairs.rise });
   }
 
-  /* Hovering reads the flight out without disturbing it; a click moves the time cursor there.
-   * Nearest-in-screen-space rather than nearest-in-x, so a steep or vertical launch still probes. */
-  const localPoint = (event: ReactPointerEvent<SVGSVGElement>) => {
+  /* Hovering reads the flight out without disturbing it; a tap or click that doesn't drag moves
+   * the time cursor there instead. Nearest-in-screen-space rather than nearest-in-x, so a steep or
+   * vertical launch still probes. Takes raw client coordinates rather than an event so the same
+   * lookup serves a live hover, a finished drag, and a finished pinch alike. */
+  const toLocal = (clientX: number, clientY: number) => {
     const svg = svgRef.current;
     const matrix = svg?.getScreenCTM();
     if (!svg || !matrix) return null;
     const origin = svg.createSVGPoint();
-    origin.x = event.clientX;
-    origin.y = event.clientY;
+    origin.x = clientX;
+    origin.y = clientY;
     return origin.matrixTransform(matrix.inverse());
   };
 
-  const nearestSample = (event: ReactPointerEvent<SVGSVGElement>) => {
-    const local = localPoint(event);
+  const nearestSampleAt = (clientX: number, clientY: number) => {
+    const local = toLocal(clientX, clientY);
     if (!local || model.trajectory.length === 0) return null;
     let best = model.trajectory[0];
     let bestDistance = Infinity;
@@ -450,8 +518,8 @@ function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
     return bestDistance <= 90 ** 2 ? best : null;
   };
 
-  const handleMove = (event: ReactPointerEvent<SVGSVGElement>) => {
-    const sample = nearestSample(event);
+  const handleHover = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const sample = nearestSampleAt(event.clientX, event.clientY);
     if (!sample) {
       setProbe(null);
       return;
@@ -465,6 +533,110 @@ function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
       angle: (Math.atan2(sample.velocity.y, sample.velocity.x) * 180) / Math.PI,
     });
   };
+
+  /*
+   * Pan and pinch-zoom. One finger drags the view; two fingers (or a mouse held down while a
+   * second touch somehow joins, which never happens but costs nothing to allow) pinch it. A press
+   * that never moves past a small threshold is a tap or click instead — handled on release, by
+   * finding the nearest sample at the *release* point rather than trusting `probe`, since a touch
+   * tap has no hover event beforehand to have set it.
+   */
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{ startDistance: number; startMpp: number } | null>(null);
+  const downPointRef = useRef<{ x: number; y: number } | null>(null);
+  const draggedRef = useRef(false);
+
+  const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    /* Capture only keeps the drag alive once the pointer leaves the chart; the spec lets it throw
+     * when the pointer has already ended, and a pan that merely stops at the edge is a far better
+     * outcome than an exception thrown out of an event handler with nothing to catch it. */
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* Drag still works while the pointer stays over the chart. */
+    }
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointersRef.current.size === 1) {
+      downPointRef.current = { x: event.clientX, y: event.clientY };
+      draggedRef.current = false;
+    } else {
+      pinchRef.current = null;
+    }
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (pointersRef.current.size === 0) {
+      handleHover(event);
+      return;
+    }
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointersRef.current.size >= 2) {
+      const [a, b] = [...pointersRef.current.values()];
+      const distance = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      if (!pinchRef.current) pinchRef.current = { startDistance: distance, startMpp: currentView().mpp };
+      const { startDistance, startMpp } = pinchRef.current;
+      const nextMpp = clamp((startMpp * startDistance) / distance, minMpp, maxMpp);
+      const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const midLocal = toLocal(midpoint.x, midpoint.y);
+      if (midLocal) onManualViewChange(recenterOn(domainAt(midLocal.x, midLocal.y), midLocal, nextMpp, plot, plotW, plotH));
+      draggedRef.current = true;
+      setDragging(true);
+      setProbe(null);
+      return;
+    }
+
+    const local = toLocal(event.clientX, event.clientY);
+    const down = downPointRef.current;
+    if (!local || !down) return;
+    if (!draggedRef.current && Math.hypot(event.clientX - down.x, event.clientY - down.y) > 4) {
+      draggedRef.current = true;
+      setDragging(true);
+    }
+    if (!draggedRef.current) return;
+
+    /* The point that was under the pointer a moment ago — read off the *current* domain, which
+     * this move hasn't touched yet — is exactly the point that must stay under the pointer now.
+     * `movementX/Y` gives that previous position without needing to track it separately. */
+    const native = event.nativeEvent;
+    const previousLocal = toLocal(event.clientX - native.movementX, event.clientY - native.movementY);
+    const anchor = domainAt((previousLocal ?? local).x, (previousLocal ?? local).y);
+    onManualViewChange(recenterOn(anchor, local, currentView().mpp, plot, plotW, plotH));
+    setProbe(null);
+  };
+
+  const endPointer = (event: ReactPointerEvent<SVGSVGElement>) => {
+    pointersRef.current.delete(event.pointerId);
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+    if (pointersRef.current.size > 0) return;
+    if (!draggedRef.current) {
+      const sample = nearestSampleAt(event.clientX, event.clientY);
+      if (sample) onScrubTo(sample.t);
+    }
+    downPointRef.current = null;
+    draggedRef.current = false;
+    setDragging(false);
+  };
+
+  /* Wheel zoom needs a real (non-passive) listener to stop the page from scrolling underneath it —
+   * React's synthetic onWheel is passive by default and cannot preventDefault. Re-attached every
+   * render rather than memoized, so it always closes over this render's domain and plot rect
+   * instead of a stale one from whenever it was last created. */
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const local = toLocal(event.clientX, event.clientY);
+      if (!local) return;
+      const base = currentView();
+      const factor = Math.exp(event.deltaY * 0.0016);
+      const nextMpp = clamp(base.mpp * factor, minMpp, maxMpp);
+      onManualViewChange(recenterOn(domainAt(local.x, local.y), local, nextMpp, plot, plotW, plotH));
+    };
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", onWheel);
+  });
 
   const tooltipRows = probe
     ? [
@@ -485,17 +657,20 @@ function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
   const tipY = Math.min(Math.max(plot.top, probeY - tipH / 2), plot.bottom - tipH);
 
   return (
+    <>
     <svg
       ref={svgRef}
       viewBox={`0 0 ${geometry.w} ${geometry.h}`}
       width="100%"
       height="100%"
       role="img"
-      aria-label="拋體運動軌跡圖"
-      style={{ cursor: probe ? "crosshair" : "default" }}
-      onPointerMove={handleMove}
-      onPointerLeave={() => setProbe(null)}
-      onClick={() => probe && onScrubTo(probe.t)}
+      aria-label="拋體運動軌跡圖，可拖曳平移、滾輪或雙指縮放"
+      style={{ cursor: dragging ? "grabbing" : "grab", touchAction: "none" }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endPointer}
+      onPointerCancel={endPointer}
+      onPointerLeave={() => { if (pointersRef.current.size === 0) setProbe(null); }}
     >
       <defs>
         {/* The osculating circle and the envelope fan can both run far outside the framed
@@ -635,6 +810,24 @@ function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
         <text x={geometry.w / 2} y={geometry.h / 2} textAnchor="middle" fill={COMPARE} fontSize={geometry.note + 2}>此設定下沒有飛行（重力為零或未離開地面）</text>
       )}
     </svg>
+
+    {/* Plain HTML, not SVG, so this cluster stays put at the card's corner as the map underneath
+        it pans and zooms — Google Maps' own +/− and recentre controls work the same way. */}
+    <div className="projectile-map-controls">
+      <div className="projectile-zoom-group">
+        <button onClick={() => zoomBy(1 / 1.4)} disabled={currentView().mpp <= minMpp * 1.001} aria-label="放大"><ZoomIn size={16} /></button>
+        <button onClick={() => zoomBy(1.4)} disabled={currentView().mpp >= maxMpp * 0.999} aria-label="縮小"><ZoomOut size={16} /></button>
+      </div>
+      <button
+        className={`projectile-map-reset${isManual ? " active" : ""}`}
+        onClick={() => onManualViewChange(null)}
+        aria-label="回到自動縮放"
+        title="回到自動縮放"
+      >
+        <Maximize2 size={15} />
+      </button>
+    </div>
+    </>
   );
 }
 
@@ -802,6 +995,7 @@ export default function ProjectileLab() {
   const [showEnvironment, setShowEnvironment] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [theoryOpen, setTheoryOpen] = useState(false);
+  const [manualView, setManualView] = useState<ManualView | null>(null);
 
   const chartHostRef = useRef<HTMLDivElement>(null);
   const chartSize = useElementSize(chartHostRef);
@@ -886,13 +1080,13 @@ export default function ProjectileLab() {
         </div>
         <div className="header-actions">
           <Menu label="情境">
-            <button className={!isStairs ? "active" : ""} onClick={() => patchState({ scenario: "field", ...SCENARIO_DEFAULTS.field })}>平地拋射</button>
-            <button className={isStairs ? "active" : ""} onClick={() => patchState({ scenario: "staircase", ...SCENARIO_DEFAULTS.staircase })}>階梯落點</button>
+            <button className={!isStairs ? "active" : ""} onClick={() => { patchState({ scenario: "field", ...SCENARIO_DEFAULTS.field }); setManualView(null); }}>平地拋射</button>
+            <button className={isStairs ? "active" : ""} onClick={() => { patchState({ scenario: "staircase", ...SCENARIO_DEFAULTS.staircase }); setManualView(null); }}>階梯落點</button>
           </Menu>
           <Menu label="教學預設">
             {Object.entries(PROJECTILE_PRESETS).map(([key, preset]) => {
               const { label, ...patch } = preset;
-              return <button key={key} onClick={() => { patchState(patch); setCursorFraction(0); }}>{label}</button>;
+              return <button key={key} onClick={() => { patchState(patch); setCursorFraction(0); setManualView(null); }}>{label}</button>;
             })}
           </Menu>
           <button className={theoryOpen ? "active" : ""} onClick={() => setTheoryOpen(true)} aria-haspopup="dialog" aria-expanded={theoryOpen}>
@@ -901,7 +1095,7 @@ export default function ProjectileLab() {
           <button className={panelOpen ? "active" : ""} onClick={() => setPanelOpen((open) => !open)} aria-expanded={panelOpen}>
             {panelOpen ? <X size={14} /> : <SlidersHorizontal size={14} />} {panelOpen ? "收合面板" : "調整參數"}
           </button>
-          <button onClick={() => { setState(initialProjectileState()); setCursorFraction(0); }}><RotateCcw size={14} /> 重設</button>
+          <button onClick={() => { setState(initialProjectileState()); setCursorFraction(0); setManualView(null); }}><RotateCcw size={14} /> 重設</button>
         </div>
       </div>
 
@@ -917,7 +1111,7 @@ export default function ProjectileLab() {
             </div>
           </div>
           <div className="canvas-host" ref={chartHostRef}>
-            <TrajectoryView state={state} model={model} cursor={cursor} geometry={geometry} onScrubTo={scrubTo} />
+            <TrajectoryView state={state} model={model} cursor={cursor} geometry={geometry} manualView={manualView} onManualViewChange={setManualView} onScrubTo={scrubTo} />
           </div>
           <div className="legend">
             <span><i style={{ background: PATH }} />本次軌跡</span>

@@ -360,6 +360,21 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
 .projectile-card-art i { position:absolute; left:12%; bottom:18%; width:76%; height:1px; background:rgba(122,191,221,.3); }
 .projectile-card-path { position:absolute; inset:0; width:100%; height:100%; }
 
+/* Sits over the chart's own corner rather than the card's, in the same glass-chip language as
+ * the legend and card label already on this view. Plain HTML rather than SVG so it stays put at
+ * that corner as the map underneath pans and zooms, the way Google Maps' own +/− and recentre
+ * controls do. */
+.projectile-map-controls { position:absolute; z-index:3; right:14px; bottom:15px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.projectile-zoom-group { display:flex; flex-direction:column; overflow:hidden; border-radius:6px; border:1px solid rgba(255,255,255,.1); background:rgba(5,20,30,.72); backdrop-filter:blur(8px); box-shadow:0 6px 18px rgba(4,16,26,.35); }
+.projectile-zoom-group button { display:flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0; border:0; border-radius:0; background:transparent; color:#d4e0e5; }
+.projectile-zoom-group button:first-child { border-bottom:1px solid rgba(255,255,255,.1); }
+.projectile-zoom-group button:hover { background:rgba(255,255,255,.08); transform:none; }
+.projectile-zoom-group button:disabled { opacity:.32; cursor:not-allowed; }
+.projectile-zoom-group button:disabled:hover { background:transparent; }
+.projectile-map-reset { display:flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0; border-radius:6px; border:1px solid rgba(255,255,255,.1); background:rgba(5,20,30,.72); backdrop-filter:blur(8px); color:#d4e0e5; box-shadow:0 6px 18px rgba(4,16,26,.35); }
+.projectile-map-reset:hover { background:rgba(255,255,255,.1); transform:none; }
+.projectile-map-reset.active { color:#5ed8c3; border-color:rgba(94,216,195,.4); }
+
 /* Below the two-column width the page goes back to stacking and scrolling: a phone cannot hold a
  * chart and a panel side by side, and the panel's own labels and legend move into normal flow. */
 @media(max-width:900px){
@@ -372,7 +387,7 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
 }
 @media(max-width:660px){
   .projectile-path-card { aspect-ratio:auto; min-height:0; padding:50px 0 0; }
-  .projectile-path-card .canvas-host { position:static; }
+  .projectile-path-card .canvas-host { position:relative; }
   .projectile-path-card .canvas-host svg { display:block; width:100%; height:240px; }
   .projectile-path-card .legend { position:static; margin:6px 12px 12px; max-width:none; font-size:11px; gap:9px; }
   .projectile-path-card .card-label small { display:none; }
