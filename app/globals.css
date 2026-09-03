@@ -87,6 +87,34 @@ input[type=range] { display:block; width:100%; height:3px; accent-color:#356f91;
 .lab-footer { display:flex; justify-content:space-between; margin-top:12px; color:#7a909b; font:11px/1.4 ui-monospace,monospace; letter-spacing:.08em; }
 
 .about-page { width:min(900px,calc(100% - 32px)); margin:0 auto; padding:38px 0 70px; }.about-page nav a { color:#356f91; text-decoration:none; }.about-page article { margin-top:24px; padding:clamp(22px,5vw,54px); border:1px solid var(--line); border-radius:9px; background:#f8fbfc; }.about-page h1 { margin-bottom:18px; }.about-page h2 { margin-top:34px; font-family:Georgia,"Noto Serif TC",serif; font-weight:500; }.about-page p,.about-page li { color:#496475; line-height:1.8; }.about-page table { width:100%; border-collapse:collapse; }.about-page th,.about-page td { padding:10px; border:1px solid #cbd7dd; text-align:left; vertical-align:top; font-size:15px; }
+.theory-body h1 { margin:6px 0 18px; font-family:Georgia,"Noto Serif TC",serif; font-size:30px; font-weight:500; letter-spacing:-.02em; }
+.theory-body h2 { margin-top:34px; font-family:Georgia,"Noto Serif TC",serif; font-size:21px; font-weight:500; }
+.theory-body h3 { margin-top:26px; font-family:Georgia,"Noto Serif TC",serif; font-size:17px; font-weight:500; }
+.theory-body p { color:#496475; font-size:15px; line-height:1.9; }
+.theory-body table { width:100%; margin-top:14px; border-collapse:collapse; }
+.theory-body th,.theory-body td { padding:10px; border:1px solid #cbd7dd; color:#496475; text-align:left; vertical-align:top; font-size:14px; line-height:1.7; }
+.theory-body a { color:#356f91; }
+
+/* Formulas are the thing being looked up on this page, so they get their own rule, their own
+ * rhythm, and room to breathe rather than being run into the prose. */
+.theory-body .formula { margin:16px 0; padding:14px 18px; border-left:2px solid var(--accent); border-radius:0 5px 5px 0; background:rgba(233,240,243,.7); overflow-x:auto; }
+/* MathJax's SVG output is display:block, which turns every inline formula into its own line and
+ * breaks the sentence around it. Inline math has to be forced back inline-block, container and
+ * svg alike; the svg keeps MathJax's own baseline offset. */
+.theory-body .formula-inline,
+.theory-body .formula-inline mjx-container,
+.theory-body .formula-inline mjx-container > svg { display:inline-block !important; }
+.theory-body mjx-container[display="true"] { margin:0 !important; text-align:left !important; }
+.theory-body mjx-container { color:#1d445c; }
+
+/* Reading a formula happens while looking at the model, so the notes arrive over it rather than
+ * replacing it. */
+.theory-backdrop { position:fixed; inset:0; z-index:100; display:grid; place-items:center; padding:clamp(16px,4vh,48px) 16px; background:rgba(10,33,50,.55); backdrop-filter:blur(3px); animation:theory-fade .16s ease; }
+.theory-panel { position:relative; display:flex; flex-direction:column; width:min(920px,100%); max-height:100%; overflow:hidden; border:1px solid var(--line); border-radius:10px; background:#f8fbfc; box-shadow:0 28px 70px rgba(6,24,38,.4); }
+.theory-scroll { overflow-y:auto; padding:clamp(24px,4vw,52px); }
+.theory-close { position:absolute; z-index:2; top:14px; right:14px; padding:8px; border-radius:6px; background:rgba(248,251,252,.92); }
+@keyframes theory-fade { from { opacity:0; } to { opacity:1; } }
+
 .about-page h3 { margin-top:26px; font-family:Georgia,"Noto Serif TC",serif; font-size:17px; font-weight:500; }
 .about-page var { font-family:Georgia,"Noto Serif TC",serif; font-style:italic; }
 .about-page sub,.about-page sup { font-size:.68em; line-height:0; }
@@ -266,6 +294,10 @@ input[type=range] { display:block; width:100%; height:3px; accent-color:#356f91;
 .projectile-lab { display:flex; flex-direction:column; min-height:100vh; }
 .projectile-topbar { flex:none; margin-bottom:10px; }
 .projectile-stage { flex:none; display:flex; align-items:flex-start; gap:12px; min-height:0; }
+/* With the panel open the row is as tall as the panel, so the chart stretches to match it
+ * rather than keeping its closed-state ratio and leaving a band of empty page beside it. */
+.projectile-stage[data-panel="true"] { align-items:stretch; }
+.projectile-stage[data-panel="true"] .projectile-path-card { aspect-ratio:auto; height:auto; min-height:340px; }
 /* A projectile chart is inherently landscape: the two axes share one scale, so a tall frame just
  * forces a tall y-domain and leaves the upper half permanently empty. The card therefore keeps a
  * wide ratio and caps its height so the page still ends within one screen. max-width is

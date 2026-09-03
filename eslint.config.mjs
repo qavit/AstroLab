@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored third-party bundle, copied in by scripts/copy-mathjax.mjs.
+    "public/mathjax/**",
   ]),
 ]);
 

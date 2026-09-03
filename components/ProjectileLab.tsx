@@ -18,6 +18,7 @@ import {
   Undo2,
   X,
 } from "lucide-react";
+import TheoryNotes from "@/components/projectile/TheoryNotes";
 import type { TrajectorySample, Vec2 } from "@/lib/science/projectile";
 import { DRAG_PRESETS, GRAVITY_PRESETS } from "@/lib/science/projectile";
 import {
@@ -91,10 +92,6 @@ function useElementSize(ref: RefObject<HTMLDivElement | null>) {
   return size;
 }
 
-/** The rotated y-axis title is anchored to the SVG edge rather than offset from the plot, so a
- * narrower left padding cannot push it off the canvas. */
-const Y_TITLE_INSET = 14;
-
 const MINI_W = 372;
 const MINI_H = 232;
 const MINI_PAD = { left: 60, right: 18, top: 20, bottom: 44 };
@@ -135,7 +132,7 @@ function niceTicks(min: number, max: number, targetCount = 5) {
 /* Coarse enough that most parameter changes resolve to the same axis limit and move nothing,
  * fine enough that the flight still fills the frame. A pure 1/2/5 ladder would send a 59 m throw
  * to a 100 m axis and leave the picture 40% empty. */
-const SNAP_STEPS = [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+const SNAP_STEPS = [1, 1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7, 8, 9, 10];
 
 /** Rounds an extent up to the next step on that ladder. */
 function snapUp(value: number) {
@@ -148,19 +145,39 @@ function snapUp(value: number) {
 type Domain = { xMin: number; xMax: number; yMin: number; yMax: number };
 
 /**
- * Grows the shorter domain until the two axes share one scale. A trajectory drawn on stretched
- * axes is no longer the shape the projectile actually flew, and the whole point of the main view
- * is that the shape is a parabola — so distortion is corrected here rather than tolerated.
+ * How much emptiness an axis may be padded with to make the two axes share one scale. A trajectory
+ * drawn on stretched axes is no longer the shape the projectile actually flew, so equal scale is
+ * never given up — but past this factor the *frame* yields instead of the domain, because an axis
+ * running to 130 m for a 61 m flight misreports the flight rather than framing it.
  */
-function fitEqualAspect(domain: Domain, plotW: number, plotH: number, growY: "up" | "down"): Domain {
+const MAX_AXIS_PADDING = 1.4;
+
+type Fitted = { domain: Domain; plotW: number; plotH: number };
+
+/** Reconciles the data's proportions with the frame's, at equal scale on both axes. */
+function fitEqualAspect(domain: Domain, availW: number, availH: number, growY: "up" | "down"): Fitted {
   const xRange = Math.max(1e-6, domain.xMax - domain.xMin);
   const yRange = Math.max(1e-6, domain.yMax - domain.yMin);
-  const target = plotW / plotH;
-  if (xRange / yRange < target) return { ...domain, xMax: domain.xMin + yRange * target };
-  const needed = xRange / target;
-  return growY === "up"
-    ? { ...domain, yMax: domain.yMin + needed }
-    : { ...domain, yMin: domain.yMax - needed };
+  const frameAspect = availW / availH;
+  const dataAspect = xRange / yRange;
+
+  if (dataAspect < frameAspect) {
+    const growth = frameAspect / dataAspect;
+    if (growth <= MAX_AXIS_PADDING) {
+      return { domain: { ...domain, xMax: domain.xMin + yRange * frameAspect }, plotW: availW, plotH: availH };
+    }
+    const grown = xRange * MAX_AXIS_PADDING;
+    return { domain: { ...domain, xMax: domain.xMin + grown }, plotW: availH * (grown / yRange), plotH: availH };
+  }
+
+  const growth = dataAspect / frameAspect;
+  const grow = (range: number): Domain =>
+    growY === "up" ? { ...domain, yMax: domain.yMin + range } : { ...domain, yMin: domain.yMax - range };
+  if (growth <= MAX_AXIS_PADDING) {
+    return { domain: grow(xRange / frameAspect), plotW: availW, plotH: availH };
+  }
+  const grown = yRange * MAX_AXIS_PADDING;
+  return { domain: grow(grown), plotW: availW, plotH: availW * (grown / xRange) };
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -220,8 +237,7 @@ type Frame = {
   plot: { left: number; right: number; top: number; bottom: number };
 };
 
-function makeFrame(domain: Domain, width: number, height: number, pad: Pad): Frame {
-  const plot = { left: pad.left, right: width - pad.right, top: pad.top, bottom: height - pad.bottom };
+function frameFromRect(domain: Domain, plot: Frame["plot"]): Frame {
   const w = plot.right - plot.left;
   const h = plot.bottom - plot.top;
   return {
@@ -230,6 +246,13 @@ function makeFrame(domain: Domain, width: number, height: number, pad: Pad): Fra
     px: (x) => plot.left + ((x - domain.xMin) / (domain.xMax - domain.xMin || 1)) * w,
     py: (y) => plot.bottom - ((y - domain.yMin) / (domain.yMax - domain.yMin || 1)) * h,
   };
+}
+
+/** Places a plot rectangle of the given size, centred inside the padded area. */
+function centredFrame(domain: Domain, width: number, height: number, pad: Pad, plotW: number, plotH: number): Frame {
+  const left = pad.left + (width - pad.left - pad.right - plotW) / 2;
+  const top = pad.top + (height - pad.top - pad.bottom - plotH) / 2;
+  return frameFromRect(domain, { left, right: left + plotW, top, bottom: top + plotH });
 }
 
 const pathFrom = (points: readonly Vec2[], frame: Frame) =>
@@ -333,14 +356,18 @@ function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
   }, [isStairs, stairs.count, stairs.rise, stairs.width, model.landing?.step, model.apex.point.y, model.groundRange, model.maxRange, model.envelope, model.dragLanding?.point.x, state.height]);
 
   const settled = useSettledDomain(target);
-  const domain = fitEqualAspect(
+  const fitted = fitEqualAspect(
     settled,
     geometry.w - geometry.pad.left - geometry.pad.right,
     geometry.h - geometry.pad.top - geometry.pad.bottom,
     isStairs ? "down" : "up",
   );
-  const frame = makeFrame(domain, geometry.w, geometry.h, geometry.pad);
+  const domain = fitted.domain;
+  const frame = centredFrame(domain, geometry.w, geometry.h, geometry.pad, fitted.plotW, fitted.plotH);
   const { plot } = frame;
+
+  /* Follows the axis inboard when the plot is centred, but never off the left edge. */
+  const yTitleX = Math.max(14, plot.left - 46);
 
   const xTicks = niceTicks(domain.xMin, domain.xMax, 9);
   const yTicks = niceTicks(domain.yMin, domain.yMax, 5);
@@ -489,12 +516,12 @@ function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
       ))}
       <text x={plot.right} y={plot.bottom + geometry.tick + 7 + geometry.title + 10} textAnchor="end" fill={LABEL} fontSize={geometry.title}>水平距離 x (m)</text>
       <text
-        x={Y_TITLE_INSET}
+        x={yTitleX}
         y={(plot.top + plot.bottom) / 2}
         textAnchor="middle"
         fill={LABEL}
         fontSize={geometry.title}
-        transform={`rotate(-90 ${Y_TITLE_INSET} ${(plot.top + plot.bottom) / 2})`}
+        transform={`rotate(-90 ${yTitleX} ${(plot.top + plot.bottom) / 2})`}
       >高度 y (m)</text>
 
       <g clipPath="url(#projectile-plot-clip)">
@@ -621,11 +648,9 @@ function MiniChart({ title, note, series, duration, cursorT, yLabel }: {
   const rawMin = Math.min(0, ...values);
   const rawMax = Math.max(...values, rawMin + 1e-6);
   const padding = (rawMax - rawMin) * 0.12 || 1;
-  const frame = makeFrame(
+  const frame = frameFromRect(
     { xMin: 0, xMax: Math.max(duration, 1e-6), yMin: rawMin - padding, yMax: rawMax + padding },
-    MINI_W,
-    MINI_H,
-    MINI_PAD,
+    { left: MINI_PAD.left, right: MINI_W - MINI_PAD.right, top: MINI_PAD.top, bottom: MINI_H - MINI_PAD.bottom },
   );
   const { plot } = frame;
   const yTicks = niceTicks(frame.domain.yMin, frame.domain.yMax, 4);
@@ -723,12 +748,47 @@ function Menu({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+/**
+ * The theory notes as a centred overlay rather than a separate destination. Reading a formula is
+ * something you do *while* looking at the model, so leaving the page would lose the state the
+ * question came from; the same notes remain linkable at /projectile/notes.
+ */
+function TheoryOverlay({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKeyDown);
+    /* The page behind must not scroll while the overlay owns the screen. */
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  return (
+    <div className="theory-backdrop" onClick={onClose}>
+      <div
+        className="theory-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="拋體運動的理論與計算"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button className="theory-close" onClick={onClose} aria-label="關閉"><X size={16} /></button>
+        <div className="theory-scroll"><TheoryNotes /></div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectileLab() {
   const [state, setState] = useState<ProjectileState>(initialProjectileState);
   const [cursorFraction, setCursorFraction] = useState(0.45);
   const [showComponents, setShowComponents] = useState(false);
   const [showEnvironment, setShowEnvironment] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [theoryOpen, setTheoryOpen] = useState(false);
 
   const chartHostRef = useRef<HTMLDivElement>(null);
   const chartSize = useElementSize(chartHostRef);
@@ -822,7 +882,9 @@ export default function ProjectileLab() {
               return <button key={key} onClick={() => { patchState(patch); setCursorFraction(0); }}>{label}</button>;
             })}
           </Menu>
-          <Link className="model-index-link" href="/projectile/notes"><BookOpen size={15} />理論與計算</Link>
+          <button className={theoryOpen ? "active" : ""} onClick={() => setTheoryOpen(true)} aria-haspopup="dialog" aria-expanded={theoryOpen}>
+            <BookOpen size={14} /> 理論與計算
+          </button>
           <button className={panelOpen ? "active" : ""} onClick={() => setPanelOpen((open) => !open)} aria-expanded={panelOpen}>
             {panelOpen ? <X size={14} /> : <SlidersHorizontal size={14} />} {panelOpen ? "收合面板" : "調整參數"}
           </button>
@@ -832,7 +894,7 @@ export default function ProjectileLab() {
 
       {/* The panel takes width from the chart rather than covering it, and the chart is drawn at
           whatever size it is left with, so opening the panel never hides the trajectory. */}
-      <div className="projectile-stage">
+      <div className="projectile-stage" data-panel={panelOpen}>
         <section className="viewport-card projectile-path-card">
           <div className="card-label">
             <span>軌跡</span>
@@ -995,6 +1057,8 @@ export default function ProjectileLab() {
           {liveReadouts.map(([name, value]) => <span key={name} className="live"><i>{name}</i>{value}</span>)}
         </div>
       </div>
+
+      {theoryOpen && <TheoryOverlay onClose={() => setTheoryOpen(false)} />}
     </main>
   );
 }

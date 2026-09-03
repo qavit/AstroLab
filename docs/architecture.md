@@ -98,6 +98,18 @@ element's measured pixel size, so one viewBox unit is one CSS pixel and the char
 size it says it is at every width. Scaling a fixed viewBox instead had been shrinking every tick
 label along with the drawing, on a phone to a third of its size.
 
+The theory notes open as a centred overlay over the running model rather than as a destination:
+reading a formula is something done *while* looking at the model, so navigating away would lose the
+state the question came from. `components/projectile/TheoryNotes.tsx` holds the content once and
+both the overlay and the standalone `/projectile/notes` route render it, so the two cannot drift.
+
+Its mathematics is typeset with MathJax, self-hosted rather than pulled from a CDN:
+`scripts/copy-mathjax.mjs` copies MathJax's standalone SVG bundle into `public/` before dev and
+build, so the model has no third-party runtime dependency and works offline in a classroom. The SVG
+output is chosen over CHTML because it carries no accompanying web fonts, making it a single file.
+One stylesheet rule is load-bearing there: MathJax's SVG output is `display:block`, which turns
+every inline formula into its own line, so inline math is forced back to `inline-block`.
+
 `/projectile/notes` carries the model's formulas, the conditions each one needs, and an explicit
 account of the one curve that is not a closed form: why quadratic drag has none, what the RK4
 scheme and step size are, and how the integrator is calibrated against the exact solution it
