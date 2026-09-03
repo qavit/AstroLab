@@ -335,6 +335,13 @@ function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
   const isStairs = state.scenario === "staircase";
   const { stairs } = state;
 
+  /* The complementary comparison can arc well above the main flight — a steep launch angle
+   * paired against a shallow one — so its own extent has to be counted, not just the main
+   * trajectory's, or the comparison the layer exists to show gets clipped off the top. */
+  const complementaryMaxY = model.complementary
+    ? Math.max(...model.complementary.samples.map((sample) => sample.point.y))
+    : 0;
+
   /* Axis limits are snapped to round extents before anything else sees them, so a nudge to the
    * launch speed usually resolves to the very same frame and the axes do not twitch. */
   const target = useMemo<Domain>(() => {
@@ -349,11 +356,17 @@ function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
     }
     return {
       xMin: 0,
-      xMax: snapUp(Math.max(model.groundRange, model.maxRange && model.envelope.length > 0 ? model.maxRange : 0, model.dragLanding?.point.x ?? 0, 1)),
+      xMax: snapUp(Math.max(
+        model.groundRange,
+        model.maxRange && model.envelope.length > 0 ? model.maxRange : 0,
+        model.dragLanding?.point.x ?? 0,
+        model.complementary?.range ?? 0,
+        1,
+      )),
       yMin: 0,
-      yMax: snapUp(Math.max(model.apex.point.y, model.envelope[0]?.y ?? 0, state.height, 1)),
+      yMax: snapUp(Math.max(model.apex.point.y, model.envelope[0]?.y ?? 0, state.height, complementaryMaxY, 1)),
     };
-  }, [isStairs, stairs.count, stairs.rise, stairs.width, model.landing?.step, model.apex.point.y, model.groundRange, model.maxRange, model.envelope, model.dragLanding?.point.x, state.height]);
+  }, [isStairs, stairs.count, stairs.rise, stairs.width, model.landing?.step, model.apex.point.y, model.groundRange, model.maxRange, model.envelope, model.dragLanding?.point.x, model.complementary?.range, complementaryMaxY, state.height]);
 
   const settled = useSettledDomain(target);
   const fitted = fitEqualAspect(
