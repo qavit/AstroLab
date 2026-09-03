@@ -47,6 +47,8 @@ export type ProjectileState = {
   showAcceleration: boolean;
   showDrag: boolean;
   playing: boolean;
+  /** Playback direction: +1 runs the flight forwards, −1 rewinds it. */
+  direction: 1 | -1;
   animationSpeed: number;
 };
 
@@ -96,6 +98,7 @@ export function initialProjectileState(): ProjectileState {
     showAcceleration: true,
     showDrag: false,
     playing: true,
+    direction: 1,
     animationSpeed: 1,
   };
 }
@@ -103,7 +106,7 @@ export function initialProjectileState(): ProjectileState {
 export type ProjectileReadout = ReturnType<typeof deriveProjectileModel>;
 
 /** One extra trajectory drawn beside the main one, for comparison rather than for its own sake. */
-export type CompanionPath = { label: string; angle: number; range: number; samples: TrajectorySample[] };
+export type CompanionPath = { label: string; angle: number; range: number; duration: number; samples: TrajectorySample[] };
 
 const EMPTY: Vec2 = { x: 0, y: 0 };
 
@@ -114,7 +117,8 @@ function vacuumPath(speed: number, angle: number, height: number, gravity: numbe
     label: `${angle.toFixed(0)}°`,
     angle,
     range: velocity.x * duration,
-    samples: sampleTrajectory(velocity, height, gravity, duration, 72),
+    duration,
+    samples: sampleTrajectory(velocity, height, gravity, duration, 96),
   };
 }
 
@@ -170,9 +174,15 @@ export function deriveProjectileModel(state: ProjectileState) {
       : [];
   const dragLanding = dragSamples.length > 0 ? dragSamples[dragSamples.length - 1] : null;
 
+  /* Comparison launches leave at the same instant as the main one but need not land with it —
+   * two complementary angles share a landing point and disagree about when they get there, which
+   * is the whole lesson — so the shared clock runs until the last of them is down. */
+  const clockDuration = Math.max(duration, complementary?.duration ?? 0, dragLanding?.t ?? 0);
+
   return {
     velocity,
     height,
+    clockDuration,
     duration,
     trajectory,
     apex: peak,
@@ -209,9 +219,14 @@ export type CursorReadout = ReturnType<typeof deriveCursor>;
  * meaningful when a parameter change shortens or lengthens the flight.
  */
 export function deriveCursor(model: ProjectileReadout, gravity: number, cursor: number) {
-  const t = model.duration * Math.min(1, Math.max(0, cursor));
+  /* The cursor rides the shared clock, then each path is read at the part of it that path was
+   * still in the air for — so a marker parks at its landing point instead of running past it. */
+  const clockTime = model.clockDuration * Math.min(1, Math.max(0, cursor));
+  const t = Math.min(clockTime, model.duration);
   return {
     t,
+    clockTime,
+    airborne: clockTime <= model.duration + 1e-9,
     point: position(model.velocity, model.height, gravity, t),
     velocity: velocityAt(model.velocity, gravity, t),
     acceleration: pathAcceleration(model.velocity, gravity, t),

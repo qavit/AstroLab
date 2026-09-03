@@ -1,8 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
-import { Compass, Eye, EyeOff, Pause, Play, RotateCcw, Target } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Compass,
+  Eye,
+  EyeOff,
+  Pause,
+  Play,
+  RotateCcw,
+  SkipBack,
+  SkipForward,
+  Target,
+  Undo2,
+} from "lucide-react";
 import type { TrajectorySample, Vec2 } from "@/lib/science/projectile";
 import { DRAG_PRESETS, GRAVITY_PRESETS } from "@/lib/science/projectile";
 import {
@@ -17,26 +30,34 @@ import {
   type ProjectileState,
 } from "@/models/projectile";
 
-const TRAJ_W = 780;
-const TRAJ_H = 452;
-const TRAJ_PAD = { left: 56, right: 26, top: 24, bottom: 44 };
-const MINI_W = 336;
-const MINI_H = 146;
-const MINI_PAD = { left: 48, right: 14, top: 16, bottom: 36 };
+const TRAJ_W = 1140;
+const TRAJ_H = 560;
+/* Generous top and bottom padding: the card's own label overlays the top-left of this SVG and the
+ * legend overlays the bottom, so the plot has to start clear of both. */
+const TRAJ_PAD = { left: 64, right: 30, top: 66, bottom: 78 };
+const MINI_W = 372;
+const MINI_H = 214;
+const MINI_PAD = { left: 52, right: 16, top: 18, bottom: 38 };
 
-const TRAJ = "#5ed8c3";
-const COMP = "#f2c66d";
-const ENVELOPE = "#b78ce0";
-const FAN = "#41708e";
-const DRAG = "#ef8f6a";
-const VX = "#8ad6ff";
-const VY = "#ffd280";
-const TANGENTIAL = "#ff9d76";
-const NORMAL = "#7fb4ff";
+/** One transport step, in seconds. Fixed rather than a fraction of the flight so the button
+ * means the same thing whether the throw lasts half a second or six. */
+const STEP_SECONDS = 0.05;
+
+/*
+ * Five colours, each standing for a kind of thing rather than for an individual line:
+ * this flight, a flight drawn for comparison, a bound that is not a flight, the velocity
+ * family, and the acceleration family. Within a family the resultant is solid and its
+ * components are the same colour dashed, so a component is never mistaken for a new quantity.
+ */
+const PATH = "#5ed8c3";
+const COMPARE = "#f2c66d";
+const BOUND = "#7d90b4";
+const VELOCITY = "#eaf4f8";
+const ACCEL = "#ef8f6a";
 const GRID = "#22485f";
 const AXIS = "#3d6482";
+const STAIR = "#6f9cba";
 const LABEL = "#9fc2d3";
-const INK = "#f4f1e8";
 
 /** Round-number ticks (1/2/5 × 10ⁿ) spanning the domain. */
 function niceTicks(min: number, max: number, targetCount = 5) {
@@ -49,6 +70,19 @@ function niceTicks(min: number, max: number, targetCount = 5) {
   const ticks: number[] = [];
   for (let v = Math.ceil(min / step) * step; v <= max + step * 1e-6; v += step) ticks.push(Number(v.toFixed(decimals)));
   return ticks.length > 0 ? ticks : [min, max];
+}
+
+/* Coarse enough that most parameter changes resolve to the same axis limit and move nothing,
+ * fine enough that the flight still fills the frame. A pure 1/2/5 ladder would send a 59 m throw
+ * to a 100 m axis and leave the picture 40% empty. */
+const SNAP_STEPS = [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+
+/** Rounds an extent up to the next step on that ladder. */
+function snapUp(value: number) {
+  if (!(value > 0)) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  const residual = value / magnitude;
+  return (SNAP_STEPS.find((step) => residual <= step + 1e-9) ?? 10) * magnitude;
 }
 
 type Domain = { xMin: number; xMax: number; yMin: number; yMax: number };
@@ -67,6 +101,56 @@ function fitEqualAspect(domain: Domain, plotW: number, plotH: number, growY: "up
   return growY === "up"
     ? { ...domain, yMax: domain.yMin + needed }
     : { ...domain, yMin: domain.yMax - needed };
+}
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const lerpDomain = (a: Domain, b: Domain, t: number): Domain => ({
+  xMin: lerp(a.xMin, b.xMin, t),
+  xMax: lerp(a.xMax, b.xMax, t),
+  yMin: lerp(a.yMin, b.yMin, t),
+  yMax: lerp(a.yMax, b.yMax, t),
+});
+
+/** Whether the drawn frame no longer suits the data: either the flight has grown out of it, or it
+ * has shrunk far enough inside it that the picture has become mostly empty. */
+function needsRescale(shown: Domain, target: Domain) {
+  const grew =
+    target.xMax > shown.xMax * 1.001 || target.yMax > shown.yMax * 1.001 || target.yMin < shown.yMin * 1.001 - 1e-9;
+  const shrank =
+    target.xMax < shown.xMax * 0.55 ||
+    (target.yMax - target.yMin) < (shown.yMax - shown.yMin) * 0.55;
+  return grew || shrank;
+}
+
+/**
+ * Holds the axes still through small parameter changes, and slides them when they really must
+ * move. Rescaling on every keystroke made a preset look like it had only changed the axis labels,
+ * hiding the fact that the whole trajectory had changed with them; a frame that mostly stays put,
+ * and visibly glides when it doesn't, keeps the curve as the thing that moved.
+ */
+function useSettledDomain(target: Domain): Domain {
+  const [shown, setShown] = useState(target);
+  const shownRef = useRef(target);
+  const frameRef = useRef(0);
+
+  useEffect(() => {
+    if (!needsRescale(shownRef.current, target)) return;
+    const from = shownRef.current;
+    const start = performance.now();
+    const tick = () => {
+      const progress = Math.min(1, (performance.now() - start) / 320);
+      const eased = progress * progress * (3 - 2 * progress);
+      const next = lerpDomain(from, target, eased);
+      shownRef.current = next;
+      setShown(next);
+      if (progress < 1) frameRef.current = requestAnimationFrame(tick);
+    };
+    cancelAnimationFrame(frameRef.current);
+    frameRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [target]);
+
+  return shown;
 }
 
 type Frame = {
@@ -94,6 +178,22 @@ const pathFrom = (points: readonly Vec2[], frame: Frame) =>
 const samplePath = (samples: readonly TrajectorySample[], frame: Frame) =>
   pathFrom(samples.map((sample) => sample.point), frame);
 
+/** The sample a comparison path has reached on the shared clock; it parks at its landing point
+ * once it is down rather than disappearing. */
+function sampleAt(samples: readonly TrajectorySample[], t: number): TrajectorySample | null {
+  if (samples.length === 0) return null;
+  const last = samples[samples.length - 1];
+  if (t >= last.t) return last;
+  let low = 0;
+  let high = samples.length - 1;
+  while (high - low > 1) {
+    const mid = (low + high) >> 1;
+    if (samples[mid].t <= t) low = mid;
+    else high = mid;
+  }
+  return samples[low];
+}
+
 /** A straight arrow with a solid head, in screen coordinates. */
 function Arrow({ x1, y1, x2, y2, color, width = 2, dash }: {
   x1: number; y1: number; x2: number; y2: number; color: string; width?: number; dash?: string;
@@ -101,8 +201,8 @@ function Arrow({ x1, y1, x2, y2, color, width = 2, dash }: {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const length = Math.hypot(dx, dy);
-  if (length < 4) return null;
-  const head = Math.min(9, length * 0.4);
+  if (length < 5) return null;
+  const head = Math.min(10, length * 0.4);
   const ux = dx / length;
   const uy = dy / length;
   const baseX = x2 - ux * head;
@@ -122,36 +222,42 @@ function Arrow({ x1, y1, x2, y2, color, width = 2, dash }: {
  * Main view: the trajectory itself
  * ------------------------------------------------------------------------------------------ */
 
-function TrajectoryView({ state, model, cursor }: {
+type Probe = { t: number; point: Vec2; velocity: Vec2; speed: number; angle: number };
+
+function TrajectoryView({ state, model, cursor, onScrubTo }: {
   state: ProjectileState;
   model: ProjectileReadout;
   cursor: CursorReadout;
+  onScrubTo: (t: number) => void;
 }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [probe, setProbe] = useState<Probe | null>(null);
   const isStairs = state.scenario === "staircase";
   const { stairs } = state;
 
-  const rawDomain: Domain = isStairs
-    ? {
+  /* Axis limits are snapped to round extents before anything else sees them, so a nudge to the
+   * launch speed usually resolves to the very same frame and the axes do not twitch. */
+  const target = useMemo<Domain>(() => {
+    if (isStairs) {
+      const steps = (model.landing?.step ?? stairs.count) + 1.5;
+      return {
         xMin: 0,
-        xMax: Math.max(stairs.width * ((model.landing?.step ?? stairs.count) + 1.5), stairs.width * 3),
-        yMin: -stairs.rise * ((model.landing?.step ?? stairs.count) + 1.5),
-        yMax: Math.max(model.apex.point.y, stairs.rise),
-      }
-    : {
-        xMin: 0,
-        xMax:
-          Math.max(
-            model.groundRange,
-            state.showEnvelope ? model.maxRange : 0,
-            model.dragLanding?.point.x ?? 0,
-            1,
-          ) * 1.06,
-        yMin: 0,
-        yMax: Math.max(model.apex.point.y, state.showEnvelope ? model.envelope[0]?.y ?? 0 : 0, state.height, 1) * 1.14,
+        xMax: snapUp(Math.max(stairs.width * steps, stairs.width * 3)),
+        yMin: -snapUp(stairs.rise * steps),
+        yMax: snapUp(Math.max(model.apex.point.y, stairs.rise)),
       };
+    }
+    return {
+      xMin: 0,
+      xMax: snapUp(Math.max(model.groundRange, model.maxRange && model.envelope.length > 0 ? model.maxRange : 0, model.dragLanding?.point.x ?? 0, 1)),
+      yMin: 0,
+      yMax: snapUp(Math.max(model.apex.point.y, model.envelope[0]?.y ?? 0, state.height, 1)),
+    };
+  }, [isStairs, stairs.count, stairs.rise, stairs.width, model.landing?.step, model.apex.point.y, model.groundRange, model.maxRange, model.envelope, model.dragLanding?.point.x, state.height]);
 
+  const settled = useSettledDomain(target);
   const domain = fitEqualAspect(
-    rawDomain,
+    settled,
     TRAJ_W - TRAJ_PAD.left - TRAJ_PAD.right,
     TRAJ_H - TRAJ_PAD.top - TRAJ_PAD.bottom,
     isStairs ? "down" : "up",
@@ -159,38 +265,40 @@ function TrajectoryView({ state, model, cursor }: {
   const frame = makeFrame(domain, TRAJ_W, TRAJ_H, TRAJ_PAD);
   const { plot } = frame;
 
-  const xTicks = niceTicks(domain.xMin, domain.xMax, 7);
+  const xTicks = niceTicks(domain.xMin, domain.xMax, 9);
   const yTicks = niceTicks(domain.yMin, domain.yMax, 5);
 
-  /* One world-unit-per-metre-per-second scale for velocity and one for acceleration, so the two
-   * arrow families stay comparable to themselves across parameter changes. */
+  /* One scale for the velocity family and one for the acceleration family, so arrows stay
+   * comparable to themselves as the parameters change. */
   const span = domain.xMax - domain.xMin;
-  const velocityScale = state.speed > 0 ? (0.16 * span) / state.speed : 0;
-  const accelScale = state.gravity > 0 ? (0.11 * span) / state.gravity : 0;
+  const velocityScale = state.speed > 0 ? (0.15 * span) / state.speed : 0;
+  const accelScale = state.gravity > 0 ? (0.1 * span) / state.gravity : 0;
 
   const cx = frame.px(cursor.point.x);
   const cy = frame.py(cursor.point.y);
-  const arrowTip = (dx: number, dy: number, scale: number) => ({
+  const tipOf = (dx: number, dy: number, scale: number) => ({
     x: frame.px(cursor.point.x + dx * scale),
     y: frame.py(cursor.point.y + dy * scale),
   });
 
   const speed = cursor.acceleration.speed;
-  const tip = arrowTip(cursor.velocity.x, cursor.velocity.y, velocityScale);
-  const tipX = arrowTip(cursor.velocity.x, 0, velocityScale);
-  const tipY = arrowTip(0, cursor.velocity.y, velocityScale);
-
-  /* Gravity split along and across the path. The unit normal points to the concave side, which is
-   * (v_y, −vₓ)/|v| for rightward motion — the direction the path is actually bending toward. */
   const unit = speed > 1e-6 ? { x: cursor.velocity.x / speed, y: cursor.velocity.y / speed } : { x: 1, y: 0 };
   const sign = cursor.velocity.x >= 0 ? 1 : -1;
   const normalDir = { x: (sign * cursor.velocity.y) / (speed || 1), y: (-sign * cursor.velocity.x) / (speed || 1) };
-  const tipT = arrowTip(unit.x * cursor.acceleration.tangential, unit.y * cursor.acceleration.tangential, accelScale);
-  const tipN = arrowTip(normalDir.x * cursor.acceleration.normal, normalDir.y * cursor.acceleration.normal, accelScale);
+
+  const tipV = tipOf(cursor.velocity.x, cursor.velocity.y, velocityScale);
+  const tipVx = tipOf(cursor.velocity.x, 0, velocityScale);
+  const tipVy = tipOf(0, cursor.velocity.y, velocityScale);
+  const tipG = tipOf(0, -state.gravity, accelScale);
+  const tipAt = tipOf(unit.x * cursor.acceleration.tangential, unit.y * cursor.acceleration.tangential, accelScale);
+  const tipAn = tipOf(normalDir.x * cursor.acceleration.normal, normalDir.y * cursor.acceleration.normal, accelScale);
 
   const radius = cursor.acceleration.radiusOfCurvature;
   const showCircle = state.showAcceleration && Number.isFinite(radius) && radius < span * 2.2 && model.duration > 0;
   const centre = { x: cursor.point.x + normalDir.x * radius, y: cursor.point.y + normalDir.y * radius };
+
+  const companion = model.complementary ? sampleAt(model.complementary.samples, cursor.clockTime) : null;
+  const dragMarker = model.dragSamples.length > 0 ? sampleAt(model.dragSamples, cursor.clockTime) : null;
 
   const stairPoints: Vec2[] = [];
   for (let step = 0; step <= stairs.count; step += 1) {
@@ -198,8 +306,80 @@ function TrajectoryView({ state, model, cursor }: {
     stairPoints.push({ x: step * stairs.width, y: -(step + 1) * stairs.rise });
   }
 
+  /* Hovering reads the flight out without disturbing it; a click moves the time cursor there.
+   * Nearest-in-screen-space rather than nearest-in-x, so a steep or vertical launch still probes. */
+  const localPoint = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    const matrix = svg?.getScreenCTM();
+    if (!svg || !matrix) return null;
+    const origin = svg.createSVGPoint();
+    origin.x = event.clientX;
+    origin.y = event.clientY;
+    return origin.matrixTransform(matrix.inverse());
+  };
+
+  const nearestSample = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const local = localPoint(event);
+    if (!local || model.trajectory.length === 0) return null;
+    let best = model.trajectory[0];
+    let bestDistance = Infinity;
+    for (const sample of model.trajectory) {
+      const distance = (frame.px(sample.point.x) - local.x) ** 2 + (frame.py(sample.point.y) - local.y) ** 2;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = sample;
+      }
+    }
+    return bestDistance <= 90 ** 2 ? best : null;
+  };
+
+  const handleMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const sample = nearestSample(event);
+    if (!sample) {
+      setProbe(null);
+      return;
+    }
+    const magnitude = Math.hypot(sample.velocity.x, sample.velocity.y);
+    setProbe({
+      t: sample.t,
+      point: sample.point,
+      velocity: sample.velocity,
+      speed: magnitude,
+      angle: (Math.atan2(sample.velocity.y, sample.velocity.x) * 180) / Math.PI,
+    });
+  };
+
+  const tooltipRows = probe
+    ? [
+        ["t", `${probe.t.toFixed(2)} s`],
+        ["x", `${probe.point.x.toFixed(2)} m`],
+        ["y", `${probe.point.y.toFixed(2)} m`],
+        ["v", `${probe.speed.toFixed(2)} m/s`],
+        ["vₓ", `${probe.velocity.x.toFixed(2)} m/s`],
+        ["v_y", `${probe.velocity.y.toFixed(2)} m/s`],
+        ["路徑傾角", `${probe.angle.toFixed(1)}°`],
+      ]
+    : [];
+  const tipW = 132;
+  const tipH = tooltipRows.length * 15 + 12;
+  const probeX = probe ? frame.px(probe.point.x) : 0;
+  const probeY = probe ? frame.py(probe.point.y) : 0;
+  const tipX = probeX + tipW + 18 > plot.right ? probeX - tipW - 14 : probeX + 14;
+  const tipY = Math.min(Math.max(plot.top, probeY - tipH / 2), plot.bottom - tipH);
+
   return (
-    <svg viewBox={`0 0 ${TRAJ_W} ${TRAJ_H}`} width="100%" height="100%" role="img" aria-label="拋體運動軌跡圖">
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${TRAJ_W} ${TRAJ_H}`}
+      width="100%"
+      height="100%"
+      role="img"
+      aria-label="拋體運動軌跡圖"
+      style={{ cursor: probe ? "crosshair" : "default" }}
+      onPointerMove={handleMove}
+      onPointerLeave={() => setProbe(null)}
+      onClick={() => probe && onScrubTo(probe.t)}
+    >
       <defs>
         {/* The osculating circle and the envelope fan can both run far outside the framed
             region; clipping keeps them from being read as part of the flight. */}
@@ -207,6 +387,7 @@ function TrajectoryView({ state, model, cursor }: {
           <rect x={plot.left} y={plot.top} width={plot.right - plot.left} height={plot.bottom - plot.top} />
         </clipPath>
       </defs>
+
       {xTicks.map((tick) => (
         <line key={`gx${tick}`} x1={frame.px(tick)} y1={plot.top} x2={frame.px(tick)} y2={plot.bottom} stroke={GRID} strokeWidth={1} />
       ))}
@@ -215,92 +396,126 @@ function TrajectoryView({ state, model, cursor }: {
       ))}
 
       {isStairs ? (
-        <path d={pathFrom(stairPoints, frame)} fill="none" stroke="#6f9cba" strokeWidth={2.2} />
+        <g clipPath="url(#projectile-plot-clip)">
+          <path d={pathFrom(stairPoints, frame)} fill="none" stroke={STAIR} strokeWidth={2.2} />
+        </g>
       ) : (
         <line x1={plot.left} y1={frame.py(0)} x2={plot.right} y2={frame.py(0)} stroke={AXIS} strokeWidth={2} />
       )}
       <line x1={plot.left} y1={plot.top} x2={plot.left} y2={plot.bottom} stroke={AXIS} strokeWidth={1.4} />
 
       {xTicks.map((tick) => (
-        <text key={`tx${tick}`} x={frame.px(tick)} y={plot.bottom + 16} textAnchor="middle" fill={LABEL} fontSize={10}>{tick}</text>
+        <text key={`tx${tick}`} x={frame.px(tick)} y={plot.bottom + 17} textAnchor="middle" fill={LABEL} fontSize={11}>{tick}</text>
       ))}
       {yTicks.map((tick) => (
-        <text key={`ty${tick}`} x={plot.left - 8} y={frame.py(tick) + 3.5} textAnchor="end" fill={LABEL} fontSize={10}>{tick}</text>
+        <text key={`ty${tick}`} x={plot.left - 9} y={frame.py(tick) + 4} textAnchor="end" fill={LABEL} fontSize={11}>{tick}</text>
       ))}
-      <text x={plot.right} y={plot.bottom + 33} textAnchor="end" fill={LABEL} fontSize={11}>水平距離 x (m)</text>
-      <text x={plot.left - 8} y={plot.top - 9} textAnchor="end" fill={LABEL} fontSize={11}>高度 y (m)</text>
+      <text x={plot.right} y={plot.bottom + 38} textAnchor="end" fill={LABEL} fontSize={12}>水平距離 x (m)</text>
+      <text
+        x={plot.left - 46}
+        y={(plot.top + plot.bottom) / 2}
+        textAnchor="middle"
+        fill={LABEL}
+        fontSize={12}
+        transform={`rotate(-90 ${plot.left - 46} ${(plot.top + plot.bottom) / 2})`}
+      >高度 y (m)</text>
 
       <g clipPath="url(#projectile-plot-clip)">
-      {model.envelope.length > 0 && (
-        <>
-          {model.envelopeFan.map((fan) => (
-            <path key={fan.angle} d={samplePath(fan.samples, frame)} fill="none" stroke={FAN} strokeWidth={1.2} opacity={0.75} />
-          ))}
-          <path d={pathFrom(model.envelope, frame)} fill="none" stroke={ENVELOPE} strokeWidth={2.4} strokeDasharray="7 4" />
-          <text x={frame.px(model.envelope[0]?.x ?? 0) + 8} y={frame.py(model.envelope[0]?.y ?? 0) - 6} fill={ENVELOPE} fontSize={10}>
-            安全拋物線（此速度的可及邊界）
-          </text>
-        </>
-      )}
+        {model.envelope.length > 0 && (
+          <>
+            {model.envelopeFan.map((fan) => (
+              <path key={fan.angle} d={samplePath(fan.samples, frame)} fill="none" stroke={BOUND} strokeWidth={1.1} opacity={0.5} />
+            ))}
+            <path d={pathFrom(model.envelope, frame)} fill="none" stroke={BOUND} strokeWidth={2.2} strokeDasharray="7 4" />
+            <text x={frame.px(model.envelope[0]?.x ?? 0) + 10} y={frame.py(model.envelope[0]?.y ?? 0) + 16} fill={BOUND} fontSize={11}>
+              安全拋物線（此速度的可及邊界）
+            </text>
+          </>
+        )}
 
-      {model.complementary && (
-        <>
-          <path d={samplePath(model.complementary.samples, frame)} fill="none" stroke={COMP} strokeWidth={2.2} strokeDasharray="8 5" />
-          <circle cx={frame.px(model.complementary.range)} cy={frame.py(0)} r={5} fill="none" stroke={COMP} strokeWidth={2} />
-        </>
-      )}
+        {model.complementary && (
+          <>
+            <path d={samplePath(model.complementary.samples, frame)} fill="none" stroke={COMPARE} strokeWidth={2.2} />
+            <circle cx={frame.px(model.complementary.range)} cy={frame.py(0)} r={5} fill="none" stroke={COMPARE} strokeWidth={2} />
+          </>
+        )}
 
-      {model.dragSamples.length > 0 && (
-        <>
-          <path d={samplePath(model.dragSamples, frame)} fill="none" stroke={DRAG} strokeWidth={2.6} />
-          <circle cx={frame.px(model.dragLanding?.point.x ?? 0)} cy={frame.py(0)} r={4.5} fill={DRAG} />
-        </>
-      )}
+        {model.dragSamples.length > 0 && (
+          <>
+            <path d={samplePath(model.dragSamples, frame)} fill="none" stroke={COMPARE} strokeWidth={2.2} strokeDasharray="3 4" />
+            <circle cx={frame.px(model.dragLanding?.point.x ?? 0)} cy={frame.py(0)} r={4.5} fill="none" stroke={COMPARE} strokeWidth={2} />
+          </>
+        )}
 
-      {model.duration > 0 && (
-        <path d={samplePath(model.trajectory, frame)} fill="none" stroke={TRAJ} strokeWidth={3} strokeLinecap="round" />
-      )}
+        {model.duration > 0 && (
+          <path d={samplePath(model.trajectory, frame)} fill="none" stroke={PATH} strokeWidth={3} strokeLinecap="round" />
+        )}
 
-      {!isStairs && model.apex.t > 0 && (
-        <>
-          <line x1={frame.px(model.apex.point.x)} y1={frame.py(model.apex.point.y)} x2={frame.px(model.apex.point.x)} y2={frame.py(0)} stroke={TRAJ} strokeWidth={1} strokeDasharray="3 4" opacity={0.55} />
-          <text x={frame.px(model.apex.point.x)} y={frame.py(model.apex.point.y) - 9} textAnchor="middle" fill={TRAJ} fontSize={10}>
-            最高點 {model.apex.point.y.toFixed(1)} m
-          </text>
-        </>
-      )}
+        {!isStairs && model.apex.t > 0 && (
+          <>
+            <line x1={frame.px(model.apex.point.x)} y1={frame.py(model.apex.point.y)} x2={frame.px(model.apex.point.x)} y2={frame.py(0)} stroke={PATH} strokeWidth={1} strokeDasharray="3 4" opacity={0.5} />
+            <text x={frame.px(model.apex.point.x)} y={frame.py(model.apex.point.y) - 10} textAnchor="middle" fill={PATH} fontSize={11}>
+              最高點 {model.apex.point.y.toFixed(1)} m
+            </text>
+          </>
+        )}
 
-      {isStairs && model.landing && (
-        <>
-          <circle cx={frame.px(model.landing.point.x)} cy={frame.py(model.landing.point.y)} r={6} fill="none" stroke={COMP} strokeWidth={2.4} />
-          <text x={frame.px(model.landing.point.x) + 10} y={frame.py(model.landing.point.y) + 14} fill={COMP} fontSize={11} fontWeight={700}>
-            落在第 {model.landing.step} 階
-          </text>
-        </>
-      )}
+        {isStairs && model.landing && (
+          <>
+            <circle cx={frame.px(model.landing.point.x)} cy={frame.py(model.landing.point.y)} r={6} fill="none" stroke={COMPARE} strokeWidth={2.4} />
+            <text x={frame.px(model.landing.point.x) + 11} y={frame.py(model.landing.point.y) + 15} fill={COMPARE} fontSize={12} fontWeight={700}>
+              落在第 {model.landing.step} 階
+            </text>
+          </>
+        )}
 
-      {showCircle && (
-        <circle cx={frame.px(centre.x)} cy={frame.py(centre.y)} r={Math.abs(frame.px(radius) - frame.px(0))} fill="none" stroke={NORMAL} strokeWidth={1} strokeDasharray="3 5" opacity={0.5} />
-      )}
+        {showCircle && (
+          <circle cx={frame.px(centre.x)} cy={frame.py(centre.y)} r={Math.abs(frame.px(radius) - frame.px(0))} fill="none" stroke={ACCEL} strokeWidth={1} strokeDasharray="2 6" opacity={0.42} />
+        )}
 
-      {model.duration > 0 && (
-        <>
-          <Arrow x1={cx} y1={cy} x2={tipX.x} y2={tipX.y} color={VX} width={1.6} dash="5 3" />
-          <Arrow x1={cx} y1={cy} x2={tipY.x} y2={tipY.y} color={VY} width={1.6} dash="5 3" />
-          <Arrow x1={cx} y1={cy} x2={tip.x} y2={tip.y} color={INK} width={2.4} />
-          {state.showAcceleration && (
-            <>
-              <Arrow x1={cx} y1={cy} x2={tipT.x} y2={tipT.y} color={TANGENTIAL} width={2} />
-              <Arrow x1={cx} y1={cy} x2={tipN.x} y2={tipN.y} color={NORMAL} width={2} />
-            </>
-          )}
-          <circle cx={cx} cy={cy} r={4.5} fill={INK} />
-        </>
-      )}
+        {/* Comparison launches leave with the main one and are drawn on the same clock, so the
+            complementary ball can be watched arriving late at the same landing point. */}
+        {companion && <circle cx={frame.px(companion.point.x)} cy={frame.py(companion.point.y)} r={5} fill={COMPARE} />}
+        {dragMarker && <circle cx={frame.px(dragMarker.point.x)} cy={frame.py(dragMarker.point.y)} r={4.5} fill={COMPARE} opacity={0.75} />}
+
+        {model.duration > 0 && (
+          <>
+            <Arrow x1={cx} y1={cy} x2={tipVx.x} y2={tipVx.y} color={VELOCITY} width={1.5} dash="5 4" />
+            <Arrow x1={cx} y1={cy} x2={tipVy.x} y2={tipVy.y} color={VELOCITY} width={1.5} dash="5 4" />
+            <Arrow x1={cx} y1={cy} x2={tipV.x} y2={tipV.y} color={VELOCITY} width={2.6} />
+            {state.showAcceleration && (
+              <>
+                <Arrow x1={cx} y1={cy} x2={tipAt.x} y2={tipAt.y} color={ACCEL} width={1.5} dash="5 4" />
+                <Arrow x1={cx} y1={cy} x2={tipAn.x} y2={tipAn.y} color={ACCEL} width={1.5} dash="5 4" />
+                <Arrow x1={cx} y1={cy} x2={tipG.x} y2={tipG.y} color={ACCEL} width={2.6} />
+              </>
+            )}
+            <circle cx={cx} cy={cy} r={5} fill={cursor.airborne ? PATH : "#7a909b"} stroke="#0a2132" strokeWidth={1.5} />
+          </>
+        )}
+
+        {probe && (
+          <>
+            <line x1={probeX} y1={plot.top} x2={probeX} y2={plot.bottom} stroke={LABEL} strokeWidth={1} opacity={0.3} />
+            <circle cx={probeX} cy={probeY} r={4} fill="none" stroke={LABEL} strokeWidth={1.6} />
+          </>
+        )}
       </g>
 
+      {probe && (
+        <g pointerEvents="none">
+          <rect x={tipX} y={tipY} width={tipW} height={tipH} rx={5} fill="rgba(5,22,34,.93)" stroke="rgba(159,194,211,.35)" />
+          {tooltipRows.map(([name, value], index) => (
+            <g key={name}>
+              <text x={tipX + 10} y={tipY + 18 + index * 15} fill={LABEL} fontSize={10}>{name}</text>
+              <text x={tipX + tipW - 10} y={tipY + 18 + index * 15} textAnchor="end" fill="#e6f1f6" fontSize={10}>{value}</text>
+            </g>
+          ))}
+        </g>
+      )}
+
       {model.duration <= 0 && (
-        <text x={TRAJ_W / 2} y={TRAJ_H / 2} textAnchor="middle" fill={COMP} fontSize={12}>此設定下沒有飛行（重力為零或未離開地面）</text>
+        <text x={TRAJ_W / 2} y={TRAJ_H / 2} textAnchor="middle" fill={COMPARE} fontSize={13}>此設定下沒有飛行（重力為零或未離開地面）</text>
       )}
     </svg>
   );
@@ -311,10 +526,11 @@ function TrajectoryView({ state, model, cursor }: {
  *
  * These three charts are the model's actual claim. x–t is straight, y–t is a parabola, and the
  * two velocity components are a flat line and a sloped one — the independence of horizontal and
- * vertical motion is not asserted in prose anywhere, it is just visible here.
+ * vertical motion is not asserted in prose anywhere, it is just visible here. They are collapsed
+ * by default because they are corroboration, not the thing being looked at.
  * ------------------------------------------------------------------------------------------ */
 
-type Series = { label: string; color: string; points: Vec2[] };
+type Series = { label: string; color: string; dash?: string; points: Vec2[] };
 
 function MiniChart({ title, note, series, duration, cursorT, yLabel }: {
   title: string;
@@ -335,8 +551,8 @@ function MiniChart({ title, note, series, duration, cursorT, yLabel }: {
     MINI_PAD,
   );
   const { plot } = frame;
-  const yTicks = niceTicks(frame.domain.yMin, frame.domain.yMax, 3);
-  const xTicks = niceTicks(0, Math.max(duration, 1e-6), 4);
+  const yTicks = niceTicks(frame.domain.yMin, frame.domain.yMax, 4);
+  const xTicks = niceTicks(0, Math.max(duration, 1e-6), 5);
   const cursorX = frame.px(Math.min(cursorT, duration));
 
   return (
@@ -347,29 +563,29 @@ function MiniChart({ title, note, series, duration, cursorT, yLabel }: {
           <line key={tick} x1={plot.left} y1={frame.py(tick)} x2={plot.right} y2={frame.py(tick)} stroke={GRID} strokeWidth={1} />
         ))}
         {yTicks.map((tick) => (
-          <text key={`l${tick}`} x={plot.left - 6} y={frame.py(tick) + 3.5} textAnchor="end" fill={LABEL} fontSize={9}>{tick}</text>
+          <text key={`l${tick}`} x={plot.left - 7} y={frame.py(tick) + 4} textAnchor="end" fill={LABEL} fontSize={10}>{tick}</text>
         ))}
         {xTicks.map((tick) => (
-          <text key={`x${tick}`} x={frame.px(tick)} y={plot.bottom + 13} textAnchor="middle" fill={LABEL} fontSize={9}>{tick}</text>
+          <text key={`x${tick}`} x={frame.px(tick)} y={plot.bottom + 16} textAnchor="middle" fill={LABEL} fontSize={10}>{tick}</text>
         ))}
         {frame.domain.yMin < 0 && frame.domain.yMax > 0 && (
           <line x1={plot.left} y1={frame.py(0)} x2={plot.right} y2={frame.py(0)} stroke={AXIS} strokeWidth={1.4} />
         )}
         <line x1={plot.left} y1={plot.top} x2={plot.left} y2={plot.bottom} stroke={AXIS} strokeWidth={1.2} />
-        <text x={plot.left - 6} y={plot.top - 5} textAnchor="end" fill={LABEL} fontSize={9}>{yLabel}</text>
-        <text x={plot.right} y={plot.bottom + 26} textAnchor="end" fill={LABEL} fontSize={9}>t (s)</text>
+        <text x={plot.left - 7} y={plot.top - 6} textAnchor="end" fill={LABEL} fontSize={10}>{yLabel}</text>
+        <text x={plot.right} y={plot.bottom + 30} textAnchor="end" fill={LABEL} fontSize={10}>t (s)</text>
 
         {series.map((line) => (
-          <path key={line.label} d={pathFrom(line.points, frame)} fill="none" stroke={line.color} strokeWidth={2.2} />
+          <path key={line.label} d={pathFrom(line.points, frame)} fill="none" stroke={line.color} strokeWidth={2.2} strokeDasharray={line.dash} />
         ))}
 
         {duration > 0 && (
           <>
-            <line x1={cursorX} y1={plot.top} x2={cursorX} y2={plot.bottom} stroke={INK} strokeWidth={1} opacity={0.45} />
+            <line x1={cursorX} y1={plot.top} x2={cursorX} y2={plot.bottom} stroke="#e6f1f6" strokeWidth={1} opacity={0.4} />
             {series.map((line) => {
               const index = Math.min(line.points.length - 1, Math.round((cursorT / duration) * (line.points.length - 1)));
               const point = line.points[Math.max(0, index)];
-              return point ? <circle key={`d${line.label}`} cx={cursorX} cy={frame.py(point.y)} r={3.4} fill={line.color} /> : null;
+              return point ? <circle key={`d${line.label}`} cx={cursorX} cy={frame.py(point.y)} r={3.6} fill={line.color} /> : null;
             })}
           </>
         )}
@@ -381,13 +597,15 @@ function MiniChart({ title, note, series, duration, cursorT, yLabel }: {
 /** The three time series the companion charts draw, all read off the same trajectory sampling. */
 function componentSeries(model: ProjectileReadout) {
   const { trajectory, duration } = model;
-  const horizontal: Series[] = [{ label: "x", color: VX, points: trajectory.map((s) => ({ x: s.t, y: s.point.x })) }];
-  const vertical: Series[] = [{ label: "y", color: VY, points: trajectory.map((s) => ({ x: s.t, y: s.point.y })) }];
-  const velocity: Series[] = [
-    { label: "vx", color: VX, points: trajectory.map((s) => ({ x: s.t, y: s.velocity.x })) },
-    { label: "vy", color: VY, points: trajectory.map((s) => ({ x: s.t, y: s.velocity.y })) },
-  ];
-  return { horizontal, vertical, velocity, duration };
+  return {
+    duration,
+    horizontal: [{ label: "x", color: PATH, points: trajectory.map((s) => ({ x: s.t, y: s.point.x })) }] as Series[],
+    vertical: [{ label: "y", color: PATH, points: trajectory.map((s) => ({ x: s.t, y: s.point.y })) }] as Series[],
+    velocity: [
+      { label: "vx", color: VELOCITY, dash: "6 4", points: trajectory.map((s) => ({ x: s.t, y: s.velocity.x })) },
+      { label: "vy", color: VELOCITY, points: trajectory.map((s) => ({ x: s.t, y: s.velocity.y })) },
+    ] as Series[],
+  };
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -401,6 +619,7 @@ function formatMetres(value: number | null | undefined) {
 export default function ProjectileLab() {
   const [state, setState] = useState<ProjectileState>(initialProjectileState);
   const [cursorFraction, setCursorFraction] = useState(0.45);
+  const [showComponents, setShowComponents] = useState(false);
 
   const model = useMemo(() => deriveProjectileModel(state), [state]);
   const cursor = useMemo(() => deriveCursor(model, state.gravity, cursorFraction), [model, state.gravity, cursorFraction]);
@@ -410,11 +629,14 @@ export default function ProjectileLab() {
     setState((current) => ({ ...current, ...patch }));
   }, []);
 
-  /* The cursor is animated outside the model so a moving marker never re-samples the flight. */
-  const durationRef = useRef(model.duration);
+  /* The cursor is animated outside the model so a moving marker never re-samples the flight or
+   * re-runs the drag integration. */
+  const clockRef = useRef(model.clockDuration);
   const speedRef = useRef(state.animationSpeed);
-  useEffect(() => { durationRef.current = model.duration; }, [model.duration]);
+  const directionRef = useRef(state.direction);
+  useEffect(() => { clockRef.current = model.clockDuration; }, [model.clockDuration]);
   useEffect(() => { speedRef.current = state.animationSpeed; }, [state.animationSpeed]);
+  useEffect(() => { directionRef.current = state.direction; }, [state.direction]);
 
   useEffect(() => {
     if (!state.playing) return;
@@ -424,15 +646,30 @@ export default function ProjectileLab() {
       const now = performance.now();
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const duration = durationRef.current;
-      if (duration > 0) {
-        setCursorFraction((value) => (value + (dt * speedRef.current) / duration) % 1);
+      const clock = clockRef.current;
+      if (clock > 0) {
+        const advance = (dt * speedRef.current * directionRef.current) / clock;
+        setCursorFraction((value) => (value + advance + 1) % 1);
       }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [state.playing]);
+
+  const stepBy = useCallback((seconds: number) => {
+    const clock = clockRef.current;
+    if (clock <= 0) return;
+    patchState({ playing: false });
+    setCursorFraction((value) => Math.min(1, Math.max(0, value + seconds / clock)));
+  }, [patchState]);
+
+  const scrubTo = useCallback((t: number) => {
+    const clock = clockRef.current;
+    if (clock <= 0) return;
+    patchState({ playing: false });
+    setCursorFraction(Math.min(1, Math.max(0, t / clock)));
+  }, [patchState]);
 
   const isStairs = state.scenario === "staircase";
   const dragActive = model.dragSamples.length > 0;
@@ -447,43 +684,57 @@ export default function ProjectileLab() {
         </div>
         <div className="header-actions">
           <Link className="model-index-link" href="/">模型目錄</Link>
-          <button onClick={() => { setState(initialProjectileState()); setCursorFraction(0.45); }}><RotateCcw size={14} /> 重設</button>
+          <button onClick={() => { setState(initialProjectileState()); setCursorFraction(0); }}><RotateCcw size={14} /> 重設</button>
         </div>
       </div>
 
-      <div className="projectile-stage-grid">
-        <section className="viewport-card projectile-path-card">
-          <div className="card-label">
-            <span>軌跡</span>
-            <div>
-              <strong>{isStairs ? "階梯落點" : "水平距離 × 高度"}</strong>
-              <small>兩軸同尺度，所以畫面上的形狀就是真實的拋物線</small>
-            </div>
+      <section className="viewport-card projectile-path-card">
+        <div className="card-label">
+          <span>軌跡</span>
+          <div>
+            <strong>{isStairs ? "階梯落點" : "水平距離 × 高度"}</strong>
+            <small>兩軸同尺度，畫面上的形狀就是真實的拋物線；滑鼠移到軌跡上可讀出該處數值，點一下把時間停在那裡</small>
           </div>
-          <div className="canvas-host"><TrajectoryView state={state} model={model} cursor={cursor} /></div>
-          <div className="legend">
-            <span><i style={{ background: TRAJ }} />真空軌跡</span>
-            {model.complementary && <span><i style={{ background: COMP }} />互補角 {model.complementary.angle.toFixed(0)}°</span>}
-            {model.envelope.length > 0 && <span><i style={{ background: ENVELOPE }} />安全拋物線</span>}
-            {dragActive && <span><i style={{ background: DRAG }} />含空氣阻力（數值解）</span>}
-            <span><i style={{ background: VX }} />vₓ</span>
-            <span><i style={{ background: VY }} />v_y</span>
-            {state.showAcceleration && <span><i style={{ background: TANGENTIAL }} />切向 a∥</span>}
-            {state.showAcceleration && <span><i style={{ background: NORMAL }} />法向 a⊥</span>}
-          </div>
-        </section>
+        </div>
+        <div className="canvas-host">
+          <TrajectoryView state={state} model={model} cursor={cursor} onScrubTo={scrubTo} />
+        </div>
+        <div className="legend">
+          <span><i style={{ background: PATH }} />本次軌跡</span>
+          {(model.complementary || dragActive) && <span><i style={{ background: COMPARE }} />對照軌跡</span>}
+          {model.envelope.length > 0 && <span><i style={{ background: BOUND }} />可及邊界</span>}
+          <span><i style={{ background: VELOCITY }} />速度 v（分量為虛線）</span>
+          {state.showAcceleration && <span><i style={{ background: ACCEL }} />加速度 g（分量為虛線）</span>}
+        </div>
+      </section>
 
-        <section className="viewport-card projectile-component-card">
-          <div className="card-label">
-            <span>分量</span>
-            <div><strong>水平與垂直各自對時間</strong><small>同一個時間游標；x–t 是直線，y–t 是拋物線</small></div>
-          </div>
-          <div className="projectile-mini-stack">
-            <MiniChart title="水平位置 x–t" note="等速：斜率固定為 vₓ" series={charts.horizontal} duration={charts.duration} cursorT={cursor.t} yLabel="x (m)" />
-            <MiniChart title="垂直位置 y–t" note="等加速：二次曲線" series={charts.vertical} duration={charts.duration} cursorT={cursor.t} yLabel="y (m)" />
-            <MiniChart title="速度分量 v–t" note="vₓ 水平不變，v_y 斜率 = −g" series={charts.velocity} duration={charts.duration} cursorT={cursor.t} yLabel="v (m/s)" />
-          </div>
-        </section>
+      <div className="projectile-transport">
+        <div className="projectile-transport-buttons">
+          <button onClick={() => { patchState({ playing: false }); setCursorFraction(0); }} aria-label="回到起點" title="回到起點"><SkipBack size={14} /></button>
+          <button onClick={() => stepBy(-STEP_SECONDS)} aria-label="退一格" title={`退 ${STEP_SECONDS} 秒`}>−{STEP_SECONDS}s</button>
+          <button className={state.playing ? "active" : ""} onClick={() => patchState({ playing: !state.playing })} aria-label={state.playing ? "暫停" : "播放"}>
+            {state.playing ? <Pause size={14} /> : <Play size={14} />}{state.playing ? "暫停" : "播放"}
+          </button>
+          <button onClick={() => stepBy(STEP_SECONDS)} aria-label="進一格" title={`進 ${STEP_SECONDS} 秒`}>+{STEP_SECONDS}s</button>
+          <button className={state.direction < 0 ? "active" : ""} onClick={() => patchState({ direction: state.direction < 0 ? 1 : -1 })} aria-label="反向播放" title="反向播放"><Undo2 size={14} /></button>
+          <button onClick={() => { patchState({ playing: false }); setCursorFraction(1); }} aria-label="跳到結束" title="跳到結束"><SkipForward size={14} /></button>
+        </div>
+        <input
+          className="projectile-scrub"
+          type="range"
+          min="0"
+          max="1"
+          step="0.001"
+          value={cursorFraction}
+          aria-label="時間游標"
+          onChange={(event) => { setCursorFraction(Number(event.target.value)); patchState({ playing: false }); }}
+        />
+        <output className="projectile-clock">{cursor.clockTime.toFixed(2)} / {model.clockDuration.toFixed(2)} s</output>
+        <div className="projectile-transport-speeds">
+          {[0.25, 0.5, 1, 2].map((speed) => (
+            <button key={speed} className={Math.abs(state.animationSpeed - speed) < 0.01 ? "active" : ""} onClick={() => patchState({ animationSpeed: speed })}>{speed}×</button>
+          ))}
+        </div>
       </div>
 
       <div className="projectile-metrics">
@@ -495,59 +746,93 @@ export default function ProjectileLab() {
         <div><span>曲率半徑</span><strong>{Number.isFinite(cursor.acceleration.radiusOfCurvature) ? `${cursor.acceleration.radiusOfCurvature.toFixed(1)} m` : "∞"}</strong></div>
       </div>
 
+      <section className="projectile-components">
+        <button className="projectile-components-toggle" onClick={() => setShowComponents((open) => !open)} aria-expanded={showComponents}>
+          {showComponents ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          分量圖：水平與垂直各自對時間
+          <small>x–t 是直線、y–t 是拋物線、vₓ 不變而 v_y 斜率為 −g</small>
+        </button>
+        {showComponents && (
+          <div className="projectile-mini-row">
+            <MiniChart title="水平位置 x–t" note="等速：斜率固定為 vₓ" series={charts.horizontal} duration={charts.duration} cursorT={cursor.t} yLabel="x (m)" />
+            <MiniChart title="垂直位置 y–t" note="等加速：二次曲線" series={charts.vertical} duration={charts.duration} cursorT={cursor.t} yLabel="y (m)" />
+            <MiniChart title="速度分量 v–t" note="vₓ 虛線水平，v_y 實線斜率 −g" series={charts.velocity} duration={charts.duration} cursorT={cursor.t} yLabel="v (m/s)" />
+          </div>
+        )}
+      </section>
+
       <section className="control-panel projectile-controls">
         <div className="control-panel-heading">
-          <div><Target size={14} /> 同步控制台</div>
-          <button className={state.playing ? "active" : ""} onClick={() => patchState({ playing: !state.playing })} aria-label={state.playing ? "暫停動畫" : "播放動畫"}>
-            {state.playing ? <Pause size={14} /> : <Play size={14} />} {state.playing ? "暫停" : "播放"}
-          </button>
+          <div><Target size={14} /> 控制台</div>
         </div>
 
-        <div className="projectile-row">
-          <button className={!isStairs ? "active" : ""} onClick={() => patchState({ scenario: "field", ...SCENARIO_DEFAULTS.field })}>平地拋射</button>
-          <button className={isStairs ? "active" : ""} onClick={() => patchState({ scenario: "staircase", ...SCENARIO_DEFAULTS.staircase })}>階梯落點</button>
+        <div className="projectile-group">
+          <p className="projectile-group-label">情境</p>
+          <div className="projectile-btn-row">
+            <button className={!isStairs ? "active" : ""} onClick={() => patchState({ scenario: "field", ...SCENARIO_DEFAULTS.field })}>平地拋射</button>
+            <button className={isStairs ? "active" : ""} onClick={() => patchState({ scenario: "staircase", ...SCENARIO_DEFAULTS.staircase })}>階梯落點</button>
+          </div>
         </div>
 
-        <div className="projectile-control-grid">
-          <div className="projectile-block">
+        <div className="projectile-group">
+          <p className="projectile-group-label">發射參數</p>
+          <div className="projectile-slider-grid">
             <label><span>發射速度 <b>{state.speed.toFixed(1)} m/s</b></span>
               <input type="range" min={SPEED_RANGE[state.scenario].min} max={SPEED_RANGE[state.scenario].max} step={SPEED_RANGE[state.scenario].step} value={state.speed} onChange={(event) => patchState({ speed: Number(event.target.value) })} /></label>
-          </div>
-          <div className="projectile-block">
             <label><span>發射角 <b>{state.angle.toFixed(0)}°</b></span>
               <input type="range" min="-20" max="90" step="1" value={state.angle} onChange={(event) => patchState({ angle: Number(event.target.value) })} /></label>
-            <small>最佳角 {model.optimalAngle.toFixed(1)}°；只有發射與落地同高時才是 45°。</small>
-          </div>
-          {isStairs ? (
-            <>
-              <div className="projectile-block">
+            {isStairs ? (
+              <>
                 <label><span>階梯深度 <b>{state.stairs.width.toFixed(2)} m</b></span>
                   <input type="range" min="0.15" max="0.6" step="0.01" value={state.stairs.width} onChange={(event) => patchState({ stairs: { ...state.stairs, width: Number(event.target.value) } })} /></label>
-              </div>
-              <div className="projectile-block">
                 <label><span>階梯高度 <b>{state.stairs.rise.toFixed(2)} m</b></span>
                   <input type="range" min="0.08" max="0.35" step="0.01" value={state.stairs.rise} onChange={(event) => patchState({ stairs: { ...state.stairs, rise: Number(event.target.value) } })} /></label>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="projectile-block">
-                <label><span>發射高度 <b>{state.height.toFixed(1)} m</b></span>
-                  <input type="range" min="0" max="60" step="0.5" value={state.height} onChange={(event) => patchState({ height: Number(event.target.value) })} /></label>
-              </div>
-              <div className="projectile-block">
-                <label><span>空氣阻力 k <b>{state.dragFactor.toFixed(3)} m⁻¹</b></span>
-                  <input type="range" min="0" max="0.2" step="0.005" value={state.dragFactor} onChange={(event) => patchState({ dragFactor: Number(event.target.value), showDrag: Number(event.target.value) > 0 })} /></label>
-                <small>阻力軌跡為數值積分結果，其餘曲線皆為解析解。</small>
-              </div>
-            </>
-          )}
-          <div className="projectile-layer-buttons" aria-label="圖層顯示">
+              </>
+            ) : (
+              <label><span>發射高度 <b>{state.height.toFixed(1)} m</b></span>
+                <input type="range" min="0" max="60" step="0.5" value={state.height} onChange={(event) => patchState({ height: Number(event.target.value) })} /></label>
+            )}
+          </div>
+          <small className="projectile-hint">最佳角 {model.optimalAngle.toFixed(1)}°；只有發射與落地同高時才會是 45°。</small>
+        </div>
+
+        <div className="projectile-group">
+          <p className="projectile-group-label">環境</p>
+          <div className="projectile-subgroup">
+            <span>重力加速度</span>
+            <div className="projectile-btn-row">
+              {Object.entries(GRAVITY_PRESETS).map(([key, preset]) => (
+                <button key={key} className={Math.abs(state.gravity - preset.value) < 1e-6 ? "active" : ""} onClick={() => patchState({ gravity: preset.value })}>
+                  {preset.label} {preset.value.toFixed(2)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="projectile-subgroup">
+            <span>空氣阻力 k</span>
+            <div className="projectile-btn-row">
+              {Object.entries(DRAG_PRESETS).map(([key, preset]) => (
+                <button key={key} disabled={isStairs} className={Math.abs(state.dragFactor - preset.value) < 1e-9 ? "active" : ""} onClick={() => patchState({ dragFactor: preset.value, showDrag: preset.value > 0 })}>
+                  {preset.label}
+                </button>
+              ))}
+              <label className="projectile-inline-slider"><b>{state.dragFactor.toFixed(3)} m⁻¹</b>
+                <input type="range" disabled={isStairs} min="0" max="0.2" step="0.005" value={state.dragFactor} onChange={(event) => patchState({ dragFactor: Number(event.target.value), showDrag: Number(event.target.value) > 0 })} /></label>
+            </div>
+          </div>
+          <small className="projectile-hint">
+            {isStairs ? "階梯情境不計空氣阻力。" : "阻力軌跡為 RK4 數值積分結果，其餘曲線皆為解析解。"}
+          </small>
+        </div>
+
+        <div className="projectile-group">
+          <p className="projectile-group-label">圖層</p>
+          <div className="projectile-btn-row">
             {([
-              ["showComplementary", "互補角"],
-              ["showEnvelope", "安全拋物線"],
-              ["showAcceleration", "加速度分量"],
-              ["showDrag", "阻力對照"],
+              ["showComplementary", "互補角對照軌跡"],
+              ["showEnvelope", "安全拋物線與軌跡束"],
+              ["showAcceleration", "加速度分量與曲率圓"],
+              ["showDrag", "空氣阻力對照軌跡"],
             ] as const).map(([key, label]) => (
               <button key={key} className={state[key] ? "active" : ""} onClick={() => patchState({ [key]: !state[key] })}>
                 {state[key] ? <Eye size={13} /> : <EyeOff size={13} />} {label}
@@ -556,38 +841,14 @@ export default function ProjectileLab() {
           </div>
         </div>
 
-        <div className="projectile-row">
-          <label className="projectile-scrub">
-            <span>時間游標 <b>{cursor.t.toFixed(2)} s</b></span>
-            <input type="range" min="0" max="1" step="0.001" value={cursorFraction}
-              onChange={(event) => { setCursorFraction(Number(event.target.value)); patchState({ playing: false }); }} />
-          </label>
-        </div>
-
-        <div className="projectile-row">
-          {Object.entries(GRAVITY_PRESETS).map(([key, preset]) => (
-            <button key={key} className={Math.abs(state.gravity - preset.value) < 1e-6 ? "selected" : ""} onClick={() => patchState({ gravity: preset.value })}>
-              {preset.label} {preset.value.toFixed(2)}
-            </button>
-          ))}
-          {Object.entries(DRAG_PRESETS).map(([key, preset]) => (
-            <button key={key} className={Math.abs(state.dragFactor - preset.value) < 1e-9 ? "selected" : ""} onClick={() => patchState({ dragFactor: preset.value, showDrag: preset.value > 0 })}>
-              {preset.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="projectile-row">
-          {Object.entries(PROJECTILE_PRESETS).map(([key, preset]) => {
-            const { label, ...patch } = preset;
-            return <button key={key} onClick={() => patchState(patch)}>{label}</button>;
-          })}
-        </div>
-
-        <div className="projectile-row">
-          {[0.25, 0.5, 1, 2].map((speed) => (
-            <button key={speed} className={Math.abs(state.animationSpeed - speed) < 0.01 ? "selected" : ""} onClick={() => patchState({ animationSpeed: speed })}>{speed}×</button>
-          ))}
+        <div className="projectile-group">
+          <p className="projectile-group-label">教學預設</p>
+          <div className="projectile-btn-row">
+            {Object.entries(PROJECTILE_PRESETS).map(([key, preset]) => {
+              const { label, ...patch } = preset;
+              return <button key={key} onClick={() => { patchState(patch); setCursorFraction(0); }}>{label}</button>;
+            })}
+          </div>
         </div>
       </section>
 
@@ -598,7 +859,7 @@ export default function ProjectileLab() {
             : `以 ${state.speed.toFixed(1)} m/s 拋出會越過這 ${state.stairs.count} 階全部，落在樓梯之外；降低速度或加深階面即可讓落點回到梯面上。`
           : model.complementary
             ? model.rangesMatch
-              ? `${state.angle.toFixed(0)}° 與 ${model.complementary.angle.toFixed(0)}° 射程相同（皆為 ${model.groundRange.toFixed(2)} m）：發射與落地同高時，互補角必定落在同一點，只是滯空時間不同。`
+              ? `${state.angle.toFixed(0)}° 與 ${model.complementary.angle.toFixed(0)}° 同時發射、落在同一點（${model.groundRange.toFixed(2)} m），但 ${Math.max(state.angle, model.complementary.angle).toFixed(0)}° 那顆晚了 ${Math.abs(model.complementary.duration - model.duration).toFixed(2)} 秒才到 —— 射程相同不代表滯空相同。`
               : `發射高度為 ${state.height.toFixed(1)} m，互補角已不再等射程：${state.angle.toFixed(0)}° 為 ${model.groundRange.toFixed(2)} m，${model.complementary.angle.toFixed(0)}° 為 ${model.complementary.range.toFixed(2)} m。等射程只是 h = 0 的特例。`
             : dragActive
               ? `空氣阻力使射程從真空的 ${model.groundRange.toFixed(2)} m 減為 ${(model.dragLanding?.point.x ?? 0).toFixed(2)} m，減少約 ${((model.dragLoss ?? 0) / (model.groundRange || 1) * 100).toFixed(0)}%；此曲線由 RK4 數值積分求得，與其餘解析曲線性質不同。`

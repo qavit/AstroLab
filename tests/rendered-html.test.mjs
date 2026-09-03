@@ -271,11 +271,13 @@ test("server-renders the projectile motion model page", async () => {
   const html = await response.text();
   assert.match(html, /<title>拋體運動｜AstroLab<\/title>/);
   assert.match(html, /拋體運動/);
-  assert.match(html, /水平位置 x–t/);
-  assert.match(html, /垂直位置 y–t/);
-  assert.match(html, /速度分量 v–t/);
+  // The component charts are corroboration, not the subject, so they ship collapsed — the
+  // server-rendered page carries the disclosure, not the charts themselves.
+  assert.match(html, /分量圖：水平與垂直各自對時間/);
+  assert.doesNotMatch(html, /水平位置 x–t/);
   assert.match(html, /安全拋物線/);
   assert.match(html, /階梯落點/);
+  assert.match(html, /反向播放/);
   assert.match(html, /模型目錄/);
 });
 
