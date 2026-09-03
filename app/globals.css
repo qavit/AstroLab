@@ -349,11 +349,25 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
 .projectile-inline-slider b { min-width:82px; color:var(--ink); font-size:12px; font-variant-numeric:tabular-nums; }
 .projectile-inline-slider input { flex:1; }
 .projectile-mini-column { display:grid; gap:9px; padding:0 14px 13px; }
-.projectile-mini { display:flex; flex-direction:column; min-height:196px; border:1px solid rgba(18,59,85,.14); border-radius:6px; padding:8px 9px 4px; background:linear-gradient(180deg,#0c2b41 0%,#0a2132 100%); }
+/* Sized by its contents: the chart takes its height from its own viewBox ratio, and the legend
+ * and probe rows below it add theirs, so nothing overflows the card. */
+.projectile-mini { display:flex; flex-direction:column; border:1px solid rgba(18,59,85,.14); border-radius:6px; padding:9px 10px 10px; background:linear-gradient(180deg,#0c2b41 0%,#0a2132 100%); }
 .projectile-mini-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
 .projectile-mini-head strong { color:#cfe3ec; font-size:12px; font-weight:700; letter-spacing:.04em; }
 .projectile-mini-head small { color:#7a99ac; font-size:11px; }
-.projectile-mini svg { flex:1; min-height:0; }
+.projectile-mini svg { flex:none; display:block; width:100%; height:auto; }
+/* Legend and equation share one row — the equation already names the curve, so a separate key
+ * would just repeat it. */
+.projectile-mini-legend { display:grid; gap:4px; margin-top:8px; }
+.projectile-mini-legend>div { display:flex; align-items:center; gap:7px; min-width:0; color:#cfe3ec; font-size:12px; }
+.projectile-mini-legend i { flex:none; width:14px; height:2px; border-radius:1px; }
+.projectile-mini-legend small { color:#7a99ac; font-size:10px; }
+.projectile-mini-legend mjx-container { color:#cfe3ec !important; }
+.projectile-mini-probe { display:grid; gap:3px; margin-top:8px; padding-top:7px; border-top:1px solid rgba(122,191,221,.14); font-size:11px; font-variant-numeric:tabular-nums; }
+.projectile-mini-probe>div { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 12px; min-width:0; }
+.projectile-mini-probe>div>span { display:inline-flex; align-items:baseline; gap:3px; }
+.projectile-probe-t { color:#9fc2d3; }
+.projectile-mini-probe mjx-container { color:inherit !important; }
 .projectile-hint { display:block; margin-top:10px; color:#7a909b; font-size:11px; line-height:1.55; }
 .projectile-note { margin:auto 14px 14px; flex:none; padding-top:13px; border-top:1px solid var(--line); color:#718895; font-size:11px; line-height:1.65; }
 .projectile-card-art { position:absolute; inset:0; overflow:hidden; background:linear-gradient(160deg,#123b55 0%,#0a2132 100%); }
@@ -364,7 +378,7 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
  * the legend and card label already on this view. Plain HTML rather than SVG so it stays put at
  * that corner as the map underneath pans and zooms, the way Google Maps' own +/− and recentre
  * controls do. */
-.projectile-map-controls { position:absolute; z-index:3; right:14px; bottom:15px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.projectile-map-controls { position:absolute; z-index:3; right:14px; top:14px; display:flex; flex-direction:column; align-items:center; gap:8px; }
 .projectile-zoom-group { display:flex; flex-direction:column; overflow:hidden; border-radius:6px; border:1px solid rgba(255,255,255,.1); background:rgba(5,20,30,.72); backdrop-filter:blur(8px); box-shadow:0 6px 18px rgba(4,16,26,.35); }
 .projectile-zoom-group button { display:flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0; border:0; border-radius:0; background:transparent; color:#d4e0e5; }
 .projectile-zoom-group button:first-child { border-bottom:1px solid rgba(255,255,255,.1); }

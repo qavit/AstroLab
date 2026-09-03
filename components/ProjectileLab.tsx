@@ -9,7 +9,7 @@ import {
   Compass,
   Eye,
   EyeOff,
-  Maximize2,
+  Home,
   Pause,
   Play,
   RotateCcw,
@@ -22,6 +22,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import TheoryNotes from "@/components/projectile/TheoryNotes";
+import { MathProvider, Tex } from "@/components/projectile/mathjax";
 import type { TrajectorySample, Vec2 } from "@/lib/science/projectile";
 import { DRAG_PRESETS, GRAVITY_PRESETS } from "@/lib/science/projectile";
 import {
@@ -821,10 +822,10 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
       <button
         className={`projectile-map-reset${isManual ? " active" : ""}`}
         onClick={() => onManualViewChange(null)}
-        aria-label="回到自動縮放"
-        title="回到自動縮放"
+        aria-label="回到預設視圖"
+        title="回到預設視圖"
       >
-        <Maximize2 size={15} />
+        <Home size={15} />
       </button>
     </div>
     </>
@@ -834,23 +835,180 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
 /* ---------------------------------------------------------------------------------------------
  * Companion view: the components against time
  *
- * These three charts are the model's actual claim. x–t is straight, y–t is a parabola, and the
- * two velocity components are a flat line and a sloped one — the independence of horizontal and
- * vertical motion is not asserted in prose anywhere, it is just visible here. They are collapsed
- * by default because they are corroboration, not the thing being looked at.
+ * These charts are the model's actual claim: horizontal and vertical motion evolve independently.
+ * Nothing here says so in prose — the shapes say it, and the hover probe lets a reader measure the
+ * slope and the area for themselves rather than being told what they are.
  * ------------------------------------------------------------------------------------------ */
 
-type Series = { label: string; color: string; dash?: string; points: Vec2[] };
+/* Colour separates the two directions here, because a merged chart puts them side by side and
+ * they are genuinely different quantities. Line style separates vacuum from drag, matching the
+ * main chart's convention that a comparison path is drawn dashed. */
+const SERIES_X = "#6fc3ef";
+const SERIES_Y = "#e79bc4";
 
-function MiniChart({ title, note, series, duration, cursorT, yLabel }: {
-  title: string;
-  note: string;
-  series: Series[];
-  duration: number;
-  cursorT: number;
-  yLabel: string;
-}) {
-  const values = series.flatMap((line) => line.points.map((point) => point.y));
+type Series = {
+  /** Legend symbol and equation, as TeX. */
+  symbol: string;
+  equation: string;
+  /** Set when the curve is integrated rather than solved. */
+  note?: string;
+  color: string;
+  dash?: string;
+  points: Vec2[];
+  /** d(value)/dt — exact wherever an exact form exists, numerical only for the drag paths. */
+  slopeAt: (t: number) => number;
+  /** ∫₀ᵗ v dt, on velocity curves only: the area a reader can check against the position chart. */
+  areaAt?: (t: number) => number;
+  unit: string;
+  slopeUnit: string;
+};
+
+/** Linear interpolation on a sampled (t, value) polyline. */
+function valueAt(points: readonly Vec2[], t: number): number {
+  if (points.length === 0) return 0;
+  if (t <= points[0].x) return points[0].y;
+  const last = points[points.length - 1];
+  if (t >= last.x) return last.y;
+  let low = 0;
+  let high = points.length - 1;
+  while (high - low > 1) {
+    const mid = (low + high) >> 1;
+    if (points[mid].x <= t) low = mid;
+    else high = mid;
+  }
+  const span = points[high].x - points[low].x;
+  return span > 1e-12 ? lerp(points[low].y, points[high].y, (t - points[low].x) / span) : points[low].y;
+}
+
+/** Central difference, for the drag curves that have no closed form to differentiate. */
+function numericSlope(points: readonly Vec2[], t: number): number {
+  const step = 0.01;
+  return (valueAt(points, t + step) - valueAt(points, t - step)) / (2 * step);
+}
+
+/** Trapezoid areas accumulated at every sample, so the probe's area readout is a lookup rather
+ * than a fresh integration on each pointer move. */
+function cumulativeArea(points: readonly Vec2[]): Vec2[] {
+  const running: Vec2[] = [{ x: points[0]?.x ?? 0, y: 0 }];
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    total += ((points[index].y + points[index - 1].y) / 2) * (points[index].x - points[index - 1].x);
+    running.push({ x: points[index].x, y: total });
+  }
+  return running;
+}
+
+type ChartSpec = { key: string; title: string; yLabel: string; series: Series[] };
+
+/** Every curve the companion charts can draw, built once from the same sampling the main view uses. */
+function componentSeries(model: ProjectileReadout, state: ProjectileState) {
+  const { trajectory, duration, dragSamples } = model;
+  const g = state.gravity;
+  const vx = model.velocity.x;
+  const vy0 = model.velocity.y;
+  const h = model.height;
+  const n = (value: number) => value.toFixed(2);
+
+  const vacuum = {
+    x: {
+      symbol: "x",
+      equation: `x = ${n(vx)}\\,t`,
+      color: SERIES_X,
+      points: trajectory.map((sample) => ({ x: sample.t, y: sample.point.x })),
+      slopeAt: () => vx,
+      unit: "m",
+      slopeUnit: "m/s",
+    },
+    y: {
+      symbol: "y",
+      equation: `y = ${h > 0 ? `${n(h)} + ` : ""}${n(vy0)}\\,t - ${n(g / 2)}\\,t^2`,
+      color: SERIES_Y,
+      points: trajectory.map((sample) => ({ x: sample.t, y: sample.point.y })),
+      slopeAt: (t: number) => vy0 - g * t,
+      unit: "m",
+      slopeUnit: "m/s",
+    },
+    vx: {
+      symbol: "v_x",
+      equation: `v_x = ${n(vx)}`,
+      color: SERIES_X,
+      points: trajectory.map((sample) => ({ x: sample.t, y: sample.velocity.x })),
+      slopeAt: () => 0,
+      areaAt: (t: number) => vx * t,
+      unit: "m/s",
+      slopeUnit: "m/s²",
+    },
+    vy: {
+      symbol: "v_y",
+      equation: `v_y = ${n(vy0)} - ${n(g)}\\,t`,
+      color: SERIES_Y,
+      points: trajectory.map((sample) => ({ x: sample.t, y: sample.velocity.y })),
+      slopeAt: () => -g,
+      areaAt: (t: number) => vy0 * t - (g / 2) * t * t,
+      unit: "m/s",
+      slopeUnit: "m/s²",
+    },
+  } satisfies Record<string, Series>;
+
+  /* The drag curves are the one thing here that is integrated rather than solved, so their slope
+   * and area are read off the samples too — the same quarantine the science layer keeps. */
+  const dragSeries = (
+    symbol: string,
+    color: string,
+    unit: string,
+    slopeUnit: string,
+    pick: (sample: TrajectorySample) => number,
+    withArea: boolean,
+  ): Series => {
+    const points = dragSamples.map((sample) => ({ x: sample.t, y: pick(sample) }));
+    const areas = withArea ? cumulativeArea(points) : null;
+    return {
+      symbol: `${symbol}^{\\,\\text{drag}}`,
+      equation: `${symbol}^{\\,\\text{drag}}`,
+      note: "RK4 數值解，無封閉形式",
+      color,
+      dash: "5 4",
+      points,
+      slopeAt: (t: number) => numericSlope(points, t),
+      areaAt: areas ? (t: number) => valueAt(areas, t) : undefined,
+      unit,
+      slopeUnit,
+    };
+  };
+
+  const hasDrag = dragSamples.length > 0;
+  const withDrag = (base: Series, drag: Series | null) => (drag ? [base, drag] : [base]);
+
+  return {
+    duration,
+    x: withDrag(vacuum.x, hasDrag ? dragSeries("x", SERIES_X, "m", "m/s", (s) => s.point.x, false) : null),
+    y: withDrag(vacuum.y, hasDrag ? dragSeries("y", SERIES_Y, "m", "m/s", (s) => s.point.y, false) : null),
+    vx: withDrag(vacuum.vx, hasDrag ? dragSeries("v_x", SERIES_X, "m/s", "m/s²", (s) => s.velocity.x, true) : null),
+    vy: withDrag(vacuum.vy, hasDrag ? dragSeries("v_y", SERIES_Y, "m/s", "m/s²", (s) => s.velocity.y, true) : null),
+  };
+}
+
+/** The charts to draw, either merged onto shared axes or one quantity each. */
+function componentCharts(series: ReturnType<typeof componentSeries>, merged: boolean): ChartSpec[] {
+  if (merged) {
+    return [
+      { key: "position", title: "位置 – 時間", yLabel: "x, y (m)", series: [...series.x, ...series.y] },
+      { key: "velocity", title: "速度 – 時間", yLabel: "vₓ, v_y (m/s)", series: [...series.vx, ...series.vy] },
+    ];
+  }
+  return [
+    { key: "x", title: "水平位置 x–t", yLabel: "x (m)", series: series.x },
+    { key: "y", title: "垂直位置 y–t", yLabel: "y (m)", series: series.y },
+    { key: "vx", title: "水平速度 vₓ–t", yLabel: "vₓ (m/s)", series: series.vx },
+    { key: "vy", title: "垂直速度 v_y–t", yLabel: "v_y (m/s)", series: series.vy },
+  ];
+}
+
+function MiniChart({ chart, duration, cursorT }: { chart: ChartSpec; duration: number; cursorT: number }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverT, setHoverT] = useState<number | null>(null);
+
+  const values = chart.series.flatMap((line) => line.points.map((point) => point.y));
   const rawMin = Math.min(0, ...values);
   const rawMax = Math.max(...values, rawMin + 1e-6);
   const padding = (rawMax - rawMin) * 0.12 || 1;
@@ -861,12 +1019,39 @@ function MiniChart({ title, note, series, duration, cursorT, yLabel }: {
   const { plot } = frame;
   const yTicks = niceTicks(frame.domain.yMin, frame.domain.yMax, 4);
   const xTicks = niceTicks(0, Math.max(duration, 1e-6), 5);
-  const cursorX = frame.px(Math.min(cursorT, duration));
+
+  /* The readout follows the transport cursor until the pointer takes over, so it always shows a
+   * meaningful instant and hovering simply scrubs it — no tooltip appearing and disappearing, and
+   * no layout shifting under the pointer. */
+  const probeT = clamp(hoverT ?? cursorT, 0, Math.max(duration, 0));
+  const probeX = frame.px(probeT);
+
+  const trackPointer = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    const matrix = svg?.getScreenCTM();
+    if (!svg || !matrix || duration <= 0) return;
+    const origin = svg.createSVGPoint();
+    origin.x = event.clientX;
+    origin.y = event.clientY;
+    const local = origin.matrixTransform(matrix.inverse());
+    const fraction = (local.x - plot.left) / (plot.right - plot.left);
+    setHoverT(clamp(fraction * duration, 0, duration));
+  };
 
   return (
     <div className="projectile-mini">
-      <div className="projectile-mini-head"><strong>{title}</strong><small>{note}</small></div>
-      <svg viewBox={`0 0 ${MINI_W} ${MINI_H}`} width="100%" height="100%" role="img" aria-label={title}>
+      <div className="projectile-mini-head"><strong>{chart.title}</strong></div>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${MINI_W} ${MINI_H}`}
+        width="100%"
+        height="100%"
+        role="img"
+        aria-label={chart.title}
+        style={{ cursor: "crosshair", touchAction: "none" }}
+        onPointerMove={trackPointer}
+        onPointerLeave={() => setHoverT(null)}
+      >
         {yTicks.map((tick) => (
           <line key={tick} x1={plot.left} y1={frame.py(tick)} x2={plot.right} y2={frame.py(tick)} stroke={GRID} strokeWidth={1} />
         ))}
@@ -880,40 +1065,58 @@ function MiniChart({ title, note, series, duration, cursorT, yLabel }: {
           <line x1={plot.left} y1={frame.py(0)} x2={plot.right} y2={frame.py(0)} stroke={AXIS} strokeWidth={1.4} />
         )}
         <line x1={plot.left} y1={plot.top} x2={plot.left} y2={plot.bottom} stroke={AXIS} strokeWidth={1.2} />
-        <text x={plot.left - 7} y={plot.top - 7} textAnchor="end" fill={LABEL} fontSize={12}>{yLabel}</text>
+        <text x={plot.left - 7} y={plot.top - 7} textAnchor="end" fill={LABEL} fontSize={12}>{chart.yLabel}</text>
         <text x={plot.right} y={plot.bottom + 36} textAnchor="end" fill={LABEL} fontSize={12}>t (s)</text>
 
-        {series.map((line) => (
-          <path key={line.label} d={pathFrom(line.points, frame)} fill="none" stroke={line.color} strokeWidth={2.2} strokeDasharray={line.dash} />
+        {chart.series.map((line) => (
+          <path key={line.symbol} d={pathFrom(line.points, frame)} fill="none" stroke={line.color} strokeWidth={2.2} strokeDasharray={line.dash} />
         ))}
 
         {duration > 0 && (
           <>
-            <line x1={cursorX} y1={plot.top} x2={cursorX} y2={plot.bottom} stroke="#e6f1f6" strokeWidth={1} opacity={0.4} />
-            {series.map((line) => {
-              const index = Math.min(line.points.length - 1, Math.round((cursorT / duration) * (line.points.length - 1)));
-              const point = line.points[Math.max(0, index)];
-              return point ? <circle key={`d${line.label}`} cx={cursorX} cy={frame.py(point.y)} r={3.6} fill={line.color} /> : null;
-            })}
+            <line x1={probeX} y1={plot.top} x2={probeX} y2={plot.bottom} stroke="#e6f1f6" strokeWidth={1} opacity={hoverT === null ? 0.4 : 0.75} />
+            {chart.series.map((line) => (
+              <circle key={`d${line.symbol}`} cx={probeX} cy={frame.py(valueAt(line.points, probeT))} r={3.6} fill={line.color} />
+            ))}
           </>
         )}
       </svg>
+
+      {/* Legend and equation are the same row: the equation already names the curve, so a separate
+          key would only repeat it. */}
+      <div className="projectile-mini-legend">
+        {chart.series.map((line) => (
+          <div key={`e${line.symbol}`}>
+            <i style={{ background: line.color, borderTop: line.dash ? `2px dashed ${line.color}` : undefined }} />
+            <Tex>{line.equation}</Tex>
+            {line.note && <small>{line.note}</small>}
+          </div>
+        ))}
+      </div>
+
+      {/* The probe states the derivative and the integral as operations rather than as the words
+          "slope" and "area", so what a reader measures off the curve is named the way the
+          mathematics names it — and so the area under a velocity curve can be checked against the
+          position chart's own reading at the same instant. */}
+      <div className="projectile-mini-probe">
+        <div className="projectile-probe-t"><Tex>{`t = ${probeT.toFixed(2)}`}</Tex> s</div>
+        {chart.series.map((line) => {
+          const value = valueAt(line.points, probeT);
+          const slope = line.slopeAt(probeT);
+          const area = line.areaAt?.(probeT);
+          return (
+            <div key={`p${line.symbol}`} style={{ color: line.color }}>
+              <span><Tex>{`${line.symbol} = ${value.toFixed(2)}`}</Tex> {line.unit}</span>
+              <span><Tex>{`\\mathrm{d}${line.symbol}/\\mathrm{d}t = ${slope.toFixed(2)}`}</Tex> {line.slopeUnit}</span>
+              {area !== undefined && (
+                <span><Tex>{`\\int_0^t ${line.symbol}\\,\\mathrm{d}t = ${area.toFixed(2)}`}</Tex> m</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
-}
-
-/** The three time series the companion charts draw, all read off the same trajectory sampling. */
-function componentSeries(model: ProjectileReadout) {
-  const { trajectory, duration } = model;
-  return {
-    duration,
-    horizontal: [{ label: "x", color: PATH, points: trajectory.map((s) => ({ x: s.t, y: s.point.x })) }] as Series[],
-    vertical: [{ label: "y", color: PATH, points: trajectory.map((s) => ({ x: s.t, y: s.point.y })) }] as Series[],
-    velocity: [
-      { label: "vx", color: VELOCITY, dash: "6 4", points: trajectory.map((s) => ({ x: s.t, y: s.velocity.x })) },
-      { label: "vy", color: VELOCITY, points: trajectory.map((s) => ({ x: s.t, y: s.velocity.y })) },
-    ] as Series[],
-  };
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -996,6 +1199,7 @@ export default function ProjectileLab() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [theoryOpen, setTheoryOpen] = useState(false);
   const [manualView, setManualView] = useState<ManualView | null>(null);
+  const [mergedCharts, setMergedCharts] = useState(true);
 
   const chartHostRef = useRef<HTMLDivElement>(null);
   const chartSize = useElementSize(chartHostRef);
@@ -1003,7 +1207,7 @@ export default function ProjectileLab() {
 
   const model = useMemo(() => deriveProjectileModel(state), [state]);
   const cursor = useMemo(() => deriveCursor(model, state.gravity, cursorFraction), [model, state.gravity, cursorFraction]);
-  const charts = useMemo(() => componentSeries(model), [model]);
+  const charts = useMemo(() => componentSeries(model, state), [model, state]);
 
   const patchState = useCallback((patch: Partial<ProjectileState>) => {
     setState((current) => ({ ...current, ...patch }));
@@ -1057,7 +1261,7 @@ export default function ProjectileLab() {
   /* A collapsed section must still say what it currently holds, or collapsing it has hidden
    * information rather than merely deferred it. */
   const gravityLabel = Object.values(GRAVITY_PRESETS).find((preset) => Math.abs(preset.value - state.gravity) < 1e-6)?.label ?? "自訂";
-  const dragLabel = Object.values(DRAG_PRESETS).find((preset) => Math.abs(preset.value - state.dragFactor) < 1e-9)?.label ?? `k = ${state.dragFactor.toFixed(3)}`;
+  const dragLabel = Object.values(DRAG_PRESETS).find((preset) => Math.abs(preset.value - state.dragFactor) < 1e-9)?.label ?? `b = ${state.dragFactor.toFixed(3)} m⁻¹`;
 
   const readouts: readonly (readonly [string, string])[] = [
     ["飛行時間", model.duration > 0 ? `${model.duration.toFixed(2)} s` : "—"],
@@ -1071,6 +1275,7 @@ export default function ProjectileLab() {
   ];
 
   return (
+    <MathProvider>
     <main className="lab-shell projectile-lab">
       <div className="topbar projectile-topbar">
         <div>
@@ -1173,19 +1378,19 @@ export default function ProjectileLab() {
               </button>
               {showEnvironment && (
                 <div className="projectile-disclosure-body">
-                  <p className="projectile-group-label">重力加速度</p>
+                  <p className="projectile-group-label">重力加速度 <Tex>{"g"}</Tex></p>
                   <div className="projectile-btn-grid">
                     {Object.entries(GRAVITY_PRESETS).map(([key, preset]) => (
                       <button key={key} className={Math.abs(state.gravity - preset.value) < 1e-6 ? "active" : ""} onClick={() => patchState({ gravity: preset.value })}>
-                        {preset.label} {preset.value.toFixed(2)}
+                        {preset.label} {preset.value.toFixed(2)} m/s²
                       </button>
                     ))}
                   </div>
-                  <p className="projectile-group-label">空氣阻力 k</p>
+                  <p className="projectile-group-label">空氣阻力 <Tex>{"b"}</Tex></p>
                   <div className="projectile-btn-grid">
                     {Object.entries(DRAG_PRESETS).map(([key, preset]) => (
                       <button key={key} disabled={isStairs} className={Math.abs(state.dragFactor - preset.value) < 1e-9 ? "active" : ""} onClick={() => patchState({ dragFactor: preset.value, showDrag: preset.value > 0 })}>
-                        {preset.label}
+                        {preset.label} {preset.value.toFixed(3)} m⁻¹
                       </button>
                     ))}
                   </div>
@@ -1202,13 +1407,17 @@ export default function ProjectileLab() {
               <button className="projectile-disclosure" onClick={() => setShowComponents((open) => !open)} aria-expanded={showComponents}>
                 {showComponents ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                 分量圖
-                <small>x–t 是直線、y–t 是拋物線</small>
+                <small>{mergedCharts ? "合併 2 張" : "分開 4 張"}</small>
               </button>
               {showComponents && (
                 <div className="projectile-mini-column">
-                  <MiniChart title="水平位置 x–t" note="等速" series={charts.horizontal} duration={charts.duration} cursorT={cursor.t} yLabel="x (m)" />
-                  <MiniChart title="垂直位置 y–t" note="等加速" series={charts.vertical} duration={charts.duration} cursorT={cursor.t} yLabel="y (m)" />
-                  <MiniChart title="速度分量 v–t" note="vₓ 虛線，v_y 斜率 −g" series={charts.velocity} duration={charts.duration} cursorT={cursor.t} yLabel="v (m/s)" />
+                  <div className="projectile-btn-grid">
+                    <button className={mergedCharts ? "active" : ""} onClick={() => setMergedCharts(true)}>合併顯示</button>
+                    <button className={!mergedCharts ? "active" : ""} onClick={() => setMergedCharts(false)}>分開顯示</button>
+                  </div>
+                  {componentCharts(charts, mergedCharts).map((chart) => (
+                    <MiniChart key={chart.key} chart={chart} duration={charts.duration} cursorT={cursor.t} />
+                  ))}
                 </div>
               )}
             </div>
@@ -1267,5 +1476,6 @@ export default function ProjectileLab() {
 
       {theoryOpen && <TheoryOverlay onClose={() => setTheoryOpen(false)} />}
     </main>
+    </MathProvider>
   );
 }
