@@ -30,14 +30,61 @@ import {
   type ProjectileState,
 } from "@/models/projectile";
 
-const TRAJ_W = 1140;
-const TRAJ_H = 560;
-/* Generous top and bottom padding: the card's own label overlays the top-left of this SVG and the
- * legend overlays the bottom, so the plot has to start clear of both. */
-const TRAJ_PAD = { left: 64, right: 30, top: 66, bottom: 78 };
+type Pad = { left: number; right: number; top: number; bottom: number };
+
+/**
+ * The chart's own geometry, chosen by available width rather than scaled to it.
+ *
+ * An SVG scaled from a 1140-unit viewBox into a 366-pixel phone shrinks every tick label to a
+ * third of its size along with the drawing, which is exactly the illegibility a larger type scale
+ * was meant to fix. So a narrow screen gets a shorter, squarer frame with its own type sizes
+ * instead of the wide one photographically reduced.
+ */
+type Geometry = {
+  w: number;
+  h: number;
+  pad: Pad;
+  tick: number;
+  title: number;
+  note: number;
+  tip: { w: number; row: number; font: number };
+};
+
+/* Wide: the card's label overlays the top-left of this SVG and the legend overlays the bottom, so
+ * the plot has to start clear of both. Compact: both of those sit in normal flow above and below
+ * the chart instead, so the padding only has to cover the axes themselves. */
+const WIDE_GEOMETRY: Geometry = {
+  w: 1140, h: 560, pad: { left: 72, right: 32, top: 62, bottom: 86 },
+  tick: 13, title: 14, note: 13, tip: { w: 168, row: 18, font: 12 },
+};
+/* The compact frame keeps an aspect near 2:1 for a reason beyond looks: the two axes share one
+ * scale, so a squarer frame would force a tall y-domain and leave the top half of the picture
+ * permanently empty. */
+const COMPACT_GEOMETRY: Geometry = {
+  w: 540, h: 312, pad: { left: 54, right: 20, top: 24, bottom: 52 },
+  tick: 16, title: 17, note: 16, tip: { w: 200, row: 24, font: 16 },
+};
+
+/** Matches the 660px breakpoint the stylesheet uses to move the card's overlays into flow. */
+function useCompactChart() {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 660px)");
+    const sync = () => setCompact(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  return compact;
+}
+
+/** The rotated y-axis title is anchored to the SVG edge rather than offset from the plot, so a
+ * narrower left padding cannot push it off the canvas. */
+const Y_TITLE_INSET = 14;
+
 const MINI_W = 372;
-const MINI_H = 214;
-const MINI_PAD = { left: 52, right: 16, top: 18, bottom: 38 };
+const MINI_H = 232;
+const MINI_PAD = { left: 60, right: 18, top: 20, bottom: 44 };
 
 /** One transport step, in seconds. Fixed rather than a fraction of the flight so the button
  * means the same thing whether the throw lasts half a second or six. */
@@ -160,7 +207,7 @@ type Frame = {
   plot: { left: number; right: number; top: number; bottom: number };
 };
 
-function makeFrame(domain: Domain, width: number, height: number, pad: typeof TRAJ_PAD): Frame {
+function makeFrame(domain: Domain, width: number, height: number, pad: Pad): Frame {
   const plot = { left: pad.left, right: width - pad.right, top: pad.top, bottom: height - pad.bottom };
   const w = plot.right - plot.left;
   const h = plot.bottom - plot.top;
@@ -224,10 +271,11 @@ function Arrow({ x1, y1, x2, y2, color, width = 2, dash }: {
 
 type Probe = { t: number; point: Vec2; velocity: Vec2; speed: number; angle: number };
 
-function TrajectoryView({ state, model, cursor, onScrubTo }: {
+function TrajectoryView({ state, model, cursor, geometry, onScrubTo }: {
   state: ProjectileState;
   model: ProjectileReadout;
   cursor: CursorReadout;
+  geometry: Geometry;
   onScrubTo: (t: number) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -258,11 +306,11 @@ function TrajectoryView({ state, model, cursor, onScrubTo }: {
   const settled = useSettledDomain(target);
   const domain = fitEqualAspect(
     settled,
-    TRAJ_W - TRAJ_PAD.left - TRAJ_PAD.right,
-    TRAJ_H - TRAJ_PAD.top - TRAJ_PAD.bottom,
+    geometry.w - geometry.pad.left - geometry.pad.right,
+    geometry.h - geometry.pad.top - geometry.pad.bottom,
     isStairs ? "down" : "up",
   );
-  const frame = makeFrame(domain, TRAJ_W, TRAJ_H, TRAJ_PAD);
+  const frame = makeFrame(domain, geometry.w, geometry.h, geometry.pad);
   const { plot } = frame;
 
   const xTicks = niceTicks(domain.xMin, domain.xMax, 9);
@@ -360,17 +408,17 @@ function TrajectoryView({ state, model, cursor, onScrubTo }: {
         ["路徑傾角", `${probe.angle.toFixed(1)}°`],
       ]
     : [];
-  const tipW = 132;
-  const tipH = tooltipRows.length * 15 + 12;
+  const tipW = geometry.tip.w;
+  const tipH = tooltipRows.length * geometry.tip.row + geometry.tip.row - 3;
   const probeX = probe ? frame.px(probe.point.x) : 0;
   const probeY = probe ? frame.py(probe.point.y) : 0;
-  const tipX = probeX + tipW + 18 > plot.right ? probeX - tipW - 14 : probeX + 14;
+  const tipX = probeX + tipW + 20 > plot.right ? probeX - tipW - 14 : probeX + 14;
   const tipY = Math.min(Math.max(plot.top, probeY - tipH / 2), plot.bottom - tipH);
 
   return (
     <svg
       ref={svgRef}
-      viewBox={`0 0 ${TRAJ_W} ${TRAJ_H}`}
+      viewBox={`0 0 ${geometry.w} ${geometry.h}`}
       width="100%"
       height="100%"
       role="img"
@@ -405,19 +453,19 @@ function TrajectoryView({ state, model, cursor, onScrubTo }: {
       <line x1={plot.left} y1={plot.top} x2={plot.left} y2={plot.bottom} stroke={AXIS} strokeWidth={1.4} />
 
       {xTicks.map((tick) => (
-        <text key={`tx${tick}`} x={frame.px(tick)} y={plot.bottom + 17} textAnchor="middle" fill={LABEL} fontSize={11}>{tick}</text>
+        <text key={`tx${tick}`} x={frame.px(tick)} y={plot.bottom + geometry.tick + 7} textAnchor="middle" fill={LABEL} fontSize={geometry.tick}>{tick}</text>
       ))}
       {yTicks.map((tick) => (
-        <text key={`ty${tick}`} x={plot.left - 9} y={frame.py(tick) + 4} textAnchor="end" fill={LABEL} fontSize={11}>{tick}</text>
+        <text key={`ty${tick}`} x={plot.left - 9} y={frame.py(tick) + 5} textAnchor="end" fill={LABEL} fontSize={geometry.tick}>{tick}</text>
       ))}
-      <text x={plot.right} y={plot.bottom + 38} textAnchor="end" fill={LABEL} fontSize={12}>水平距離 x (m)</text>
+      <text x={plot.right} y={plot.bottom + geometry.tick + 7 + geometry.title + 10} textAnchor="end" fill={LABEL} fontSize={geometry.title}>水平距離 x (m)</text>
       <text
-        x={plot.left - 46}
+        x={Y_TITLE_INSET}
         y={(plot.top + plot.bottom) / 2}
         textAnchor="middle"
         fill={LABEL}
-        fontSize={12}
-        transform={`rotate(-90 ${plot.left - 46} ${(plot.top + plot.bottom) / 2})`}
+        fontSize={geometry.title}
+        transform={`rotate(-90 ${Y_TITLE_INSET} ${(plot.top + plot.bottom) / 2})`}
       >高度 y (m)</text>
 
       <g clipPath="url(#projectile-plot-clip)">
@@ -427,7 +475,7 @@ function TrajectoryView({ state, model, cursor, onScrubTo }: {
               <path key={fan.angle} d={samplePath(fan.samples, frame)} fill="none" stroke={BOUND} strokeWidth={1.1} opacity={0.5} />
             ))}
             <path d={pathFrom(model.envelope, frame)} fill="none" stroke={BOUND} strokeWidth={2.2} strokeDasharray="7 4" />
-            <text x={frame.px(model.envelope[0]?.x ?? 0) + 10} y={frame.py(model.envelope[0]?.y ?? 0) + 16} fill={BOUND} fontSize={11}>
+            <text x={frame.px(model.envelope[0]?.x ?? 0) + 10} y={frame.py(model.envelope[0]?.y ?? 0) + 16} fill={BOUND} fontSize={geometry.note}>
               安全拋物線（此速度的可及邊界）
             </text>
           </>
@@ -454,7 +502,7 @@ function TrajectoryView({ state, model, cursor, onScrubTo }: {
         {!isStairs && model.apex.t > 0 && (
           <>
             <line x1={frame.px(model.apex.point.x)} y1={frame.py(model.apex.point.y)} x2={frame.px(model.apex.point.x)} y2={frame.py(0)} stroke={PATH} strokeWidth={1} strokeDasharray="3 4" opacity={0.5} />
-            <text x={frame.px(model.apex.point.x)} y={frame.py(model.apex.point.y) - 10} textAnchor="middle" fill={PATH} fontSize={11}>
+            <text x={frame.px(model.apex.point.x)} y={frame.py(model.apex.point.y) - 10} textAnchor="middle" fill={PATH} fontSize={geometry.note}>
               最高點 {model.apex.point.y.toFixed(1)} m
             </text>
           </>
@@ -463,7 +511,7 @@ function TrajectoryView({ state, model, cursor, onScrubTo }: {
         {isStairs && model.landing && (
           <>
             <circle cx={frame.px(model.landing.point.x)} cy={frame.py(model.landing.point.y)} r={6} fill="none" stroke={COMPARE} strokeWidth={2.4} />
-            <text x={frame.px(model.landing.point.x) + 11} y={frame.py(model.landing.point.y) + 15} fill={COMPARE} fontSize={12} fontWeight={700}>
+            <text x={frame.px(model.landing.point.x) + 11} y={frame.py(model.landing.point.y) + 15} fill={COMPARE} fontSize={geometry.note + 1} fontWeight={700}>
               落在第 {model.landing.step} 階
             </text>
           </>
@@ -507,15 +555,15 @@ function TrajectoryView({ state, model, cursor, onScrubTo }: {
           <rect x={tipX} y={tipY} width={tipW} height={tipH} rx={5} fill="rgba(5,22,34,.93)" stroke="rgba(159,194,211,.35)" />
           {tooltipRows.map(([name, value], index) => (
             <g key={name}>
-              <text x={tipX + 10} y={tipY + 18 + index * 15} fill={LABEL} fontSize={10}>{name}</text>
-              <text x={tipX + tipW - 10} y={tipY + 18 + index * 15} textAnchor="end" fill="#e6f1f6" fontSize={10}>{value}</text>
+              <text x={tipX + 12} y={tipY + geometry.tip.row + 4 + index * geometry.tip.row} fill={LABEL} fontSize={geometry.tip.font}>{name}</text>
+              <text x={tipX + tipW - 12} y={tipY + geometry.tip.row + 4 + index * geometry.tip.row} textAnchor="end" fill="#e6f1f6" fontSize={geometry.tip.font}>{value}</text>
             </g>
           ))}
         </g>
       )}
 
       {model.duration <= 0 && (
-        <text x={TRAJ_W / 2} y={TRAJ_H / 2} textAnchor="middle" fill={COMPARE} fontSize={13}>此設定下沒有飛行（重力為零或未離開地面）</text>
+        <text x={geometry.w / 2} y={geometry.h / 2} textAnchor="middle" fill={COMPARE} fontSize={geometry.note + 2}>此設定下沒有飛行（重力為零或未離開地面）</text>
       )}
     </svg>
   );
@@ -563,17 +611,17 @@ function MiniChart({ title, note, series, duration, cursorT, yLabel }: {
           <line key={tick} x1={plot.left} y1={frame.py(tick)} x2={plot.right} y2={frame.py(tick)} stroke={GRID} strokeWidth={1} />
         ))}
         {yTicks.map((tick) => (
-          <text key={`l${tick}`} x={plot.left - 7} y={frame.py(tick) + 4} textAnchor="end" fill={LABEL} fontSize={10}>{tick}</text>
+          <text key={`l${tick}`} x={plot.left - 7} y={frame.py(tick) + 5} textAnchor="end" fill={LABEL} fontSize={12}>{tick}</text>
         ))}
         {xTicks.map((tick) => (
-          <text key={`x${tick}`} x={frame.px(tick)} y={plot.bottom + 16} textAnchor="middle" fill={LABEL} fontSize={10}>{tick}</text>
+          <text key={`x${tick}`} x={frame.px(tick)} y={plot.bottom + 19} textAnchor="middle" fill={LABEL} fontSize={12}>{tick}</text>
         ))}
         {frame.domain.yMin < 0 && frame.domain.yMax > 0 && (
           <line x1={plot.left} y1={frame.py(0)} x2={plot.right} y2={frame.py(0)} stroke={AXIS} strokeWidth={1.4} />
         )}
         <line x1={plot.left} y1={plot.top} x2={plot.left} y2={plot.bottom} stroke={AXIS} strokeWidth={1.2} />
-        <text x={plot.left - 7} y={plot.top - 6} textAnchor="end" fill={LABEL} fontSize={10}>{yLabel}</text>
-        <text x={plot.right} y={plot.bottom + 30} textAnchor="end" fill={LABEL} fontSize={10}>t (s)</text>
+        <text x={plot.left - 7} y={plot.top - 7} textAnchor="end" fill={LABEL} fontSize={12}>{yLabel}</text>
+        <text x={plot.right} y={plot.bottom + 36} textAnchor="end" fill={LABEL} fontSize={12}>t (s)</text>
 
         {series.map((line) => (
           <path key={line.label} d={pathFrom(line.points, frame)} fill="none" stroke={line.color} strokeWidth={2.2} strokeDasharray={line.dash} />
@@ -620,6 +668,8 @@ export default function ProjectileLab() {
   const [state, setState] = useState<ProjectileState>(initialProjectileState);
   const [cursorFraction, setCursorFraction] = useState(0.45);
   const [showComponents, setShowComponents] = useState(false);
+  const [showEnvironment, setShowEnvironment] = useState(false);
+  const geometry = useCompactChart() ? COMPACT_GEOMETRY : WIDE_GEOMETRY;
 
   const model = useMemo(() => deriveProjectileModel(state), [state]);
   const cursor = useMemo(() => deriveCursor(model, state.gravity, cursorFraction), [model, state.gravity, cursorFraction]);
@@ -674,6 +724,11 @@ export default function ProjectileLab() {
   const isStairs = state.scenario === "staircase";
   const dragActive = model.dragSamples.length > 0;
 
+  /* A collapsed section must still say what it currently holds, or collapsing it has hidden
+   * information rather than merely deferred it. */
+  const gravityLabel = Object.values(GRAVITY_PRESETS).find((preset) => Math.abs(preset.value - state.gravity) < 1e-6)?.label ?? "自訂";
+  const dragLabel = Object.values(DRAG_PRESETS).find((preset) => Math.abs(preset.value - state.dragFactor) < 1e-9)?.label ?? `k = ${state.dragFactor.toFixed(3)}`;
+
   return (
     <main className="lab-shell projectile-lab">
       <div className="topbar">
@@ -693,11 +748,11 @@ export default function ProjectileLab() {
           <span>軌跡</span>
           <div>
             <strong>{isStairs ? "階梯落點" : "水平距離 × 高度"}</strong>
-            <small>兩軸同尺度，畫面上的形狀就是真實的拋物線；滑鼠移到軌跡上可讀出該處數值，點一下把時間停在那裡</small>
+            <small>兩軸同尺度：畫面上的形狀就是真實軌跡</small>
           </div>
         </div>
         <div className="canvas-host">
-          <TrajectoryView state={state} model={model} cursor={cursor} onScrubTo={scrubTo} />
+          <TrajectoryView state={state} model={model} cursor={cursor} geometry={geometry} onScrubTo={scrubTo} />
         </div>
         <div className="legend">
           <span><i style={{ background: PATH }} />本次軌跡</span>
@@ -742,8 +797,8 @@ export default function ProjectileLab() {
         <div><span>{isStairs ? "落點水平距離" : "水平射程"}</span><strong>{formatMetres(isStairs ? model.landing?.point.x : model.groundRange)}</strong></div>
         <div><span>最高點</span><strong>{formatMetres(model.apex.point.y)}</strong></div>
         <div><span>最佳發射角</span><strong>{model.optimalAngle.toFixed(1)}°</strong></div>
-        <div><span>當下速率</span><strong>{cursor.acceleration.speed.toFixed(2)} m/s</strong></div>
-        <div><span>曲率半徑</span><strong>{Number.isFinite(cursor.acceleration.radiusOfCurvature) ? `${cursor.acceleration.radiusOfCurvature.toFixed(1)} m` : "∞"}</strong></div>
+        <div className="projectile-metric-live"><span>當下速率</span><strong>{cursor.acceleration.speed.toFixed(2)} m/s</strong></div>
+        <div className="projectile-metric-live"><span>曲率半徑</span><strong>{Number.isFinite(cursor.acceleration.radiusOfCurvature) ? `${cursor.acceleration.radiusOfCurvature.toFixed(1)} m` : "∞"}</strong></div>
       </div>
 
       <section className="projectile-components">
@@ -763,14 +818,26 @@ export default function ProjectileLab() {
 
       <section className="control-panel projectile-controls">
         <div className="control-panel-heading">
-          <div><Target size={14} /> 控制台</div>
+          <div><Target size={15} /> 控制台</div>
         </div>
 
         <div className="projectile-group">
           <p className="projectile-group-label">情境</p>
-          <div className="projectile-btn-row">
+          <div className="projectile-btn-row projectile-segmented">
             <button className={!isStairs ? "active" : ""} onClick={() => patchState({ scenario: "field", ...SCENARIO_DEFAULTS.field })}>平地拋射</button>
             <button className={isStairs ? "active" : ""} onClick={() => patchState({ scenario: "staircase", ...SCENARIO_DEFAULTS.staircase })}>階梯落點</button>
+          </div>
+        </div>
+
+        {/* Presets lead rather than trail: they are the fastest route to a state worth looking at,
+            and a teacher reaches for one before touching any slider. */}
+        <div className="projectile-group">
+          <p className="projectile-group-label">教學預設</p>
+          <div className="projectile-btn-row">
+            {Object.entries(PROJECTILE_PRESETS).map(([key, preset]) => {
+              const { label, ...patch } = preset;
+              return <button key={key} onClick={() => { patchState(patch); setCursorFraction(0); }}>{label}</button>;
+            })}
           </div>
         </div>
 
@@ -796,35 +863,8 @@ export default function ProjectileLab() {
           <small className="projectile-hint">最佳角 {model.optimalAngle.toFixed(1)}°；只有發射與落地同高時才會是 45°。</small>
         </div>
 
-        <div className="projectile-group">
-          <p className="projectile-group-label">環境</p>
-          <div className="projectile-subgroup">
-            <span>重力加速度</span>
-            <div className="projectile-btn-row">
-              {Object.entries(GRAVITY_PRESETS).map(([key, preset]) => (
-                <button key={key} className={Math.abs(state.gravity - preset.value) < 1e-6 ? "active" : ""} onClick={() => patchState({ gravity: preset.value })}>
-                  {preset.label} {preset.value.toFixed(2)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="projectile-subgroup">
-            <span>空氣阻力 k</span>
-            <div className="projectile-btn-row">
-              {Object.entries(DRAG_PRESETS).map(([key, preset]) => (
-                <button key={key} disabled={isStairs} className={Math.abs(state.dragFactor - preset.value) < 1e-9 ? "active" : ""} onClick={() => patchState({ dragFactor: preset.value, showDrag: preset.value > 0 })}>
-                  {preset.label}
-                </button>
-              ))}
-              <label className="projectile-inline-slider"><b>{state.dragFactor.toFixed(3)} m⁻¹</b>
-                <input type="range" disabled={isStairs} min="0" max="0.2" step="0.005" value={state.dragFactor} onChange={(event) => patchState({ dragFactor: Number(event.target.value), showDrag: Number(event.target.value) > 0 })} /></label>
-            </div>
-          </div>
-          <small className="projectile-hint">
-            {isStairs ? "階梯情境不計空氣阻力。" : "阻力軌跡為 RK4 數值積分結果，其餘曲線皆為解析解。"}
-          </small>
-        </div>
-
+        {/* The eye icon here is the value, not decoration — it shows whether the layer is on — so
+            icon and text together are worth their width. Elsewhere one or the other does. */}
         <div className="projectile-group">
           <p className="projectile-group-label">圖層</p>
           <div className="projectile-btn-row">
@@ -835,20 +875,47 @@ export default function ProjectileLab() {
               ["showDrag", "空氣阻力對照軌跡"],
             ] as const).map(([key, label]) => (
               <button key={key} className={state[key] ? "active" : ""} onClick={() => patchState({ [key]: !state[key] })}>
-                {state[key] ? <Eye size={13} /> : <EyeOff size={13} />} {label}
+                {state[key] ? <Eye size={14} /> : <EyeOff size={14} />} {label}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="projectile-group">
-          <p className="projectile-group-label">教學預設</p>
-          <div className="projectile-btn-row">
-            {Object.entries(PROJECTILE_PRESETS).map(([key, preset]) => {
-              const { label, ...patch } = preset;
-              return <button key={key} onClick={() => { patchState(patch); setCursorFraction(0); }}>{label}</button>;
-            })}
-          </div>
+        <div className="projectile-group projectile-group-flush">
+          <button className="projectile-disclosure" onClick={() => setShowEnvironment((open) => !open)} aria-expanded={showEnvironment}>
+            {showEnvironment ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            環境
+            <small>重力 {gravityLabel} {state.gravity.toFixed(2)} m/s² · 空氣阻力 {dragLabel}</small>
+          </button>
+          {showEnvironment && (
+            <div className="projectile-disclosure-body">
+              <div className="projectile-subgroup">
+                <span>重力加速度</span>
+                <div className="projectile-btn-row">
+                  {Object.entries(GRAVITY_PRESETS).map(([key, preset]) => (
+                    <button key={key} className={Math.abs(state.gravity - preset.value) < 1e-6 ? "active" : ""} onClick={() => patchState({ gravity: preset.value })}>
+                      {preset.label} {preset.value.toFixed(2)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="projectile-subgroup">
+                <span>空氣阻力 k</span>
+                <div className="projectile-btn-row">
+                  {Object.entries(DRAG_PRESETS).map(([key, preset]) => (
+                    <button key={key} disabled={isStairs} className={Math.abs(state.dragFactor - preset.value) < 1e-9 ? "active" : ""} onClick={() => patchState({ dragFactor: preset.value, showDrag: preset.value > 0 })}>
+                      {preset.label}
+                    </button>
+                  ))}
+                  <label className="projectile-inline-slider"><b>{state.dragFactor.toFixed(3)} m⁻¹</b>
+                    <input type="range" disabled={isStairs} min="0" max="0.2" step="0.005" value={state.dragFactor} onChange={(event) => patchState({ dragFactor: Number(event.target.value), showDrag: Number(event.target.value) > 0 })} /></label>
+                </div>
+              </div>
+              <small className="projectile-hint">
+                {isStairs ? "階梯情境不計空氣阻力。" : "阻力軌跡為 RK4 數值積分結果，其餘曲線皆為解析解。"}
+              </small>
+            </div>
+          )}
         </div>
       </section>
 
