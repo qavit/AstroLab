@@ -1,7 +1,15 @@
 "use client";
 
+import {
+  Component,
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
-import { MathJax, MathJaxContext } from "better-react-mathjax";
+import { MathJax, MathJaxBaseContext, MathJaxContext } from "better-react-mathjax";
 
 /**
  * The model's formulas, the conditions each one needs, and an account of the single curve that is
@@ -17,17 +25,90 @@ const MATHJAX_CONFIG = {
   svg: { fontCache: "global" },
 };
 
+type MathStatus = "loading" | "ok" | "error";
+
+/**
+ * `better-react-mathjax` caches the script-load promise in a module-level singleton, created once
+ * per page load and never retried. If that first load ever fails — a cold dev server, a flaky
+ * connection, an ad blocker — the promise stays rejected for the rest of the tab's life, and every
+ * `<MathJax>` instance that mounts after that keeps throwing from inside a layout effect with no
+ * way to recover short of a full reload.
+ *
+ * So formulas here never mount `<MathJax>` on the strength of a promise that might still fail:
+ * this subscribes to the *current* state of that promise directly (via the context the library
+ * itself exports for exactly this) and only turns typesetting on once it has actually resolved.
+ * Subscribing fresh on every mount also means reopening the overlay after an earlier success
+ * shows math immediately, rather than replaying the one-shot onLoad/onError callbacks the library
+ * offers, which do not fire again for a promise that already settled.
+ */
+function useMathJaxStatus(): MathStatus {
+  const base = useContext(MathJaxBaseContext);
+  const [status, setStatus] = useState<MathStatus>("loading");
+  useEffect(() => {
+    if (!base) return;
+    let cancelled = false;
+    base.promise
+      .then((mathJax) => {
+        if (cancelled) return;
+        /* A resolved promise is not proof MathJax actually initialized. This project's dev
+         * server answers a missing static file with HTTP 200 and an empty body rather than a
+         * 404, so the <script> tag "loads" successfully without ever executing anything —
+         * `window.MathJax` is left holding only the plain config object this context seeds it
+         * with before the script runs, which has no `startup`. Requiring the real runtime shape
+         * catches that silent-success case the same way a genuine network failure is caught,
+         * instead of mounting `<MathJax>` on a promise that resolved to nothing usable. */
+        setStatus(mathJax && typeof mathJax === "object" && "startup" in mathJax ? "ok" : "error");
+      })
+      .catch(() => { if (!cancelled) setStatus("error"); });
+    return () => { cancelled = true; };
+  }, [base]);
+  return status;
+}
+
+const MathStatusContext = createContext<MathStatus>("loading");
+
+/** Renders as plain LaTeX source until MathJax is confirmed working, and stays that way
+ * permanently if it never loads — legible either way, never a crash. */
 function Formula({ children }: { children: string }) {
+  const status = useContext(MathStatusContext);
+  if (status !== "ok") return <p className="formula formula-plain">{children}</p>;
   return <MathJax className="formula">{`\\[${children}\\]`}</MathJax>;
 }
 
 function Inline({ children }: { children: string }) {
+  const status = useContext(MathStatusContext);
+  if (status !== "ok") return <code className="formula-inline formula-plain">{children}</code>;
   return <MathJax inline className="formula-inline">{`\\(${children}\\)`}</MathJax>;
 }
 
-export default function TheoryNotes() {
+/** Defense in depth: a MathJax version mismatch or any other unexpected throw during render
+ * should cost the notes overlay, not the projectile lab sitting behind it. */
+class TheoryErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="theory-body">
+          <p>理論頁面暫時無法顯示，請重新整理頁面再試一次。</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function TheoryContent() {
+  const status = useMathJaxStatus();
   return (
-    <MathJaxContext version={3} src="/mathjax/tex-svg.js" config={MATHJAX_CONFIG}>
+    <MathStatusContext.Provider value={status}>
+      {status === "error" && (
+        <p className="theory-math-warning">
+          數學排版元件載入失敗，以下公式暫以原始 LaTeX 呈現；重新整理頁面可再試一次。
+        </p>
+      )}
       <div className="theory-body">
         <div className="eyebrow">AstroLab · Model 07</div>
         <h1>拋體運動的理論與計算</h1>
@@ -178,6 +259,16 @@ export default function TheoryNotes() {
           若需要真實彈道計算、運動生物力學分析或體育器材設計，應改用含完整空氣動力模型、旋轉效應與實測係數的專業工具。
         </p>
       </div>
-    </MathJaxContext>
+    </MathStatusContext.Provider>
+  );
+}
+
+export default function TheoryNotes() {
+  return (
+    <TheoryErrorBoundary>
+      <MathJaxContext version={3} src="/mathjax/tex-svg.js" config={MATHJAX_CONFIG}>
+        <TheoryContent />
+      </MathJaxContext>
+    </TheoryErrorBoundary>
   );
 }
