@@ -251,3 +251,39 @@ input[type=range] { display:block; width:100%; height:3px; accent-color:#356f91;
 .atmosphere-profile-lab .layer-drawer summary { font-size:15px; }
 
 @media(max-width:900px){ .profile-control-grid{grid-template-columns:1fr} .atmos-chart-card{min-height:560px} .atmos-chart-wrap{inset:74px 4px 46px} }
+
+.projectile-stage-grid { display:grid; grid-template-columns:minmax(500px,1.22fr) minmax(360px,.78fr); gap:14px; min-height:560px; }
+.projectile-path-card,.projectile-component-card { min-height:560px; }
+.projectile-path-card,.projectile-component-card { background:linear-gradient(180deg,#0c2b41 0%,#123b55 61%,#0a2132 100%); }
+.projectile-mini-stack { display:grid; grid-template-rows:repeat(3,1fr); gap:8px; position:absolute; inset:74px 12px 14px; }
+.projectile-mini { display:flex; flex-direction:column; min-height:0; border:1px solid rgba(122,191,221,.16); border-radius:6px; padding:6px 8px 2px; }
+.projectile-mini-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.projectile-mini-head strong { color:#cfe3ec; font-size:10px; font-weight:700; letter-spacing:.04em; }
+.projectile-mini-head small { color:#7a99ac; font-size:9px; }
+.projectile-mini svg { flex:1; min-height:0; }
+.projectile-metrics { display:grid; grid-template-columns:repeat(6,1fr); margin-top:12px; border:1px solid var(--line); border-radius:7px; overflow:hidden; background:rgba(248,251,252,.95); }
+.projectile-metrics>div { min-width:0; padding:11px 12px; border-right:1px solid var(--line); }
+.projectile-metrics>div:last-child { border:0; }
+.projectile-metrics span,.projectile-metrics strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.projectile-metrics span { color:var(--muted); font-size:9px; }
+.projectile-metrics strong { margin-top:5px; font-family:Georgia,"Noto Serif TC",serif; font-size:15px; font-weight:500; }
+.projectile-controls { margin-top:12px; }
+.projectile-controls .control-panel-heading button { padding:5px 9px; font-size:10px; }
+.projectile-row { display:flex; flex-wrap:wrap; align-items:center; gap:5px; padding:12px 13px 0; }
+.projectile-row button { flex:1; min-width:64px; }
+.projectile-scrub { display:block; flex:1; }
+.projectile-scrub>span { display:flex; justify-content:space-between; gap:10px; margin-bottom:7px; color:var(--muted); font-size:10px; }
+.projectile-scrub b { color:var(--ink); font-size:11px; }
+.projectile-control-grid { display:grid; grid-template-columns:1fr 1.15fr 1fr 1.15fr auto; gap:12px; align-items:start; padding:12px 13px 4px; }
+.projectile-block label>span { display:flex; justify-content:space-between; gap:10px; margin-bottom:7px; color:var(--muted); font-size:10px; }
+.projectile-block label b { color:var(--ink); font-size:11px; }
+.projectile-block small { display:block; margin-top:8px; color:#7a909b; font-size:9px; line-height:1.45; }
+.projectile-layer-buttons { display:grid; grid-template-columns:1fr; gap:5px; }
+.projectile-layer-buttons button { justify-content:flex-start; min-width:112px; padding:6px 8px; font-size:10px; }
+.projectile-note { margin:10px 2px 0; color:#718895; font-size:10px; letter-spacing:.02em; line-height:1.6; }
+.projectile-card-art { position:absolute; inset:0; overflow:hidden; background:linear-gradient(160deg,#123b55 0%,#0a2132 100%); }
+.projectile-card-art i { position:absolute; left:12%; bottom:18%; width:76%; height:1px; background:rgba(122,191,221,.3); }
+.projectile-card-path { position:absolute; inset:0; width:100%; height:100%; }
+
+@media(max-width:1050px){ .projectile-stage-grid{grid-template-columns:1fr}.projectile-path-card{min-height:520px}.projectile-component-card{min-height:470px}.projectile-control-grid{grid-template-columns:1fr 1fr}.projectile-layer-buttons{grid-template-columns:repeat(2,1fr);grid-column:1/-1} }
+@media(max-width:660px){ .projectile-path-card{min-height:400px}.projectile-component-card{min-height:430px}.projectile-metrics{grid-template-columns:repeat(2,1fr)}.projectile-metrics>div{border-bottom:1px solid var(--line)}.projectile-control-grid{grid-template-columns:1fr}.projectile-layer-buttons{grid-template-columns:1fr 1fr} }

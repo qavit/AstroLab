@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Compass, Layers, Magnet, Mountain, Orbit, RotateCw, Wind, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, Compass, Layers, Magnet, Mountain, Orbit, RotateCw, Target, Wind, type LucideIcon } from "lucide-react";
 
 type CatalogModel = {
   href: string;
@@ -12,7 +12,7 @@ type CatalogModel = {
   /** Preview image. Omitted for models whose card art is drawn in CSS instead. */
   image?: string;
   /** CSS-drawn card art to use when `image` is omitted. */
-  cardArt?: "magnet" | "layers" | "coriolis";
+  cardArt?: "magnet" | "layers" | "coriolis" | "projectile";
   icon: LucideIcon;
   tone: string;
 };
@@ -84,6 +84,17 @@ const models: readonly CatalogModel[] = [
     icon: RotateCw,
     tone: "coriolis",
   },
+  {
+    href: "/projectile",
+    subject: "物理",
+    number: "07",
+    title: "拋體運動",
+    description: "把拋物線拆成水平等速與垂直等加速，並比較互補角、安全拋物線與空氣阻力。",
+    tags: ["水平垂直獨立", "安全拋物線", "曲率與加速度分量"],
+    cardArt: "projectile",
+    icon: Target,
+    tone: "projectile",
+  },
 ];
 
 export default function ModelCatalog() {
@@ -93,7 +104,7 @@ export default function ModelCatalog() {
         <Link href="/" className="catalog-brand" aria-label="AstroLab 模型目錄">
           <Compass size={20} /> <span>AstroLab</span>
         </Link>
-        <span className="catalog-count">06 interactive models</span>
+        <span className="catalog-count">07 interactive models</span>
       </header>
 
       <section className="catalog-hero">
@@ -117,6 +128,16 @@ export default function ModelCatalog() {
                     <div className="model-card-preview" style={{ backgroundImage: `url(${model.image})` }} />
                   ) : model.cardArt === "layers" ? (
                     <div className="layers-card-art"><i /><i /><i /><i /><i /></div>
+                  ) : model.cardArt === "projectile" ? (
+                    <div className="projectile-card-art">
+                      <i />
+                      <svg viewBox="0 0 100 100" className="projectile-card-path" aria-hidden="true">
+                        <path d="M14 82 Q50 8 86 82" stroke="#5ed8c3" strokeWidth="3" strokeLinecap="round" fill="none" />
+                        <path d="M50 25 L50 45" stroke="#ffd280" strokeWidth="1.6" strokeDasharray="3 3" fill="none" />
+                        <path d="M50 25 L72 25" stroke="#8ad6ff" strokeWidth="1.6" strokeDasharray="3 3" fill="none" />
+                        <circle cx="50" cy="25" r="3.4" fill="#f4f1e8" />
+                      </svg>
+                    </div>
                   ) : model.cardArt === "coriolis" ? (
                     <div className="coriolis-card-art">
                       <i /><i />

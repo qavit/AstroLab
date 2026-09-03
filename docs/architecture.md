@@ -59,3 +59,35 @@ The model's core move is a coordinate transform, not a simulation: a launched ob
 One engine serves two scenarios. A turntable's angular velocity is a direct slider; a latitude on a spinning planet supplies the same quantity indirectly, as the local vertical component Ω sinφ — so "turntable" and "earth" differ only in where that one number comes from, not in how the trajectory is drawn. Real Earth's rate is too slow to show visible curvature at a legible disc size in a few seconds of animation, so the earth scenario's *animation* uses an exaggerated angular velocity (`EARTH_VISUAL_SCALE` in `models/coriolis.ts`); the readout panel's Coriolis parameter and Foucault-pendulum period are computed separately from the real `EARTH_ANGULAR_VELOCITY`, so the exaggeration never leaks into the numbers shown as fact.
 
 The two synchronized views split the same launch into "what actually happened" and "what it looks like from here": the 3D view keeps one ball in true straight-line motion in a non-rotating world group while a disc group spins beneath it, and the 2D view is the flattened diagram a rider on that disc would draw — the aim line, the curved trace, and how far the two disagree by the time the object leaves the disc.
+
+## The projectile-motion model
+
+`/projectile` (catalogue number 07) is the platform's first model whose science is entirely closed
+form. `lib/science/projectile.ts` evaluates every trajectory, range, apex, safety-parabola bound,
+staircase landing, and curvature from an algebraic expression; nothing is stepped forward in time.
+That is not an implementation preference but the model's subject: horizontal and vertical motion
+are independent, so the answer is available directly, and the two companion charts (`x–t` straight,
+`y–t` parabolic) are the visible form of that claim rather than a restatement of it.
+
+Air drag is the single exception, and it is quarantined behind a marked section at the foot of the
+same file, because quadratic drag has no elementary solution. A test asserts the quarantine
+directly — no integration may appear above the marker — so "everything above here is exact" stays a
+checkable property rather than a comment that decays. The integrator is validated against the
+closed form it generalizes, by running it with the drag coefficient set to zero.
+
+Three results the classroom usually leaves implicit are made first-class here. The optimal launch
+angle is 45° *only* for a level launch; `optimalAngle` computes sin θ\* = 1/√(2 + 2gh/v²) and the
+readout reports whatever that is. Complementary angles are an equal-range pair on the same grounds,
+so once the launch point is raised the model reports both ranges separately instead of asserting an
+equality that has stopped holding. And the safety parabola is drawn over the fan of trajectories it
+bounds, because an envelope with nothing underneath it is just another curve.
+
+The staircase scenario shares every equation with the field scenario and differs only in what
+counts as the ground: each step is one algebraic test for whether the flight is still beyond that
+tread's outer edge as it passes the tread's height. The classroom shortcut for a horizontal launch,
+n = ⌈2v²·rise / (g·width²)⌉, is kept as its own function and checked against the general routine.
+
+Both views are SVG. This model has no 3D view and does not need one — projectile motion is planar,
+and the readings that matter here are numeric, which SVG places more precisely than a rendered
+scene would. The time cursor is deliberately held outside `deriveProjectileModel`, in
+`deriveCursor`, so animating the marker never re-samples the flight or re-runs the drag integration.

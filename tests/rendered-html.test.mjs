@@ -136,6 +136,7 @@ test("keeps the model layer free of rendering and React", async () => {
     readFile(new URL("../models/atmosphere.ts", import.meta.url), "utf8"),
     readFile(new URL("../models/geology.ts", import.meta.url), "utf8"),
     readFile(new URL("../models/coriolis.ts", import.meta.url), "utf8"),
+    readFile(new URL("../models/projectile.ts", import.meta.url), "utf8"),
   ]);
   for (const source of sources) {
     assert.doesNotMatch(source, /from "three/);
@@ -262,4 +263,40 @@ test("keeps Coriolis science independent of the Three.js view, and shares its fo
   // instead of maintaining a second copy of 2Ω sinφ.
   assert.match(atmosphereScience, /export function coriolisParameter/);
   assert.match(atmosphereScience, /from "\.\/coriolis\.ts"/);
+});
+
+test("server-renders the projectile motion model page", async () => {
+  const response = await render("/projectile");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<title>拋體運動｜AstroLab<\/title>/);
+  assert.match(html, /拋體運動/);
+  assert.match(html, /水平位置 x–t/);
+  assert.match(html, /垂直位置 y–t/);
+  assert.match(html, /速度分量 v–t/);
+  assert.match(html, /安全拋物線/);
+  assert.match(html, /階梯落點/);
+  assert.match(html, /模型目錄/);
+});
+
+test("keeps projectile motion analytic, with the drag integrator quarantined", async () => {
+  const [science, model, view] = await Promise.all([
+    readFile(new URL("../lib/science/projectile.ts", import.meta.url), "utf8"),
+    readFile(new URL("../models/projectile.ts", import.meta.url), "utf8"),
+    readFile(new URL("../components/ProjectileLab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(science, /export function envelopeHeight/);
+  assert.match(science, /export function pathAcceleration/);
+  assert.match(science, /export function staircaseLanding/);
+  assert.doesNotMatch(science, /three|document|window/i);
+  assert.match(model, /export function deriveProjectileModel/);
+  assert.match(view, /from "@\/models\/projectile"/);
+
+  /* The one stepped integration in this model must stay below the marker that announces it, so
+   * "everything above here is exact" remains a checkable claim rather than a comment. */
+  const marker = science.indexOf("Air drag — the only numerically integrated part of this module");
+  assert.ok(marker > 0, "the drag section must keep its marker");
+  const analytic = science.slice(0, marker);
+  assert.doesNotMatch(analytic, /dragDerivative|k1|RK4/, "no integration may appear above the drag marker");
+  assert.match(science.slice(marker), /dragDerivative/);
 });

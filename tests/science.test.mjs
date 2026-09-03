@@ -8,6 +8,7 @@ import * as time from "../lib/science/time.ts";
 import * as atmosphere from "../lib/science/atmosphere.ts";
 import * as coriolis from "../lib/science/coriolis.ts";
 import * as geology from "../lib/science/geology.ts";
+import * as projectile from "../lib/science/projectile.ts";
 import { radians, solarDeclination } from "../lib/science/solar.ts";
 
 /**
@@ -484,3 +485,155 @@ test("only the ephemeris adapter imports astronomy-engine", async () => {
   // The adapter must not leak the library's own types outward.
   assert.doesNotMatch(adapter, /export .*\b(AstroTime|Vector|Observer|EclipticCoordinates)\b/);
 });
+
+/* ------------------------------------------------------------------------------------------
+ * Projectile motion
+ *
+ * The vacuum results are checked as invariants a wrong formula could not satisfy by accident —
+ * energy conservation, the 45° optimum, the envelope bounding every trajectory it caps — rather
+ * than against numbers this module produced itself. The drag integrator is checked against the
+ * closed form it exists to generalize, by running it with the drag switched off.
+ * --------------------------------------------------------------------------------------- */
+
+const G = projectile.STANDARD_GRAVITY;
+
+test("45° is the farthest angle only when launch and landing heights match", () => {
+  const speed = 24;
+  const level = projectile.range(speed, 45, 0, G);
+  for (const angle of [15, 25, 35, 44, 46, 55, 65, 75]) {
+    assert.ok(projectile.range(speed, angle, 0, G) <= level + 1e-9, `45° must beat ${angle}° on level ground`);
+  }
+  assert.ok(Math.abs(projectile.optimalAngle(speed, 0, G) - 45) < 1e-9);
+
+  // Raising the launch point makes the optimum shallower, and it stops being 45°.
+  const elevated = projectile.optimalAngle(speed, 30, G);
+  assert.ok(elevated < 45 && elevated > 0, "an elevated launch peaks below 45°");
+  assert.ok(projectile.range(speed, elevated, 30, G) >= projectile.range(speed, 45, 30, G));
+});
+
+test("complementary angles share a range on level ground and stop sharing it once raised", () => {
+  const speed = 18;
+  for (const angle of [20, 35, 55]) {
+    const partner = projectile.complementaryAngle(angle);
+    const a = projectile.range(speed, angle, 0, G);
+    const b = projectile.range(speed, partner, 0, G);
+    assert.ok(Math.abs(a - b) < 1e-9, `${angle}° and ${partner}° must land together on level ground`);
+  }
+  const raised = 25;
+  const low = projectile.range(speed, 30, raised, G);
+  const high = projectile.range(speed, 60, raised, G);
+  assert.ok(Math.abs(low - high) > 1, "an elevated launch breaks the complementary-angle pairing");
+  assert.ok(low > high, "the shallower of the pair wins once the launch point is raised");
+});
+
+test("vacuum flight conserves energy and peaks where the vertical velocity vanishes", () => {
+  const velocity = projectile.launchVelocity(22, 52);
+  const height = 12;
+  const duration = projectile.flightTime(velocity, height, G);
+  const initial = 0.5 * 22 ** 2 + G * height;
+  for (const sample of projectile.sampleTrajectory(velocity, height, G, duration, 40)) {
+    const speedSquared = sample.velocity.x ** 2 + sample.velocity.y ** 2;
+    assert.ok(Math.abs(0.5 * speedSquared + G * sample.point.y - initial) < 1e-6, "½v² + gy must not drift");
+  }
+  const peak = projectile.apex(velocity, height, G);
+  assert.ok(Math.abs(projectile.velocityAt(velocity, G, peak.t).y) < 1e-9, "v_y is zero at the apex");
+  assert.equal(projectile.apex(projectile.launchVelocity(22, -20), height, G).t, 0, "a downward launch peaks at t = 0");
+});
+
+test("the safety parabola bounds every trajectory at that speed and no higher one exists", () => {
+  const speed = 20;
+  for (const angle of [10, 25, 40, 55, 70, 85]) {
+    const velocity = projectile.launchVelocity(speed, angle);
+    const duration = projectile.flightTime(velocity, 0, G);
+    for (const sample of projectile.sampleTrajectory(velocity, 0, G, duration, 60)) {
+      const ceiling = projectile.envelopeHeight(sample.point.x, speed, 0, G);
+      assert.ok(sample.point.y <= ceiling + 1e-6, `${angle}° escaped the envelope at x = ${sample.point.x}`);
+    }
+  }
+  // The envelope is tight, not merely an upper bound: the optimal angle reaches its ground point.
+  const reach = projectile.envelopeReach(speed, 0, G);
+  assert.ok(Math.abs(reach - projectile.range(speed, projectile.optimalAngle(speed, 0, G), 0, G)) < 1e-6);
+  assert.ok(Math.abs(projectile.envelopeHeight(reach, speed, 0, G)) < 1e-6, "the envelope meets the ground at max range");
+});
+
+test("both solutions of the two-angle problem hit the same target", () => {
+  const speed = 30;
+  const target = { x: 40, y: 10 };
+  const angles = projectile.anglesToTarget(target.x, target.y, speed, G);
+  assert.ok(angles && angles.low < angles.high, "a reachable target has a low and a high solution");
+  for (const angle of [angles.low, angles.high]) {
+    const velocity = projectile.launchVelocity(speed, angle);
+    const t = target.x / velocity.x;
+    const y = projectile.position(velocity, 0, G, t).y;
+    assert.ok(Math.abs(y - target.y) < 1e-6, `${angle}° must pass through the target`);
+  }
+  assert.equal(projectile.anglesToTarget(1000, 0, speed, G), null, "a target beyond the envelope is unreachable");
+});
+
+test("gravity splits into tangential and normal parts that always recombine to g", () => {
+  const velocity = projectile.launchVelocity(19, 40);
+  const duration = projectile.flightTime(velocity, 0, G);
+  for (let index = 0; index <= 20; index += 1) {
+    const t = (duration * index) / 20;
+    const split = projectile.pathAcceleration(velocity, G, t);
+    assert.ok(Math.abs(Math.hypot(split.tangential, split.normal) - G) < 1e-9, "a∥² + a⊥² = g²");
+    assert.ok(split.normal >= 0);
+  }
+  const rising = projectile.pathAcceleration(velocity, G, 0.1);
+  const falling = projectile.pathAcceleration(velocity, G, duration - 0.1);
+  assert.ok(rising.tangential < 0 && falling.tangential > 0, "gravity slows the climb and speeds the descent");
+
+  // At the apex the path is slowest and bending hardest: all of gravity is normal there.
+  const peak = projectile.apex(velocity, 0, G);
+  const atApex = projectile.pathAcceleration(velocity, G, peak.t);
+  assert.ok(Math.abs(atApex.tangential) < 1e-9 && Math.abs(atApex.normal - G) < 1e-9);
+  assert.ok(atApex.curvature > rising.curvature && atApex.curvature > falling.curvature, "curvature is maximal at the apex");
+});
+
+test("the staircase landing agrees with the horizontal-launch closed form", () => {
+  const stairs = { width: 0.3, rise: 0.18, count: 40 };
+  for (const speed of [1.5, 3, 6, 9]) {
+    const landing = projectile.staircaseLanding(projectile.launchVelocity(speed, 0), G, stairs);
+    assert.ok(landing, `speed ${speed} must land on the stairs`);
+    assert.equal(landing.step, projectile.horizontalStaircaseStep(speed, G, stairs), "n = ⌈2v²·rise / (g·width²)⌉");
+    assert.ok(landing.point.x <= landing.step * stairs.width + 1e-9, "the landing is on that step's tread");
+    assert.ok(landing.point.x > (landing.step - 1) * stairs.width - 1e-9, "and not on the one before it");
+  }
+  // Range along the stairs grows with the square of the launch speed, so the step index does too.
+  const slow = projectile.staircaseLanding(projectile.launchVelocity(3, 0), G, stairs).step;
+  const fast = projectile.staircaseLanding(projectile.launchVelocity(6, 0), G, stairs).step;
+  assert.ok(fast >= 3.5 * slow, "doubling the speed moves the landing about four steps' worth further");
+  assert.equal(projectile.staircaseLanding(projectile.launchVelocity(40, 0), G, { ...stairs, count: 3 }), null);
+});
+
+test("the drag integrator reproduces the closed form when drag is switched off", () => {
+  const velocity = projectile.launchVelocity(26, 38);
+  const height = 8;
+  const exact = projectile.flightTime(velocity, height, G);
+  const exactRange = velocity.x * exact;
+
+  const integrated = projectile.sampleDragTrajectory(velocity, height, G, 0);
+  const landing = integrated[integrated.length - 1];
+  assert.ok(Math.abs(landing.t - exact) < 1e-3, "RK4 with no drag must land when the formula says");
+  assert.ok(Math.abs(landing.point.x - exactRange) < 1e-2, "and where the formula says");
+
+  // With drag on, the flight must fall short — that is the entire comparison the model draws.
+  const dragged = projectile.sampleDragTrajectory(velocity, height, G, projectile.DRAG_PRESETS.shuttlecock.value);
+  const draggedLanding = dragged[dragged.length - 1];
+  assert.ok(draggedLanding.point.x < exactRange, "air resistance shortens the range");
+  assert.ok(Math.hypot(draggedLanding.velocity.x, draggedLanding.velocity.y) < 26, "and it lands slower than it left");
+});
+
+test("other bodies keep the shape and change only the scale", () => {
+  const speed = 20;
+  const earth = projectile.range(speed, 45, 0, GRAVITY_OF("earth"));
+  const moon = projectile.range(speed, 45, 0, GRAVITY_OF("moon"));
+  assert.ok(moon > earth, "weaker gravity throws further");
+  // R = v² sin2θ / g, so the ratio of ranges is exactly the inverse ratio of the gravities.
+  assert.ok(Math.abs(moon / earth - GRAVITY_OF("earth") / GRAVITY_OF("moon")) < 1e-9);
+  assert.ok(Math.abs(projectile.optimalAngle(speed, 0, GRAVITY_OF("moon")) - 45) < 1e-9, "45° is optimal everywhere on level ground");
+});
+
+function GRAVITY_OF(body) {
+  return projectile.GRAVITY_PRESETS[body].value;
+}
