@@ -122,12 +122,6 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
 @keyframes theory-fade { from { opacity:0; } to { opacity:1; } }
 
 .about-page h3 { margin-top:26px; font-family:Georgia,"Noto Serif TC",serif; font-size:17px; font-weight:500; }
-.about-page var { font-family:Georgia,"Noto Serif TC",serif; font-style:italic; }
-.about-page sub,.about-page sup { font-size:.68em; line-height:0; }
-/* Formulas are set as displayed lines rather than run into the prose: they are the thing being
- * looked up on this page, so they get their own rule, their own rhythm, and room to breathe. */
-.formula { margin:14px 0; padding:12px 16px; border-left:2px solid var(--accent); border-radius:0 5px 5px 0; background:rgba(233,240,243,.7); color:#1d445c !important; font-family:Georgia,"Noto Serif TC",serif; font-size:17px; letter-spacing:.01em; overflow-x:auto; }
-.formula-inline { padding:1px 5px; border-radius:3px; background:rgba(233,240,243,.9); font-family:Georgia,"Noto Serif TC",serif; font-size:15px; white-space:nowrap; }
 
 .magnet-wire-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; padding:10px 13px; }
 .magnet-wire-row { display:grid; gap:7px; padding:10px; border:1px solid var(--line); border-radius:7px; background:rgba(248,251,252,.9); }
