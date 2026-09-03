@@ -225,12 +225,12 @@ export function horizontalStaircaseStep(speed: number, gravity: number, stairs: 
 /* -------------------------------------------------------------------------------------------
  * Air drag — the only numerically integrated part of this module
  *
- * Quadratic drag, a = −g ĵ − k|v|v, has no elementary closed-form solution, so this section
+ * Quadratic drag, a = −g ĵ − b|v|v, has no elementary closed-form solution, so this section
  * steps the motion forward with RK4 instead of evaluating a formula. Everything above this
  * marker is exact; results from here carry integration error and are labelled as such in the UI.
  * ---------------------------------------------------------------------------------------- */
 
-/** Drag factor k = ½ρC_dA/m, in m⁻¹. A baseball is near 0.006 m⁻¹; a ping-pong ball near 0.12. */
+/** Drag factor b = ½ρC_dA/m, in m⁻¹. A baseball is near 0.006 m⁻¹; a ping-pong ball near 0.12. */
 export const DRAG_PRESETS = {
   none: { label: "真空", value: 0 },
   baseball: { label: "棒球", value: 0.0055 },
@@ -239,9 +239,9 @@ export const DRAG_PRESETS = {
 
 type DragDerivative = { vx: number; vy: number; ax: number; ay: number };
 
-function dragDerivative(vx: number, vy: number, gravity: number, k: number): DragDerivative {
+function dragDerivative(vx: number, vy: number, gravity: number, b: number): DragDerivative {
   const speed = Math.hypot(vx, vy);
-  return { vx, vy, ax: -k * speed * vx, ay: -gravity - k * speed * vy };
+  return { vx, vy, ax: -b * speed * vx, ay: -gravity - b * speed * vy };
 }
 
 /**

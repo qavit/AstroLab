@@ -39,7 +39,7 @@ export type ProjectileState = {
   height: number;
   /** Surface gravity, m/s². */
   gravity: number;
-  /** Quadratic drag factor k = ½ρC_dA/m, m⁻¹. Zero is the vacuum case. */
+  /** Quadratic drag factor b = ½ρC_dA/m, m⁻¹. Zero is the vacuum case. */
   dragFactor: number;
   stairs: Staircase;
   showComplementary: boolean;

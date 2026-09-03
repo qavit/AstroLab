@@ -130,7 +130,7 @@ function TheoryContent() {
 
         <h2>空氣阻力：唯一使用數值方法的部分</h2>
         <p>加入與速率平方成正比的阻力後，運動方程變成</p>
-        <Formula>{"\\vec{a} = -g\\,\\hat{\\jmath} - k\\,|\\vec{v}|\\,\\vec{v} \\qquad k = \\frac{\\rho\\,C_d\\,A}{2m}\\ \\ (\\text{m}^{-1})"}</Formula>
+        <Formula>{"\\vec{a} = -g\\,\\hat{\\jmath} - b\\,|\\vec{v}|\\,\\vec{v} \\qquad b = \\frac{\\rho\\,C_d\\,A}{2m}\\ \\ (\\text{m}^{-1})"}</Formula>
         <p>
           水平與垂直方程透過 <Inline>{"|\\vec{v}|"}</Inline> 耦合在一起，兩個方向不再獨立，這個系統沒有基本函數形式的解。
           因此模型改用<strong>四階 Runge–Kutta 法</strong>推進，固定步長 <Inline>{"\\Delta t = 0.002\\ \\text{s}"}</Inline>，
@@ -143,7 +143,7 @@ function TheoryContent() {
 
         <h3>數值解的誤差如何被檢查</h3>
         <p>
-          把阻力係數設為 <Inline>{"k = 0"}</Inline>，數值積分就必須重現真空的封閉解。測試以
+          把阻力係數設為 <Inline>{"b = 0"}</Inline>，數值積分就必須重現真空的封閉解。測試以
           <Inline>{"v_0 = 26\\ \\text{m/s}"}</Inline>、<Inline>{"\\theta = 38^\\circ"}</Inline>、<Inline>{"h = 8\\ \\text{m}"}</Inline> 檢查：
           落地時間誤差小於 <Inline>{"10^{-3}\\ \\text{s}"}</Inline>，落點誤差小於 <Inline>{"10^{-2}\\ \\text{m}"}</Inline>。
           這是用<strong>它所推廣的那個精確解</strong>來校準積分器，而不是拿它自己的輸出跟自己比。
@@ -160,7 +160,7 @@ function TheoryContent() {
             <tr><td>重力為定值，方向固定向下</td><td>重力隨高度與緯度變化，方向指向地心</td><td>在數十公尺尺度內誤差可忽略；不適用於彈道飛彈或衛星</td></tr>
             <tr><td>不計科氏力</td><td>地球自轉會使長程彈道側偏</td><td>短程拋體可忽略；長程偏轉屬於 <Link href="/coriolis">科氏力效應</Link> 模型的主題</td></tr>
             <tr><td>物體視為質點，不自轉</td><td>旋轉會產生馬格努斯力，使球路彎曲</td><td>模型不呈現曲球、上旋與側旋</td></tr>
-            <tr><td>阻力採平方律，係數 <Inline>{"k"}</Inline> 為定值</td><td><Inline>{"C_d"}</Inline> 隨雷諾數變化，空氣密度隨高度遞減</td><td>阻力曲線用於定性比較，不作彈道預測</td></tr>
+            <tr><td>阻力採平方律，係數 <Inline>{"b"}</Inline> 為定值</td><td><Inline>{"C_d"}</Inline> 隨雷諾數變化，空氣密度隨高度遞減</td><td>阻力曲線用於定性比較，不作彈道預測</td></tr>
             <tr><td>兩軸使用同一比例尺</td><td>—</td><td>畫面上的形狀即真實形狀；代價是畫框有時留有空白</td></tr>
           </tbody>
         </table>

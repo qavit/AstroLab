@@ -1322,8 +1322,8 @@ export default function ProjectileLab() {
             <span><i style={{ background: PATH }} />本次軌跡</span>
             {(model.complementary || dragActive) && <span><i style={{ background: COMPARE }} />對照軌跡</span>}
             {model.envelope.length > 0 && <span><i style={{ background: BOUND }} />可及邊界</span>}
-            <span><i style={{ background: VELOCITY }} />速度 v（分量為虛線）</span>
-            {state.showAcceleration && <span><i style={{ background: ACCEL }} />加速度 g（分量為虛線）</span>}
+            <span><i style={{ background: VELOCITY }} />速度 <Tex>{"\\vec v"}</Tex>（分量為虛線）</span>
+            {state.showAcceleration && <span><i style={{ background: ACCEL }} />加速度 <Tex>{"g"}</Tex>（分量為虛線）</span>}
           </div>
         </section>
 
@@ -1425,7 +1425,16 @@ export default function ProjectileLab() {
             <p className="projectile-note">
               {isStairs
                 ? model.landing
-                  ? `以 ${state.speed.toFixed(1)} m/s ${Math.abs(state.angle) < 1e-6 ? "水平" : `${state.angle.toFixed(0)}° 斜向`}離開階梯頂端，落在第 ${model.landing.step} 階。${model.horizontalStep ? `水平拋出可用 n = ⌈2v²·rise / (g·width²)⌉ = ${model.horizontalStep} 驗算；n 與 v² 成正比。` : ""}`
+                  ? (
+                    <>
+                      以 {state.speed.toFixed(1)} m/s {Math.abs(state.angle) < 1e-6 ? "水平" : `${state.angle.toFixed(0)}° 斜向`}離開階梯頂端，落在第 {model.landing.step} 階。
+                      {model.horizontalStep ? (
+                        <>
+                          水平拋出可用 <Tex>{`n = \\left\\lceil 2v_0^2 r / (g w^2) \\right\\rceil = ${model.horizontalStep}`}</Tex> 驗算；<Tex>{"n"}</Tex> 與 <Tex>{"v_0^2"}</Tex> 成正比。
+                        </>
+                      ) : null}
+                    </>
+                  )
                   : `以 ${state.speed.toFixed(1)} m/s 拋出會越過這 ${state.stairs.count} 階全部，落在樓梯之外。`
                 : model.complementary
                   ? model.rangesMatch
