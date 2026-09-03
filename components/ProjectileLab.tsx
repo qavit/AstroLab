@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import TheoryNotes from "@/components/projectile/TheoryNotes";
 import { MathProvider, Tex } from "@/components/projectile/mathjax";
-import type { TrajectorySample, Vec2 } from "@/lib/science/projectile";
+import type { PathAcceleration, TrajectorySample, Vec2 } from "@/lib/science/projectile";
 import { DRAG_PRESETS, GRAVITY_PRESETS } from "@/lib/science/projectile";
 import {
   PROJECTILE_PRESETS,
@@ -99,6 +99,10 @@ function useElementSize(ref: RefObject<HTMLDivElement | null>) {
 const MINI_W = 372;
 const MINI_H = 232;
 const MINI_PAD = { left: 60, right: 18, top: 20, bottom: 44 };
+
+const PANEL_DEFAULT_WIDTH = 360;
+const PANEL_MIN_WIDTH = 280;
+const PANEL_MAX_WIDTH = 620;
 
 /** One transport step, in seconds. Fixed rather than a fraction of the flight so the button
  * means the same thing whether the throw lasts half a second or six. */
@@ -354,7 +358,7 @@ function Arrow({ x1, y1, x2, y2, color, width = 2, dash }: {
  * Main view: the trajectory itself
  * ------------------------------------------------------------------------------------------ */
 
-type Probe = { t: number; point: Vec2; velocity: Vec2; speed: number; angle: number };
+type Probe = { t: number; point: Vec2; velocity: Vec2; acceleration: PathAcceleration; angle: number };
 
 function TrajectoryView({ state, model, cursor, geometry, manualView, onManualViewChange, onScrubTo }: {
   state: ProjectileState;
@@ -504,35 +508,68 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
     return origin.matrixTransform(matrix.inverse());
   };
 
-  const nearestSampleAt = (clientX: number, clientY: number) => {
+  /**
+   * The time under the pointer, resolved continuously rather than snapped to one of the sampled
+   * points. Snapping is invisible at the default framing but turns into a coarse ratchet once the
+   * view is zoomed in, where consecutive samples sit tens of pixels apart. So the nearest sample
+   * only picks the segment; the pointer is then projected onto that segment to land anywhere along
+   * it — exact against the polyline that is actually drawn, at any zoom.
+   */
+  const probeTimeAt = (clientX: number, clientY: number): number | null => {
     const local = toLocal(clientX, clientY);
-    if (!local || model.trajectory.length === 0) return null;
-    let best = model.trajectory[0];
-    let bestDistance = Infinity;
-    for (const sample of model.trajectory) {
-      const distance = (frame.px(sample.point.x) - local.x) ** 2 + (frame.py(sample.point.y) - local.y) ** 2;
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = sample;
+    const samples = model.trajectory;
+    if (!local || samples.length < 2) return null;
+
+    let nearest = 0;
+    let nearestDistance = Infinity;
+    for (let index = 0; index < samples.length; index += 1) {
+      const distance =
+        (frame.px(samples[index].point.x) - local.x) ** 2 + (frame.py(samples[index].point.y) - local.y) ** 2;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = index;
       }
     }
-    return bestDistance <= 90 ** 2 ? best : null;
+
+    let bestT = samples[nearest].t;
+    let bestDistance = nearestDistance;
+    for (const [a, b] of [[nearest - 1, nearest], [nearest, nearest + 1]]) {
+      if (a < 0 || b >= samples.length) continue;
+      const ax = frame.px(samples[a].point.x);
+      const ay = frame.py(samples[a].point.y);
+      const bx = frame.px(samples[b].point.x);
+      const by = frame.py(samples[b].point.y);
+      const dx = bx - ax;
+      const dy = by - ay;
+      const lengthSquared = dx * dx + dy * dy;
+      if (lengthSquared < 1e-9) continue;
+      const u = clamp(((local.x - ax) * dx + (local.y - ay) * dy) / lengthSquared, 0, 1);
+      const distance = (ax + dx * u - local.x) ** 2 + (ay + dy * u - local.y) ** 2;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestT = lerp(samples[a].t, samples[b].t, u);
+      }
+    }
+    return bestDistance <= 90 ** 2 ? bestT : null;
+  };
+
+  /** Everything the readout shows, evaluated at that instant by the model rather than read off the
+   * drawn samples, so the numbers stay exact however finely the pointer resolves the time. */
+  const readProbe = (clientX: number, clientY: number): Probe | null => {
+    const t = probeTimeAt(clientX, clientY);
+    if (t === null || model.clockDuration <= 0) return null;
+    const at = deriveCursor(model, state.gravity, t / model.clockDuration);
+    return {
+      t: at.t,
+      point: at.point,
+      velocity: at.velocity,
+      acceleration: at.acceleration,
+      angle: (Math.atan2(at.velocity.y, at.velocity.x) * 180) / Math.PI,
+    };
   };
 
   const handleHover = (event: ReactPointerEvent<SVGSVGElement>) => {
-    const sample = nearestSampleAt(event.clientX, event.clientY);
-    if (!sample) {
-      setProbe(null);
-      return;
-    }
-    const magnitude = Math.hypot(sample.velocity.x, sample.velocity.y);
-    setProbe({
-      t: sample.t,
-      point: sample.point,
-      velocity: sample.velocity,
-      speed: magnitude,
-      angle: (Math.atan2(sample.velocity.y, sample.velocity.x) * 180) / Math.PI,
-    });
+    setProbe(readProbe(event.clientX, event.clientY));
   };
 
   /*
@@ -611,8 +648,8 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
     if (pointersRef.current.size < 2) pinchRef.current = null;
     if (pointersRef.current.size > 0) return;
     if (!draggedRef.current) {
-      const sample = nearestSampleAt(event.clientX, event.clientY);
-      if (sample) onScrubTo(sample.t);
+      const t = probeTimeAt(event.clientX, event.clientY);
+      if (t !== null) onScrubTo(t);
     }
     downPointRef.current = null;
     draggedRef.current = false;
@@ -639,23 +676,38 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
     return () => svg.removeEventListener("wheel", onWheel);
   });
 
-  const tooltipRows = probe
+  /* The readout is HTML rather than SVG text so its symbols can be typeset: an SVG <text> cannot
+   * hold MathJax, which is why this used to spell v_y out with an underscore. The acceleration
+   * split only appears when its layer is on, so the box answers what is actually being shown. */
+  const tooltipRows: [string, string][] = probe
     ? [
         ["t", `${probe.t.toFixed(2)} s`],
         ["x", `${probe.point.x.toFixed(2)} m`],
         ["y", `${probe.point.y.toFixed(2)} m`],
-        ["v", `${probe.speed.toFixed(2)} m/s`],
-        ["vₓ", `${probe.velocity.x.toFixed(2)} m/s`],
+        ["v", `${probe.acceleration.speed.toFixed(2)} m/s`],
+        ["v_x", `${probe.velocity.x.toFixed(2)} m/s`],
         ["v_y", `${probe.velocity.y.toFixed(2)} m/s`],
-        ["路徑傾角", `${probe.angle.toFixed(1)}°`],
+        ["\\theta_\\text{path}", `${probe.angle.toFixed(1)}°`],
+        ...(state.showAcceleration
+          ? ([
+              ["a_\\parallel", `${probe.acceleration.tangential.toFixed(2)} m/s²`],
+              ["a_\\perp", `${probe.acceleration.normal.toFixed(2)} m/s²`],
+              [
+                "\\rho",
+                Number.isFinite(probe.acceleration.radiusOfCurvature)
+                  ? `${probe.acceleration.radiusOfCurvature.toFixed(2)} m`
+                  : "∞",
+              ],
+            ] as [string, string][])
+          : []),
       ]
     : [];
   const tipW = geometry.tip.w;
-  const tipH = tooltipRows.length * geometry.tip.row + geometry.tip.row - 3;
+  const tipH = tooltipRows.length * geometry.tip.row + geometry.tip.row + 4;
   const probeX = probe ? frame.px(probe.point.x) : 0;
   const probeY = probe ? frame.py(probe.point.y) : 0;
   const tipX = probeX + tipW + 20 > plot.right ? probeX - tipW - 14 : probeX + 14;
-  const tipY = Math.min(Math.max(plot.top, probeY - tipH / 2), plot.bottom - tipH);
+  const tipY = Math.min(Math.max(plot.top, probeY - tipH / 2), Math.max(plot.top, plot.bottom - tipH));
 
   return (
     <>
@@ -795,22 +847,21 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
         )}
       </g>
 
-      {probe && (
-        <g pointerEvents="none">
-          <rect x={tipX} y={tipY} width={tipW} height={tipH} rx={5} fill="rgba(5,22,34,.93)" stroke="rgba(159,194,211,.35)" />
-          {tooltipRows.map(([name, value], index) => (
-            <g key={name}>
-              <text x={tipX + 12} y={tipY + geometry.tip.row + 4 + index * geometry.tip.row} fill={LABEL} fontSize={geometry.tip.font}>{name}</text>
-              <text x={tipX + tipW - 12} y={tipY + geometry.tip.row + 4 + index * geometry.tip.row} textAnchor="end" fill="#e6f1f6" fontSize={geometry.tip.font}>{value}</text>
-            </g>
-          ))}
-        </g>
-      )}
-
       {model.duration <= 0 && (
         <text x={geometry.w / 2} y={geometry.h / 2} textAnchor="middle" fill={COMPARE} fontSize={geometry.note + 2}>此設定下沒有飛行（重力為零或未離開地面）</text>
       )}
     </svg>
+
+    {probe && (
+      <div
+        className="projectile-tip"
+        style={{ left: tipX, top: tipY, width: tipW, fontSize: geometry.tip.font }}
+      >
+        {tooltipRows.map(([name, value]) => (
+          <div key={name}><Tex>{name}</Tex><span>{value}</span></div>
+        ))}
+      </div>
+    )}
 
     {/* Plain HTML, not SVG, so this cluster stays put at the card's corner as the map underneath
         it pans and zooms — Google Maps' own +/− and recentre controls work the same way. */}
@@ -898,7 +949,19 @@ function cumulativeArea(points: readonly Vec2[]): Vec2[] {
   return running;
 }
 
-type ChartSpec = { key: string; title: string; yLabel: string; series: Series[] };
+/** A subscripted symbol for SVG text, where MathJax cannot reach: a real baseline shift rather
+ * than the bare underscore that TeX source would otherwise leave on screen. Unicode has a
+ * subscript x but no subscript y, so the two cannot be written the same way without this. */
+function Sub({ base, sub }: { base: string; sub: string }) {
+  return (
+    <>
+      {base}
+      <tspan baselineShift="sub" fontSize="0.72em">{sub}</tspan>
+    </>
+  );
+}
+
+type ChartSpec = { key: string; title: ReactNode; yLabel: ReactNode; series: Series[] };
 
 /** Every curve the companion charts can draw, built once from the same sampling the main view uses. */
 function componentSeries(model: ProjectileReadout, state: ProjectileState) {
@@ -992,15 +1055,20 @@ function componentSeries(model: ProjectileReadout, state: ProjectileState) {
 function componentCharts(series: ReturnType<typeof componentSeries>, merged: boolean): ChartSpec[] {
   if (merged) {
     return [
-      { key: "position", title: "位置 – 時間", yLabel: "x, y (m)", series: [...series.x, ...series.y] },
-      { key: "velocity", title: "速度 – 時間", yLabel: "vₓ, v_y (m/s)", series: [...series.vx, ...series.vy] },
+      { key: "position", title: "位置 – 時間", yLabel: <>x, y (m)</>, series: [...series.x, ...series.y] },
+      {
+        key: "velocity",
+        title: "速度 – 時間",
+        yLabel: <><Sub base="v" sub="x" />, <Sub base="v" sub="y" /> (m/s)</>,
+        series: [...series.vx, ...series.vy],
+      },
     ];
   }
   return [
-    { key: "x", title: "水平位置 x–t", yLabel: "x (m)", series: series.x },
-    { key: "y", title: "垂直位置 y–t", yLabel: "y (m)", series: series.y },
-    { key: "vx", title: "水平速度 vₓ–t", yLabel: "vₓ (m/s)", series: series.vx },
-    { key: "vy", title: "垂直速度 v_y–t", yLabel: "v_y (m/s)", series: series.vy },
+    { key: "x", title: "水平位置 x–t", yLabel: <>x (m)</>, series: series.x },
+    { key: "y", title: "垂直位置 y–t", yLabel: <>y (m)</>, series: series.y },
+    { key: "vx", title: <>水平速度 <Sub base="v" sub="x" />–t</>, yLabel: <><Sub base="v" sub="x" /> (m/s)</>, series: series.vx },
+    { key: "vy", title: <>垂直速度 <Sub base="v" sub="y" />–t</>, yLabel: <><Sub base="v" sub="y" /> (m/s)</>, series: series.vy },
   ];
 }
 
@@ -1047,7 +1115,7 @@ function MiniChart({ chart, duration, cursorT }: { chart: ChartSpec; duration: n
         width="100%"
         height="100%"
         role="img"
-        aria-label={chart.title}
+        aria-label={chart.key}
         style={{ cursor: "crosshair", touchAction: "none" }}
         onPointerMove={trackPointer}
         onPointerLeave={() => setHoverT(null)}
@@ -1065,8 +1133,20 @@ function MiniChart({ chart, duration, cursorT }: { chart: ChartSpec; duration: n
           <line x1={plot.left} y1={frame.py(0)} x2={plot.right} y2={frame.py(0)} stroke={AXIS} strokeWidth={1.4} />
         )}
         <line x1={plot.left} y1={plot.top} x2={plot.left} y2={plot.bottom} stroke={AXIS} strokeWidth={1.2} />
-        <text x={plot.left - 7} y={plot.top - 7} textAnchor="end" fill={LABEL} fontSize={12}>{chart.yLabel}</text>
+        <text x={plot.left - 7} y={plot.top - 9} textAnchor="start" fill={LABEL} fontSize={12}>{chart.yLabel}</text>
         <text x={plot.right} y={plot.bottom + 36} textAnchor="end" fill={LABEL} fontSize={12}>t (s)</text>
+
+        {/* The integral the probe reports, drawn: the area it names is shaded up to the same
+            instant, so the number and the region are visibly the same thing. */}
+        {duration > 0 && chart.series.map((line) => {
+          if (!line.areaAt) return null;
+          const span = line.points.filter((point) => point.x <= probeT);
+          const edge = { x: probeT, y: valueAt(line.points, probeT) };
+          const region = [{ x: 0, y: 0 }, ...span, edge, { x: probeT, y: 0 }];
+          return (
+            <path key={`a${line.symbol}`} d={`${pathFrom(region, frame)} Z`} fill={line.color} opacity={0.16} stroke="none" />
+          );
+        })}
 
         {chart.series.map((line) => (
           <path key={line.symbol} d={pathFrom(line.points, frame)} fill="none" stroke={line.color} strokeWidth={2.2} strokeDasharray={line.dash} />
@@ -1200,6 +1280,27 @@ export default function ProjectileLab() {
   const [theoryOpen, setTheoryOpen] = useState(false);
   const [manualView, setManualView] = useState<ManualView | null>(null);
   const [mergedCharts, setMergedCharts] = useState(true);
+  /* The panel's width is the reader's to set, but opening it is a fresh start: the button always
+   * restores the default rather than reopening at whatever width was last dragged. */
+  const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
+
+  const startPanelResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = panelWidth;
+    const onMove = (move: PointerEvent) => {
+      setPanelWidth(clamp(startWidth + (startX - move.clientX), PANEL_MIN_WIDTH, PANEL_MAX_WIDTH));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.cursor = "";
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    /* Held on the body so the cursor does not flicker back as the pointer crosses the chart. */
+    document.body.style.cursor = "col-resize";
+  }, [panelWidth]);
 
   const chartHostRef = useRef<HTMLDivElement>(null);
   const chartSize = useElementSize(chartHostRef);
@@ -1267,11 +1368,11 @@ export default function ProjectileLab() {
     ["飛行時間", model.duration > 0 ? `${model.duration.toFixed(2)} s` : "—"],
     [isStairs ? "落點距離" : "水平射程", formatMetres(isStairs ? model.landing?.point.x : model.groundRange)],
     ["最高點", formatMetres(model.apex.point.y)],
-    ["最佳發射角", `${model.optimalAngle.toFixed(1)}°`],
+    ["最佳發射角 θ*", `${model.optimalAngle.toFixed(1)}°`],
   ];
   const liveReadouts: readonly (readonly [string, string])[] = [
-    ["當下速率", `${cursor.acceleration.speed.toFixed(2)} m/s`],
-    ["曲率半徑", Number.isFinite(cursor.acceleration.radiusOfCurvature) ? `${cursor.acceleration.radiusOfCurvature.toFixed(1)} m` : "∞"],
+    ["當下速率 v", `${cursor.acceleration.speed.toFixed(2)} m/s`],
+    ["曲率半徑 ρ", Number.isFinite(cursor.acceleration.radiusOfCurvature) ? `${cursor.acceleration.radiusOfCurvature.toFixed(1)} m` : "∞"],
   ];
 
   return (
@@ -1297,7 +1398,11 @@ export default function ProjectileLab() {
           <button className={theoryOpen ? "active" : ""} onClick={() => setTheoryOpen(true)} aria-haspopup="dialog" aria-expanded={theoryOpen}>
             <BookOpen size={14} /> 理論與計算
           </button>
-          <button className={panelOpen ? "active" : ""} onClick={() => setPanelOpen((open) => !open)} aria-expanded={panelOpen}>
+          <button
+            className={panelOpen ? "active" : ""}
+            onClick={() => { setPanelOpen((open) => !open); setPanelWidth(PANEL_DEFAULT_WIDTH); }}
+            aria-expanded={panelOpen}
+          >
             {panelOpen ? <X size={14} /> : <SlidersHorizontal size={14} />} {panelOpen ? "收合面板" : "調整參數"}
           </button>
           <button onClick={() => { setState(initialProjectileState()); setCursorFraction(0); setManualView(null); }}><RotateCcw size={14} /> 重設</button>
@@ -1327,29 +1432,36 @@ export default function ProjectileLab() {
           </div>
         </section>
 
-        <aside className="projectile-side" data-open={panelOpen}>
-          <div className="projectile-side-inner">
+        <aside className="projectile-side" data-open={panelOpen} style={{ width: panelOpen ? panelWidth : undefined }}>
+          <div
+            className="projectile-side-grip"
+            onPointerDown={startPanelResize}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="調整面板寬度"
+          />
+          <div className="projectile-side-inner" style={{ width: panelWidth }}>
             {/* Sliders lead: they are the only controls touched continuously. */}
             <div className="projectile-group">
               <p className="projectile-group-label">發射參數</p>
               <div className="projectile-slider-stack">
-                <label><span>發射速度 <b>{state.speed.toFixed(1)} m/s</b></span>
+                <label><span>發射速度 <Tex>{"v_0"}</Tex> <b>{state.speed.toFixed(1)} m/s</b></span>
                   <input type="range" min={SPEED_RANGE[state.scenario].min} max={SPEED_RANGE[state.scenario].max} step={SPEED_RANGE[state.scenario].step} value={state.speed} onChange={(event) => patchState({ speed: Number(event.target.value) })} /></label>
-                <label><span>發射角 <b>{state.angle.toFixed(0)}°</b></span>
+                <label><span>發射角 <Tex>{"\\theta"}</Tex> <b>{state.angle.toFixed(0)}°</b></span>
                   <input type="range" min="-20" max="90" step="1" value={state.angle} onChange={(event) => patchState({ angle: Number(event.target.value) })} /></label>
                 {isStairs ? (
                   <>
-                    <label><span>階梯深度 <b>{state.stairs.width.toFixed(2)} m</b></span>
+                    <label><span>階梯深度 <Tex>{"w"}</Tex> <b>{state.stairs.width.toFixed(2)} m</b></span>
                       <input type="range" min="0.15" max="0.6" step="0.01" value={state.stairs.width} onChange={(event) => patchState({ stairs: { ...state.stairs, width: Number(event.target.value) } })} /></label>
-                    <label><span>階梯高度 <b>{state.stairs.rise.toFixed(2)} m</b></span>
+                    <label><span>階梯高度 <Tex>{"r"}</Tex> <b>{state.stairs.rise.toFixed(2)} m</b></span>
                       <input type="range" min="0.08" max="0.35" step="0.01" value={state.stairs.rise} onChange={(event) => patchState({ stairs: { ...state.stairs, rise: Number(event.target.value) } })} /></label>
                   </>
                 ) : (
-                  <label><span>發射高度 <b>{state.height.toFixed(1)} m</b></span>
+                  <label><span>發射高度 <Tex>{"h"}</Tex> <b>{state.height.toFixed(1)} m</b></span>
                     <input type="range" min="0" max="60" step="0.5" value={state.height} onChange={(event) => patchState({ height: Number(event.target.value) })} /></label>
                 )}
               </div>
-              <small className="projectile-hint">最佳角 {model.optimalAngle.toFixed(1)}°；只有發射與落地同高時才會是 45°。</small>
+              <small className="projectile-hint">最佳角 <Tex>{"\\theta^{*}"}</Tex> = {model.optimalAngle.toFixed(1)}°；只有 <Tex>{"h = 0"}</Tex> 時才會是 45°。</small>
             </div>
 
             {/* The eye icon here is the value, not decoration, so icon and text together earn

@@ -305,11 +305,16 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
  * load-bearing — with the height cap binding, aspect-ratio would otherwise grow the box sideways. */
 .projectile-path-card { flex:1; min-width:0; aspect-ratio:2.5; max-height:calc(100vh - 250px); max-width:100%; background:linear-gradient(180deg,#0c2b41 0%,#123b55 61%,#0a2132 100%); }
 .projectile-side[data-open="false"] { display:none; }
-.projectile-side[data-open="true"] { flex:none; width:360px; }
+.projectile-side[data-open="true"] { position:relative; flex:none; }
+/* A grip on the panel's inner edge, sitting in the gap between it and the chart rather than
+ * stealing width from either. */
+.projectile-side-grip { position:absolute; z-index:4; top:0; bottom:0; left:-13px; width:13px; cursor:col-resize; touch-action:none; }
+.projectile-side-grip::after { content:""; position:absolute; top:50%; left:5px; width:3px; height:34px; transform:translateY(-50%); border-radius:2px; background:var(--line); transition:background .15s ease; }
+.projectile-side-grip:hover::after { background:#7aa3bb; }
 /* The panel sizes to its own contents rather than to the chart, so it may run past the chart's
  * lower edge into the space that ratio leaves free, and only scrolls once it would run off the
  * screen. */
-.projectile-side-inner { display:flex; flex-direction:column; width:360px; max-height:calc(100vh - 190px); overflow-y:auto; border:1px solid var(--line); border-radius:8px; background:rgba(248,251,252,.96); }
+.projectile-side-inner { display:flex; flex-direction:column; max-height:calc(100vh - 190px); overflow-y:auto; border:1px solid var(--line); border-radius:8px; background:rgba(248,251,252,.96); }
 
 .projectile-menu { position:relative; }
 .projectile-menu-list { position:absolute; right:0; top:calc(100% + 6px); z-index:30; display:flex; flex-direction:column; gap:3px; min-width:210px; padding:6px; border:1px solid var(--line); border-radius:7px; background:var(--cream); box-shadow:0 14px 30px rgba(12,40,57,.18); }
@@ -365,8 +370,11 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
 .projectile-mini-legend small { color:#7a99ac; font-size:10px; }
 .projectile-mini-legend mjx-container { color:#cfe3ec !important; }
 .projectile-mini-probe { display:grid; gap:3px; margin-top:8px; padding-top:7px; border-top:1px solid rgba(122,191,221,.14); font-size:11px; font-variant-numeric:tabular-nums; }
-.projectile-mini-probe>div { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 12px; min-width:0; }
-.projectile-mini-probe>div>span { display:inline-flex; align-items:baseline; gap:3px; }
+/* A column each for the value, the derivative and the integral, so the rows stay aligned and
+ * comparable once air drag doubles how many of them there are — a wrapping flex row turned that
+ * into a ragged block. */
+.projectile-mini-probe>div { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr) minmax(0,1.25fr); align-items:baseline; gap:2px 10px; min-width:0; }
+.projectile-mini-probe>div>span { display:inline-flex; align-items:baseline; gap:3px; min-width:0; }
 .projectile-probe-t { color:#9fc2d3; }
 .projectile-mini-probe mjx-container { color:inherit !important; }
 /* MathJax's SVG output fills with currentColor, so inheriting keeps every symbol the colour of
@@ -386,6 +394,14 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
  * the legend and card label already on this view. Plain HTML rather than SVG so it stays put at
  * that corner as the map underneath pans and zooms, the way Google Maps' own +/− and recentre
  * controls do. */
+/* The trajectory readout, positioned in the chart's own pixel coordinates (the viewBox is the
+ * host's measured size, so one unit is one pixel) but built from HTML, which SVG text could not
+ * be: only HTML can carry typeset symbols. */
+.projectile-tip { position:absolute; z-index:4; pointer-events:none; display:grid; gap:2px; padding:8px 11px; border-radius:6px; border:1px solid rgba(159,194,211,.35); background:rgba(5,22,34,.93); backdrop-filter:blur(8px); color:#e6f1f6; font-variant-numeric:tabular-nums; }
+.projectile-tip>div { display:flex; align-items:baseline; justify-content:space-between; gap:14px; }
+.projectile-tip .formula-inline { color:#9fc2d3; }
+.projectile-tip mjx-container { color:#9fc2d3 !important; }
+
 .projectile-map-controls { position:absolute; z-index:3; right:14px; top:14px; display:flex; flex-direction:column; align-items:center; gap:8px; }
 .projectile-zoom-group { display:flex; flex-direction:column; overflow:hidden; border-radius:6px; border:1px solid rgba(255,255,255,.1); background:rgba(5,20,30,.72); backdrop-filter:blur(8px); box-shadow:0 6px 18px rgba(4,16,26,.35); }
 .projectile-zoom-group button { display:flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0; border:0; border-radius:0; background:transparent; color:#d4e0e5; }
@@ -403,8 +419,9 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
   .projectile-lab { min-height:0; }
   .projectile-stage { flex-direction:column; }
   .projectile-path-card { aspect-ratio:1.9; max-height:none; min-height:280px; }
-  .projectile-side[data-open="true"] { width:auto; }
-  .projectile-side-inner { width:auto; height:auto; overflow:visible; }
+  .projectile-side[data-open="true"] { width:auto !important; }
+  .projectile-side-grip { display:none; }
+  .projectile-side-inner { width:auto !important; height:auto; overflow:visible; }
   .projectile-note { margin-top:0; }
 }
 @media(max-width:660px){
