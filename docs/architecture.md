@@ -91,3 +91,14 @@ Both views are SVG. This model has no 3D view and does not need one — projecti
 and the readings that matter here are numeric, which SVG places more precisely than a rendered
 scene would. The time cursor is deliberately held outside `deriveProjectileModel`, in
 `deriveCursor`, so animating the marker never re-samples the flight or re-runs the drag integration.
+
+Its controls live in a side panel that takes width from the chart rather than covering it, and the
+chart is drawn at whatever size it is then left with — the SVG's viewBox is set to the host
+element's measured pixel size, so one viewBox unit is one CSS pixel and the chart's type is the
+size it says it is at every width. Scaling a fixed viewBox instead had been shrinking every tick
+label along with the drawing, on a phone to a third of its size.
+
+`/projectile/notes` carries the model's formulas, the conditions each one needs, and an explicit
+account of the one curve that is not a closed form: why quadratic drag has none, what the RK4
+scheme and step size are, and how the integrator is calibrated against the exact solution it
+generalizes. It follows the `/about` page's pattern, which until now the solar model alone used.

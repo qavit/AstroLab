@@ -273,12 +273,33 @@ test("server-renders the projectile motion model page", async () => {
   assert.match(html, /拋體運動/);
   // The component charts are corroboration, not the subject, so they ship collapsed — the
   // server-rendered page carries the disclosure, not the charts themselves.
-  assert.match(html, /分量圖：水平與垂直各自對時間/);
+  assert.match(html, /分量圖/);
   assert.doesNotMatch(html, /水平位置 x–t/);
   assert.match(html, /安全拋物線/);
-  assert.match(html, /階梯落點/);
   assert.match(html, /反向播放/);
+  // Scenario and preset are menus, so their triggers ship but their contents do not.
+  assert.match(html, /情境/);
+  assert.match(html, /教學預設/);
+  assert.doesNotMatch(html, /平地拋射/);
+  assert.match(html, /理論與計算/);
   assert.match(html, /模型目錄/);
+});
+
+test("server-renders the projectile theory and computation notes", async () => {
+  const response = await render("/projectile/notes");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<title>拋體運動：理論與計算｜AstroLab<\/title>/);
+  assert.match(html, /水平方向與垂直方向互不影響/);
+  assert.match(html, /安全拋物線/);
+  assert.match(html, /切向與法向/);
+  assert.match(html, /階梯落點/);
+  // The page has to be explicit about which single curve is not a closed form, and how its
+  // integrator is checked, since that is the one claim a reader cannot verify from the picture.
+  assert.match(html, /Runge–Kutta/);
+  assert.match(html, /唯一使用數值方法/);
+  assert.match(html, /數值解的誤差如何被檢查/);
+  assert.match(html, /返回模型/);
 });
 
 test("keeps projectile motion analytic, with the drag integrator quarantined", async () => {
