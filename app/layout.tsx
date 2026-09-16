@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Kakau Lab｜互動式科學模型",
-  description: "以同步 2D／3D 視圖探索天文與物理概念。",
+  description: "用可操作的科學模型探索物理、地球科學與天文概念。",
   icons: { icon: "/favicon.svg" },
   openGraph: {
     title: "Kakau Lab｜互動式科學模型",

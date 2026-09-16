@@ -35,7 +35,7 @@ const subjectLabels: Record<LabSubject, string> = {
 };
 
 function labHref(lab: LabManifest): string {
-  return lab.implementation.app === "kakau-lab" ? (lab.implementation.route ?? "/") : (lab.implementation.url ?? "#");
+  return lab.implementation.app === "kakau-lab" ? lab.implementation.route : lab.implementation.url;
 }
 
 function CardArt({ lab }: { lab: LabManifest }) {

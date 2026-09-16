@@ -25,13 +25,24 @@ export type LabStatus = "published" | "experimental" | "paused";
 /** Which first-party Kakau app hosts the implementation. */
 export type LabApp = "kakau-lab" | "kakau-web";
 
-export interface LabImplementation {
-  app: LabApp;
-  /** Local route within this app. Required when `app` is "kakau-lab". */
-  route?: string;
-  /** Absolute URL to the hosting Kakau property. Required when `app` is "kakau-web". */
-  url?: string;
-}
+/**
+ * Discriminated on `app` so a manifest that pairs the wrong field with an app (a `kakau-lab`
+ * entry with no `route`, a `kakau-web` entry with a `route` instead of a `url`) fails to compile
+ * rather than silently reaching the catalog's fallback href.
+ */
+export type LabImplementation =
+  | {
+      app: "kakau-lab";
+      /** Local route within this app. */
+      route: string;
+      url?: never;
+    }
+  | {
+      app: "kakau-web";
+      /** Absolute URL to the hosting Kakau property. */
+      url: string;
+      route?: never;
+    };
 
 export interface LabPresentation {
   tone?: string;
@@ -159,7 +170,7 @@ export const labRegistry: readonly LabManifest[] = [
     number: "08",
     title: "雙點波源干涉",
     subject: "physics",
-    description: "同調雙波源的疊加場，如何由波程差決定建設性與破壞性干涉的雙曲線圖樣。",
+    description: "同調雙波源的疊加場，如何由波程差決定相長與相消干涉的雙曲線圖樣。",
     topics: ["波動", "干涉", "波程差", "雙曲線"],
     concepts: [
       "coherent-sources",
