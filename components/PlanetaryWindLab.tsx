@@ -358,7 +358,7 @@ export default function PlanetaryWindLab() {
     <main className="lab-shell wind-lab">
       <div className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="AstroLab 模型目錄"><Compass size={15} />AstroLab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
           <div className="eyebrow">Model 03</div>
           <h1><span className="live-dot" />全球行星風系</h1>
         </div>

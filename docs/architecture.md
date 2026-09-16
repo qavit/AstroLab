@@ -114,3 +114,55 @@ every inline formula into its own line, so inline math is forced back to `inline
 account of the one curve that is not a closed form: why quadratic drag has none, what the RK4
 scheme and step size are, and how the integrator is calibrated against the exact solution it
 generalizes. It follows the `/about` page's pattern, which until now the solar model alone used.
+
+## Kakau Lab integration (Stage 0)
+
+This repo (`qavit/AstroLab`) is the technical foundation of **Kakau Lab**, the product's
+user-facing name. The repository keeps its historical name; only the product identity shown to
+users — catalog header, hero, footer, page metadata, `/about` copy, accessible labels — changed to
+Kakau Lab. Renaming the GitHub repository is a future option, not something this stage requires.
+
+### Model registry
+
+`lib/labs/registry.ts` is the single source of truth for the catalog: a `LabManifest[]` of pure,
+machine-readable data. It must never import React, Three.js, or `lucide-react` — presentation
+details (icons, card art, preview images) are stored as string keys, and the mapping from a key
+like `"orbit"` to the actual `Orbit` icon component lives in `components/ModelCatalog.tsx`, the
+one layer allowed to combine data with rendering. `ModelCatalog.tsx` renders entirely from
+`publishedLabs()`; there is no second, hard-coded model list anywhere in the app.
+
+The registry also distinguishes *which app* implements a lab. `implementation.app` is either:
+
+- `"kakau-lab"` — a model that lives in this repo, with a local `route` the catalog renders as a
+  Next.js `<Link>`.
+- `"kakau-web"` — a lab hosted on the Kakau Web property, with an absolute `url` the catalog
+  renders as a plain `<a>`, navigated in the same tab and without a "leaving this site" warning,
+  because both properties are first-party Kakau products. The catalog code still keeps the
+  distinction explicit rather than pretending an external URL is an internal route.
+
+Models 01–07 are all `kakau-lab`. Model 08 (`two-source-interference`, 雙點波源干涉) is
+`kakau-web`, pointing at the already-published `https://kakau.tw/lab/interference` — it is not an
+iframe, a proxy, or a port of that lab's code into this repo.
+
+`LabManifest` reserves an optional `scientificQuality` block (`assumptions`, `approximations`,
+`validity`, `verification`) for a future pedagogical-quality pass. Stage 0 does not backfill it for
+the seven existing models; leaving it empty is intentional, not an oversight.
+
+### Deployment boundary: Kakau Web vs. Kakau Lab app
+
+Two Kakau properties, deliberately on separate runtimes:
+
+- **Kakau Web** — `https://kakau.tw`. Brand, content, resources, lightweight native labs, and the
+  SEO / acquisition surface. `kakau.tw/lab/interference` stays at that URL; Stage 0 does not move
+  it to `lab.kakau.tw`.
+- **Kakau Lab app** (this repo) — target origin `https://lab.kakau.tw`. Heavier interactive science
+  models: stateful React applications with Three.js scenes and synchronized multi-view
+  visualizations.
+
+Integrating the product does not mean integrating the framework: the two apps stay separate
+Next.js/Cloudflare-Workers and Kakau-Web runtimes, linked only through the registry's
+`implementation` field and ordinary hyperlinks. Whether `lab.kakau.tw` can already be bound as a
+custom domain has not been verified in this stage — the current deployment target (Cloudflare
+Workers via `vinext`/`wrangler`, see `vite.config.ts` and `worker/index.ts`) has no custom-domain
+configuration checked into the repo, so this should not be assumed to be ready without confirming
+it in the Cloudflare dashboard first.

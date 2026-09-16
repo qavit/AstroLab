@@ -264,7 +264,7 @@ export default function CoriolisLab() {
     <main className="lab-shell coriolis-lab">
       <div className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="AstroLab 模型目錄"><Compass size={15} />AstroLab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
           <div className="eyebrow">Model 06</div>
           <h1><span className="live-dot" />科氏力效應</h1>
         </div>
@@ -378,7 +378,7 @@ export default function CoriolisLab() {
 
       <div className="lab-footer">
         <span>CORIOLIS EFFECT · a = −2Ω × v</span>
-        <span>AstroLab</span>
+        <span>Kakau Lab</span>
       </div>
     </main>
   );

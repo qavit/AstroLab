@@ -151,7 +151,7 @@ export default function SolarLab() {
     <main className="lab-shell">
       <header className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="AstroLab 模型目錄"><Compass size={15} />AstroLab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
           <div className="eyebrow"><span className="live-dot" /> 模型 01</div>
           <h1>太陽、天球與竿影</h1>
         </div>

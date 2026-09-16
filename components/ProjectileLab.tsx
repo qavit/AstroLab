@@ -1380,7 +1380,7 @@ export default function ProjectileLab() {
     <main className="lab-shell projectile-lab">
       <div className="topbar projectile-topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="AstroLab 模型目錄"><Compass size={15} />AstroLab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
           <div className="eyebrow">Model 07</div>
           <h1><span className="live-dot" />拋體運動</h1>
         </div>

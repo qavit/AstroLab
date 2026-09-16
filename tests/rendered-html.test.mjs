@@ -13,13 +13,13 @@ async function render(pathname = "/") {
   );
 }
 
-test("server-renders the AstroLab model shell", async () => {
+test("server-renders the Kakau Lab model shell", async () => {
   const response = await render("/solar");
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<html lang="zh-Hant">/);
-  assert.match(html, /<title>太陽、天球與竿影｜AstroLab<\/title>/);
+  assert.match(html, /<title>太陽、天球與竿影｜Kakau Lab<\/title>/);
   assert.match(html, /地心模型/);
   assert.match(html, /觀察者模型/);
   assert.match(html, /同步控制台/);
@@ -51,11 +51,11 @@ test("server-renders the AstroLab model shell", async () => {
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
 });
 
-test("server-renders the AstroLab model catalog", async () => {
+test("server-renders the Kakau Lab model catalog", async () => {
   const response = await render("/");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /<title>AstroLab｜互動式科學模型<\/title>/);
+  assert.match(html, /<title>Kakau Lab｜互動式科學模型<\/title>/);
   assert.match(html, /選擇一個主題開始探索/);
   assert.match(html, /太陽、天球與竿影/);
   assert.match(html, /全球行星風系/);
@@ -63,6 +63,9 @@ test("server-renders the AstroLab model catalog", async () => {
   assert.match(html, /多導線磁場疊加/);
   assert.match(html, /科氏力效應/);
   assert.match(html, /風場粒子/);
+  assert.match(html, /雙點波源干涉/);
+  assert.match(html, /08 interactive models/);
+  assert.match(html, /href="https:\/\/kakau\.tw\/lab\/interference"/);
   assert.doesNotMatch(html, /同步控制台/);
 });
 
@@ -150,7 +153,7 @@ test("server-renders the magnetic field model page", async () => {
   const response = await render("/magnetism");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /<title>多導線磁場疊加｜AstroLab<\/title>/);
+  assert.match(html, /<title>多導線磁場疊加｜Kakau Lab<\/title>/);
   assert.match(html, /多導線磁場疊加/);
   assert.match(html, /空間視角/);
   assert.match(html, /俯視示意圖/);
@@ -177,7 +180,7 @@ test("server-renders the global planetary wind model page", async () => {
   const response = await render("/atmosphere");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /<title>全球行星風系｜AstroLab<\/title>/);
+  assert.match(html, /<title>全球行星風系｜Kakau Lab<\/title>/);
   assert.match(html, /全球近地面風帶/);
   assert.match(html, /緯度—高度環流剖面/);
   assert.match(html, /行星自轉速率/);
@@ -207,7 +210,7 @@ test("server-renders the valley bedding model page", async () => {
   const response = await render("/geology");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /<title>岩層位態與河谷地形｜AstroLab<\/title>/);
+  assert.match(html, /<title>岩層位態與河谷地形｜Kakau Lab<\/title>/);
   assert.match(html, /地質圖俯視/);
   assert.match(html, /立體地質塊體/);
   assert.match(html, /驗證 V 字法則/);
@@ -235,7 +238,7 @@ test("server-renders the Coriolis-force model page", async () => {
   const response = await render("/coriolis");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /<title>科氏力效應｜AstroLab<\/title>/);
+  assert.match(html, /<title>科氏力效應｜Kakau Lab<\/title>/);
   assert.match(html, /慣性系與旋轉系同框/);
   assert.match(html, /平台觀察者視角/);
   assert.match(html, /旋轉平台/);
@@ -269,7 +272,7 @@ test("server-renders the projectile motion model page", async () => {
   const response = await render("/projectile");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /<title>拋體運動｜AstroLab<\/title>/);
+  assert.match(html, /<title>拋體運動｜Kakau Lab<\/title>/);
   assert.match(html, /拋體運動/);
   // The component charts are corroboration, not the subject, so they ship collapsed — the
   // server-rendered page carries the disclosure, not the charts themselves.
@@ -289,7 +292,7 @@ test("server-renders the projectile theory and computation notes", async () => {
   const response = await render("/projectile/notes");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /<title>拋體運動：理論與計算｜AstroLab<\/title>/);
+  assert.match(html, /<title>拋體運動：理論與計算｜Kakau Lab<\/title>/);
   assert.match(html, /水平方向與垂直方向互不影響/);
   assert.match(html, /安全拋物線/);
   assert.match(html, /切向與法向/);

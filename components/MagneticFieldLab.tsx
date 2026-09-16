@@ -222,7 +222,7 @@ export default function MagneticFieldLab() {
     <main className="lab-shell">
       <div className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="AstroLab 模型目錄"><Compass size={15} />AstroLab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
           <div className="eyebrow">Model 02</div>
           <h1 style={{ margin: 0, fontFamily: "Georgia,'Noto Serif TC',serif", fontWeight: 500, fontSize: 22 }}>
             <span className="live-dot" />
@@ -368,7 +368,7 @@ export default function MagneticFieldLab() {
 
       <div className="lab-footer">
         <span>AMPERE&apos;S LAW · Σ B = μ₀I / 2πr</span>
-        <span>AstroLab</span>
+        <span>Kakau Lab</span>
       </div>
     </main>
   );

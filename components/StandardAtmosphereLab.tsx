@@ -511,7 +511,7 @@ export default function StandardAtmosphereLab() {
     <main className="lab-shell atmosphere-profile-lab">
       <div className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="AstroLab 模型目錄"><Compass size={15} />AstroLab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
           <div className="eyebrow">Model 05</div>
           <h1><span className="live-dot" />大氣垂直結構</h1>
         </div>

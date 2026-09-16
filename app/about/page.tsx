@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "模型說明｜AstroLab",
+  title: "模型說明｜Kakau Lab",
   description: "了解太陽、天球與竿影模型的理想化假設，以及它和真實日地系統的差異。",
 };
 
@@ -11,7 +11,7 @@ export default function AboutPage() {
     <main className="about-page">
       <nav><Link href="/solar">← 返回模型</Link></nav>
       <article>
-        <div className="eyebrow">AstroLab · Model notes</div>
+        <div className="eyebrow">Kakau Lab · Model notes</div>
         <h1>模型的理想化設計</h1>
         <p>這個模型的目的，是把天球坐標、地平坐標、太陽日行跡與竿影放在同一個可操作的幾何系統中。它優先呈現概念關係，並不是用來取代天文年鑑或精密星曆軟體。</p>
 
