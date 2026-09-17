@@ -3,7 +3,7 @@ import Link from "next/link";
 import TheoryNotes from "@/components/projectile/TheoryNotes";
 
 export const metadata: Metadata = {
-  title: "拋體運動：理論與計算｜AstroLab",
+  title: "拋體運動：理論與計算｜Kakau Lab",
   description: "拋體運動模型使用的公式、它們的成立條件，以及空氣阻力為何必須改用數值積分。",
 };
 

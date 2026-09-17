@@ -22,7 +22,7 @@ function TheoryContent() {
         </p>
       )}
       <div className="theory-body">
-        <div className="eyebrow">AstroLab · Model 07</div>
+        <div className="eyebrow">Kakau Lab · Model 07</div>
         <h1>拋體運動的理論與計算</h1>
         <p>
           這個模型只有一句核心主張：<strong>水平方向與垂直方向互不影響</strong>。水平沒有力，所以等速；垂直只有重力，所以等加速。
