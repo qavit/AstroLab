@@ -20,6 +20,53 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Deployment
+
+Kakau Lab 部署為一個自管的 Cloudflare Worker，名稱 `kakau-lab`。`wrangler.jsonc` 是唯一的部署設定來源：`vite.config.ts` 以 `configPath` 指向它，所以 dev 跑的 runtime 與 `wrangler deploy` 上線的設定是同一份。
+
+### 首次設定（每台機器一次）
+
+```bash
+npx wrangler login     # 開瀏覽器登入 Cloudflare，不需要把 token 放進指令或檔案
+npx wrangler whoami    # 確認帳號；若有多個帳號，設定 CLOUDFLARE_ACCOUNT_ID
+```
+
+### 部署
+
+```bash
+npm run deploy
+```
+
+**必須用 `npm run deploy`，不要直接跑 `npx vinext deploy`。** `vinext deploy` 會直接呼叫 Vite builder，不會經過 `npm run build`，因此 `prebuild` 的 MathJax 複製步驟不會執行；`npm run deploy` 的 `predeploy` hook 補上這一步。少了它，Model 07 的理論筆記在正式環境不會顯示任何數學式（`public/mathjax/` 是 gitignored 的建置產物，乾淨 clone 上並不存在）。`tests/deploy-config.test.mjs` 會擋住這個回歸。
+
+不上傳、只驗證設定與打包產物：
+
+```bash
+npm run deploy:dry                  # 只生成/檢查設定檔
+npx wrangler deploy --dry-run       # 完整打包但不上傳（不需要 Cloudflare 認證）
+```
+
+### 驗證
+
+部署後 Cloudflare 會回一個 `https://kakau-lab.<subdomain>.workers.dev` 網址。最小驗收：catalog 回 200 且顯示 8 個模型、01–07 各自載入、Model 08 連到 `https://kakau.tw/lab/interference`、Model 07 的 `/projectile/notes` 數學式有算繪。
+
+### Rollback
+
+```bash
+npx wrangler deployments status         # 目前線上是哪一版
+npx wrangler deployments list           # 最近 10 次部署與其 version ID
+npx wrangler rollback <version-id>      # 回到該版本；省略 ID 則回到前一版
+```
+
+Cloudflare 保留既有版本，rollback 不需要重新建置。另一條路是 checkout 上一個已知良好的 commit 再跑一次 `npm run deploy`。
+
+### 備註
+
+- `compatibility_date` 釘選在 `2026-05-15`，對應安裝的 `workerd 1.20260515.1`，也就是所有 dev/build 實際跑過的 runtime。升級時應同步調整並重測。
+- 目前沒有宣告 D1／R2／KV 等 binding，因為這個應用不需要持久化狀態。
+- 沒有宣告 Cloudflare Images binding：`next/image` 僅用於匯出預覽且帶 `unoptimized`，不會走影像最佳化端點；要啟用時需先在帳號開通 Cloudflare Images，再於 `wrangler.jsonc` 加上 `images` binding。
+- `.openai/hosting.json` 是早期 OpenAI Site Creator 部署留下的歷史檔案，**已不參與任何生產設定**，保留僅為記錄。
+
 ## Structure
 
 - `lib/science/`: 純科學計算與座標轉換，不依賴 DOM 或渲染
