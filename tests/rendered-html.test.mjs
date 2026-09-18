@@ -69,6 +69,12 @@ test("server-renders the Kakau Lab model catalog", async () => {
   assert.doesNotMatch(html, /同步控制台/);
 });
 
+test("resolves Open Graph image URLs against the production origin", async () => {
+  const response = await render("/");
+  const html = await response.text();
+  assert.match(html, /property="og:image" content="https:\/\/lab\.kakau\.tw\/home-preview\.png"/);
+});
+
 test("server-renders the model explanation page", async () => {
   const response = await render("/about");
   assert.equal(response.status, 200);
