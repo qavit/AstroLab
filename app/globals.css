@@ -413,6 +413,60 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
 .projectile-map-reset:hover { background:rgba(255,255,255,.1); transform:none; }
 .projectile-map-reset.active { color:#5ed8c3; border-color:rgba(94,216,195,.4); }
 
+/* Guided learning is a projectile-specific rail, not a second simulator. It takes space from the
+ * chart using the same layout contract as the parameter panel, and all instruments inside it are
+ * backed by the lab's existing ProjectileState and derived model. */
+.guided-side { width:min(390px,34vw); }
+.guided-inner { width:100%; max-height:calc(100vh - 190px); }
+.guided-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:16px 16px 12px; border-bottom:1px solid var(--line); }
+.guided-head>div>span { display:block; margin-bottom:4px; color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+.guided-head h2 { margin:0; font-family:Georgia,"Noto Serif TC",serif; font-size:20px; line-height:1.3; }
+.guided-head>button { flex:none; width:34px; height:34px; padding:0; }
+.guided-progress { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin:0; padding:10px 12px; border-bottom:1px solid var(--line); list-style:none; }
+.guided-progress button { display:flex; align-items:center; gap:5px; width:100%; min-height:38px; padding:6px 7px; color:var(--muted); font-size:10px; line-height:1.25; text-align:left; }
+.guided-progress button span { display:grid; flex:none; place-items:center; width:18px; height:18px; border-radius:50%; background:rgba(18,59,85,.09); font-size:10px; }
+.guided-progress button.active { border-color:var(--accent); color:var(--ink); }
+.guided-progress button.active span { background:var(--accent); color:#082330; }
+.guided-phase { display:grid; gap:12px; padding:14px 16px 16px; }
+.guided-phase>span { justify-self:start; padding:4px 8px; border-radius:999px; background:rgba(94,216,195,.16); color:#176755; font-size:11px; font-weight:700; letter-spacing:.08em; }
+.guided-block { display:grid; gap:12px; }
+.guided-block p { margin:0; color:var(--muted); font-size:13px; line-height:1.65; }
+.guided-block code { padding:.08em .3em; border-radius:3px; background:rgba(18,59,85,.08); color:var(--ink); font-family:ui-monospace,monospace; }
+.guided-question { color:var(--ink) !important; font-family:Georgia,"Noto Serif TC",serif; font-size:17px !important; line-height:1.55 !important; }
+.guided-choices { display:grid; gap:7px; }
+.guided-choices button { justify-content:flex-start; min-height:42px; padding:9px 11px; line-height:1.4; text-align:left; }
+.guided-mask { padding:9px 11px; border-left:3px solid #c5d5dc; background:rgba(220,234,240,.42); font-size:12px !important; }
+.guided-prediction { display:grid; gap:3px; padding:9px 11px; border-radius:6px; background:rgba(220,234,240,.45); }
+.guided-prediction b,.guided-conclusion>b,.guided-assumptions b,.guided-free>b { color:var(--ink); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+.guided-hints { display:grid; gap:7px; padding-top:2px; }
+.guided-hints p { display:grid; gap:2px; padding:8px 10px; border-left:2px solid #e5b758; background:#fff8e8; color:#6b5a31; font-size:12px; }
+.guided-hints button { justify-self:start; }
+.guided-chart { min-width:0; }
+.guided-chart .projectile-mini { padding:7px; }
+.guided-chart .projectile-mini-probe>div { grid-template-columns:1fr; gap:2px; }
+.guided-measures { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin:0; }
+.guided-measures>div { min-width:0; padding:9px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+.guided-measures>div.wide { grid-column:1/-1; }
+.guided-measures dt { color:var(--muted); font-size:11px; }
+.guided-measures dd { margin:3px 0 0; color:var(--ink); font-family:ui-monospace,monospace; font-size:13px; font-weight:700; }
+.guided-table-wrap { overflow-x:auto; }
+.guided-table { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
+.guided-table th,.guided-table td { padding:7px 8px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
+.guided-table th:first-child { text-align:left; }
+.guided-table thead th { color:var(--muted); font-size:11px; }
+.guided-assumptions { display:grid; gap:4px; padding:9px 10px; border:1px solid #d8cda9; border-radius:6px; background:#fffaf0; color:#756942; font-size:11px; line-height:1.5; }
+.guided-live { padding:8px 10px; border-radius:5px; background:rgba(94,216,195,.1); text-align:center; }
+.guided-height { padding:10px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+.guided-conclusion { display:grid; gap:6px; padding:12px; border-radius:7px; background:rgba(94,216,195,.12); }
+.guided-conclusion p { color:#294f59; }
+.guided-free { padding:12px; border:1px solid #dfc16e; border-radius:7px; background:#fff9e8; }
+.guided-free p { margin-top:5px; color:#6b5a31; }
+.guided-block button.primary { border-color:#2d8877; background:#2d8877; color:#fff; }
+.guided-block button.primary:hover { background:#237160; }
+.guided-footer { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; padding:11px 14px; border-top:1px solid var(--line); }
+.guided-footer button { padding:7px 9px; font-size:11px; }
+.guided-footer span { color:var(--muted); font-size:10px; text-align:right; }
+
 /* Below the two-column width the page goes back to stacking and scrolling: a phone cannot hold a
  * chart and a panel side by side, and the panel's own labels and legend move into normal flow. */
 @media(max-width:900px){
@@ -423,6 +477,8 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
   .projectile-side-grip { display:none; }
   .projectile-side-inner { width:auto !important; height:auto; overflow:visible; }
   .projectile-note { margin-top:0; }
+  .guided-side { width:auto; }
+  .guided-inner { max-height:none; }
 }
 @media(max-width:660px){
   .projectile-path-card { aspect-ratio:auto; min-height:0; padding:50px 0 0; }
@@ -435,4 +491,8 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
   .projectile-transport { flex-wrap:wrap; }
   .projectile-scrub { order:3; flex-basis:100%; }
   .projectile-btn-grid { grid-template-columns:1fr; }
+  .guided-progress button { justify-content:center; min-height:36px; font-size:0; }
+  .guided-progress button span { font-size:10px; }
+  .guided-phase { padding:13px; }
+  .guided-measures { grid-template-columns:1fr 1fr; }
 }

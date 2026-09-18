@@ -22,6 +22,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import TheoryNotes from "@/components/projectile/TheoryNotes";
+import GuidedActivities from "@/components/projectile/GuidedActivities";
 import { MathProvider, Tex } from "@/components/projectile/mathjax";
 import type { PathAcceleration, TrajectorySample, Vec2 } from "@/lib/science/projectile";
 import { DRAG_PRESETS, GRAVITY_PRESETS } from "@/lib/science/projectile";
@@ -36,6 +37,18 @@ import {
   type ProjectileReadout,
   type ProjectileState,
 } from "@/models/projectile";
+import {
+  comparisonVisible,
+  isNearApex,
+  isRaisedHeightReady,
+  newGuidedSession,
+  projectileLearningActivities,
+  recordManipulation,
+  revealObservation,
+  submitPrediction,
+  type GuidedSession,
+  type ProjectileActivityId,
+} from "@/models/projectile-learning";
 
 type Pad = { left: number; right: number; top: number; bottom: number };
 
@@ -103,6 +116,8 @@ const MINI_PAD = { left: 60, right: 18, top: 20, bottom: 44 };
 const PANEL_DEFAULT_WIDTH = 360;
 const PANEL_MIN_WIDTH = 280;
 const PANEL_MAX_WIDTH = 620;
+
+const LEARNING_ACTIVITIES = projectileLearningActivities(GRAVITY_PRESETS.earth.value);
 
 /** One transport step, in seconds. Fixed rather than a fraction of the flight so the button
  * means the same thing whether the throw lasts half a second or six. */
@@ -1207,6 +1222,25 @@ function formatMetres(value: number | null | undefined) {
   return value === null || value === undefined || !Number.isFinite(value) ? "—" : `${value.toFixed(2)} m`;
 }
 
+/** The same height instrument appears in free controls and Activity 3; both write to the single
+ * ProjectileState rather than maintaining a guided copy of the launch parameters. */
+function HeightControl({ height, onChange }: { height: number; onChange: (height: number) => void }) {
+  return (
+    <label>
+      <span>發射高度 <Tex>{"h"}</Tex> <b>{height.toFixed(1)} m</b></span>
+      <input
+        type="range"
+        min="0"
+        max="60"
+        step="0.5"
+        value={height}
+        aria-label="發射高度 h"
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </label>
+  );
+}
+
 /** A header button that opens a short list of choices. Scenario and preset are one-shot pickers
  * rather than settings to keep on screen, so they live behind a menu instead of in the panel. */
 function Menu({ label, children }: { label: string; children: ReactNode }) {
@@ -1280,6 +1314,8 @@ export default function ProjectileLab() {
   const [theoryOpen, setTheoryOpen] = useState(false);
   const [manualView, setManualView] = useState<ManualView | null>(null);
   const [mergedCharts, setMergedCharts] = useState(true);
+  const [guidedSession, setGuidedSession] = useState<GuidedSession | null>(null);
+  const [guidedChartVisible, setGuidedChartVisible] = useState(false);
   /* The panel's width is the reader's to set, but opening it is a fresh start: the button always
    * restores the default rather than reopening at whatever width was last dragged. */
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
@@ -1314,6 +1350,58 @@ export default function ProjectileLab() {
     setState((current) => ({ ...current, ...patch }));
   }, []);
 
+  const selectGuidedActivity = useCallback((activityId: ProjectileActivityId) => {
+    const activity = LEARNING_ACTIVITIES.find((candidate) => candidate.id === activityId) ?? LEARNING_ACTIVITIES[0];
+    setGuidedSession(newGuidedSession(activity.id));
+    setState(activity.initialState);
+    setCursorFraction(0);
+    setManualView(null);
+    setPanelOpen(false);
+    setGuidedChartVisible(false);
+  }, []);
+
+  const closeGuided = useCallback(() => {
+    setGuidedSession(null);
+    setGuidedChartVisible(false);
+  }, []);
+
+  const submitGuidedPrediction = useCallback((choiceId: string) => {
+    setGuidedSession((current) => current ? submitPrediction(current, choiceId) : current);
+    if (guidedSession?.activityId === "complementary") {
+      patchState({ showComplementary: true, playing: false, direction: 1 });
+      setCursorFraction(0);
+      setManualView(null);
+    }
+  }, [guidedSession?.activityId, patchState]);
+
+  const markGuidedManipulation = useCallback(() => {
+    setGuidedSession((current) => current ? recordManipulation(current) : current);
+  }, []);
+
+  const recordGuidedCursor = useCallback((fraction: number) => {
+    const candidate = deriveCursor(model, state.gravity, fraction);
+    const reachedApex = guidedSession?.activityId === "apex"
+      && guidedSession.phase === "manipulate"
+      && isNearApex(model.apex.t, candidate.t, candidate.velocity.y, model.duration);
+    setGuidedSession((current) => {
+      if (!current) return current;
+      const attempted = recordManipulation(current);
+      return reachedApex ? revealObservation(attempted) : attempted;
+    });
+    if (reachedApex) setGuidedChartVisible(true);
+  }, [guidedSession, model, state.gravity]);
+
+  const changeGuidedHeight = useCallback((height: number) => {
+    patchState({ height, playing: false });
+    setGuidedSession((current) => {
+      if (!current) return current;
+      const attempted = recordManipulation(current);
+      return current.activityId === "elevated" && current.phase === "manipulate" && isRaisedHeightReady(height)
+        ? revealObservation(attempted)
+        : attempted;
+    });
+  }, [patchState]);
+
   /* The cursor is animated outside the model so a moving marker never re-samples the flight or
    * re-runs the drag integration. */
   const clockRef = useRef(model.clockDuration);
@@ -1345,16 +1433,20 @@ export default function ProjectileLab() {
   const stepBy = useCallback((seconds: number) => {
     const clock = clockRef.current;
     if (clock <= 0) return;
+    const next = Math.min(1, Math.max(0, cursorFraction + seconds / clock));
     patchState({ playing: false });
-    setCursorFraction((value) => Math.min(1, Math.max(0, value + seconds / clock)));
-  }, [patchState]);
+    recordGuidedCursor(next);
+    setCursorFraction(next);
+  }, [cursorFraction, patchState, recordGuidedCursor]);
 
   const scrubTo = useCallback((t: number) => {
     const clock = clockRef.current;
     if (clock <= 0) return;
+    const next = Math.min(1, Math.max(0, t / clock));
     patchState({ playing: false });
-    setCursorFraction(Math.min(1, Math.max(0, t / clock)));
-  }, [patchState]);
+    recordGuidedCursor(next);
+    setCursorFraction(next);
+  }, [patchState, recordGuidedCursor]);
 
   const isStairs = state.scenario === "staircase";
   const dragActive = model.dragSamples.length > 0;
@@ -1363,12 +1455,14 @@ export default function ProjectileLab() {
    * information rather than merely deferred it. */
   const gravityLabel = Object.values(GRAVITY_PRESETS).find((preset) => Math.abs(preset.value - state.gravity) < 1e-6)?.label ?? "自訂";
   const dragLabel = Object.values(DRAG_PRESETS).find((preset) => Math.abs(preset.value - state.dragFactor) < 1e-9)?.label ?? `b = ${state.dragFactor.toFixed(3)} m⁻¹`;
+  const maskOptimalAngle = guidedSession?.activityId === "elevated" && guidedSession.phase === "predict";
+  const comparisonIsRevealed = !guidedSession || comparisonVisible(guidedSession);
 
   const readouts: readonly (readonly [string, string])[] = [
     ["飛行時間", model.duration > 0 ? `${model.duration.toFixed(2)} s` : "—"],
     [isStairs ? "落點距離" : "水平射程", formatMetres(isStairs ? model.landing?.point.x : model.groundRange)],
     ["最高點", formatMetres(model.apex.point.y)],
-    ["最佳發射角 θ*", `${model.optimalAngle.toFixed(1)}°`],
+    ["最佳發射角 θ*", maskOptimalAngle ? "先做預測，再揭曉" : `${model.optimalAngle.toFixed(1)}°`],
   ];
   const liveReadouts: readonly (readonly [string, string])[] = [
     ["當下速率 v", `${cursor.acceleration.speed.toFixed(2)} m/s`],
@@ -1395,23 +1489,33 @@ export default function ProjectileLab() {
               return <button key={key} onClick={() => { patchState(patch); setCursorFraction(0); setManualView(null); }}>{label}</button>;
             })}
           </Menu>
+          <button
+            className={guidedSession ? "active" : ""}
+            onClick={() => guidedSession ? closeGuided() : selectGuidedActivity("apex")}
+            aria-expanded={Boolean(guidedSession)}
+          >
+            {guidedSession ? "離開探索任務" : "探索任務"}
+          </button>
           <button className={theoryOpen ? "active" : ""} onClick={() => setTheoryOpen(true)} aria-haspopup="dialog" aria-expanded={theoryOpen}>
             <BookOpen size={14} /> 理論與計算
           </button>
           <button
             className={panelOpen ? "active" : ""}
-            onClick={() => { setPanelOpen((open) => !open); setPanelWidth(PANEL_DEFAULT_WIDTH); }}
+            onClick={() => { closeGuided(); setPanelOpen((open) => !open); setPanelWidth(PANEL_DEFAULT_WIDTH); }}
             aria-expanded={panelOpen}
           >
             {panelOpen ? <X size={14} /> : <SlidersHorizontal size={14} />} {panelOpen ? "收合面板" : "調整參數"}
           </button>
-          <button onClick={() => { setState(initialProjectileState()); setCursorFraction(0); setManualView(null); }}><RotateCcw size={14} /> 重設</button>
+          <button onClick={() => {
+            if (guidedSession) selectGuidedActivity(guidedSession.activityId);
+            else { setState(initialProjectileState()); setCursorFraction(0); setManualView(null); }
+          }}><RotateCcw size={14} /> 重設</button>
         </div>
       </div>
 
       {/* The panel takes width from the chart rather than covering it, and the chart is drawn at
           whatever size it is left with, so opening the panel never hides the trajectory. */}
-      <div className="projectile-stage" data-panel={panelOpen}>
+      <div className="projectile-stage" data-panel={panelOpen || Boolean(guidedSession)}>
         <section className="viewport-card projectile-path-card">
           <div className="card-label">
             <span>軌跡</span>
@@ -1425,14 +1529,14 @@ export default function ProjectileLab() {
           </div>
           <div className="legend">
             <span><i style={{ background: PATH }} />本次軌跡</span>
-            {(model.complementary || dragActive) && <span><i style={{ background: COMPARE }} />對照軌跡</span>}
+            {comparisonIsRevealed && (model.complementary || dragActive) && <span><i style={{ background: COMPARE }} />對照軌跡</span>}
             {model.envelope.length > 0 && <span><i style={{ background: BOUND }} />可及邊界</span>}
             <span><i style={{ background: VELOCITY }} />速度 <Tex>{"\\vec v"}</Tex>（分量為虛線）</span>
             {state.showAcceleration && <span><i style={{ background: ACCEL }} />加速度 <Tex>{"g"}</Tex>（分量為虛線）</span>}
           </div>
         </section>
 
-        <aside className="projectile-side" data-open={panelOpen} style={{ width: panelOpen ? panelWidth : undefined }}>
+        <aside className="projectile-side" data-open={panelOpen && !guidedSession} style={{ width: panelOpen && !guidedSession ? panelWidth : undefined }}>
           <div
             className="projectile-side-grip"
             onPointerDown={startPanelResize}
@@ -1457,8 +1561,7 @@ export default function ProjectileLab() {
                       <input type="range" min="0.08" max="0.35" step="0.01" value={state.stairs.rise} onChange={(event) => patchState({ stairs: { ...state.stairs, rise: Number(event.target.value) } })} /></label>
                   </>
                 ) : (
-                  <label><span>發射高度 <Tex>{"h"}</Tex> <b>{state.height.toFixed(1)} m</b></span>
-                    <input type="range" min="0" max="60" step="0.5" value={state.height} onChange={(event) => patchState({ height: Number(event.target.value) })} /></label>
+                  <HeightControl height={state.height} onChange={(height) => patchState({ height })} />
                 )}
               </div>
               <small className="projectile-hint">最佳角 <Tex>{"\\theta^{*}"}</Tex> = {model.optimalAngle.toFixed(1)}°；只有 <Tex>{"h = 0"}</Tex> 時才會是 45°。</small>
@@ -1558,6 +1661,43 @@ export default function ProjectileLab() {
             </p>
           </div>
         </aside>
+
+        {guidedSession && (
+          <GuidedActivities
+            activities={LEARNING_ACTIVITIES}
+            session={guidedSession}
+            state={state}
+            model={model}
+            cursor={cursor}
+            componentChart={(
+              <MiniChart
+                chart={componentCharts(charts, true).find((chart) => chart.key === "velocity")!}
+                duration={charts.duration}
+                cursorT={cursor.t}
+              />
+            )}
+            heightControl={(
+              <div className="projectile-slider-stack guided-height">
+                <HeightControl
+                  height={state.height}
+                  onChange={changeGuidedHeight}
+                />
+              </div>
+            )}
+            onClose={closeGuided}
+            onRestart={() => selectGuidedActivity(guidedSession.activityId)}
+            onSelectActivity={selectGuidedActivity}
+            onPrediction={submitGuidedPrediction}
+            onSessionChange={setGuidedSession}
+            onStartPlayback={() => {
+              patchState({ playing: true, direction: 1 });
+              setCursorFraction(0);
+              markGuidedManipulation();
+            }}
+            onShowComponentChart={() => setGuidedChartVisible((visible) => !visible)}
+            componentChartVisible={guidedChartVisible}
+          />
+        )}
       </div>
 
       <div className="projectile-dock">
@@ -1580,7 +1720,12 @@ export default function ProjectileLab() {
             step="0.001"
             value={cursorFraction}
             aria-label="時間游標"
-            onChange={(event) => { setCursorFraction(Number(event.target.value)); patchState({ playing: false }); }}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setCursorFraction(next);
+              patchState({ playing: false });
+              recordGuidedCursor(next);
+            }}
           />
           <output className="projectile-clock">{cursor.clockTime.toFixed(2)} / {model.clockDuration.toFixed(2)} s</output>
           <div className="projectile-transport-speeds">
