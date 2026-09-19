@@ -289,6 +289,7 @@ test("server-renders the projectile motion model page", async () => {
   // Scenario and preset are menus, so their triggers ship but their contents do not.
   assert.match(html, /情境/);
   assert.match(html, /教學預設/);
+  assert.match(html, /探索任務/);
   assert.doesNotMatch(html, /平地拋射/);
   assert.match(html, /理論與計算/);
   assert.match(html, /模型目錄/);

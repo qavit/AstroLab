@@ -526,6 +526,27 @@ test("complementary angles share a range on level ground and stop sharing it onc
   assert.ok(low > high, "the shallower of the pair wins once the launch point is raised");
 });
 
+test("guided projectile reference setups preserve the claims students measure", () => {
+  const apexLaunch = projectile.launchVelocity(24, 45);
+  const peak = projectile.apex(apexLaunch, 0, G);
+  const atPeak = projectile.velocityAt(apexLaunch, G, peak.t);
+  assert.ok(Math.abs(atPeak.y) < 1e-9, "vertical velocity vanishes at the apex");
+  assert.ok(Math.abs(atPeak.x - apexLaunch.x) < 1e-12, "horizontal velocity stays unchanged");
+  assert.ok(Math.hypot(atPeak.x, atPeak.y) > 0, "the projectile is not stopped at the apex");
+
+  const lowVelocity = projectile.launchVelocity(20, 30);
+  const highVelocity = projectile.launchVelocity(20, 60);
+  const lowTime = projectile.flightTime(lowVelocity, 0, G);
+  const highTime = projectile.flightTime(highVelocity, 0, G);
+  assert.ok(Math.abs(projectile.range(20, 30, 0, G) - projectile.range(20, 60, 0, G)) < 1e-9);
+  assert.ok(highTime > lowTime, "60° remains airborne longer than 30°");
+
+  const lowRaised = projectile.range(20, 30, 25, G);
+  const highRaised = projectile.range(20, 60, 25, G);
+  assert.ok(lowRaised > highRaised, "at h = 25 m, the 30° reference launch travels farther");
+  assert.ok(projectile.optimalAngle(20, 25, G) < 45, "the raised launch optimum is shallower than 45°");
+});
+
 test("vacuum flight conserves energy and peaks where the vertical velocity vanishes", () => {
   const velocity = projectile.launchVelocity(22, 52);
   const height = 12;
