@@ -1199,17 +1199,17 @@ function MiniChart({ chart, duration, cursorT }: { chart: ChartSpec; duration: n
           mathematics names it — and so the area under a velocity curve can be checked against the
           position chart's own reading at the same instant. */}
       <div className="projectile-mini-probe">
-        <div className="projectile-probe-t"><Tex>{`t = ${probeT.toFixed(2)}`}</Tex> s</div>
+        <div className="projectile-probe-t"><Tex dynamic>{`t = ${probeT.toFixed(2)}`}</Tex> s</div>
         {chart.series.map((line) => {
           const value = valueAt(line.points, probeT);
           const slope = line.slopeAt(probeT);
           const area = line.areaAt?.(probeT);
           return (
             <div key={`p${line.symbol}`} style={{ color: line.color }}>
-              <span><Tex>{`${line.symbol} = ${value.toFixed(2)}`}</Tex> {line.unit}</span>
-              <span><Tex>{`\\mathrm{d}${line.symbol}/\\mathrm{d}t = ${slope.toFixed(2)}`}</Tex> {line.slopeUnit}</span>
+              <span><Tex dynamic>{`${line.symbol} = ${value.toFixed(2)}`}</Tex> {line.unit}</span>
+              <span><Tex dynamic>{`\\mathrm{d}${line.symbol}/\\mathrm{d}t = ${slope.toFixed(2)}`}</Tex> {line.slopeUnit}</span>
               {area !== undefined && (
-                <span><Tex>{`\\int_0^t ${line.symbol}\\,\\mathrm{d}t = ${area.toFixed(2)}`}</Tex> m</span>
+                <span><Tex dynamic>{`\\int_0^t ${line.symbol}\\,\\mathrm{d}t = ${area.toFixed(2)}`}</Tex> m</span>
               )}
             </div>
           );

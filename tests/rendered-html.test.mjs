@@ -333,3 +333,14 @@ test("keeps projectile motion analytic, with the drag integrator quarantined", a
   assert.doesNotMatch(analytic, /dragDerivative|k1|RK4/, "no integration may appear above the drag marker");
   assert.match(science.slice(marker), /dragDerivative/);
 });
+
+test("re-typesets only the changing projectile probe formulas in production", async () => {
+  const [mathjax, view] = await Promise.all([
+    readFile(new URL("../components/projectile/mathjax.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/ProjectileLab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(mathjax, /dynamic = false/);
+  assert.match(mathjax, /<MathJax inline dynamic=\{dynamic\}/);
+  assert.equal(view.match(/<Tex dynamic>/g)?.length, 4, "t, value, derivative, and integral must re-typeset");
+  assert.match(view, /<Tex>\{line\.equation\}<\/Tex>/, "static chart equations must stay non-dynamic");
+});
