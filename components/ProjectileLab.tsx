@@ -1188,7 +1188,7 @@ function MiniChart({ chart, duration, cursorT }: { chart: ChartSpec; duration: n
         {chart.series.map((line) => (
           <div key={`e${line.symbol}`}>
             <i style={{ background: line.color, borderTop: line.dash ? `2px dashed ${line.color}` : undefined }} />
-            <Tex>{line.equation}</Tex>
+            <Tex dynamic>{line.equation}</Tex>
             {line.note && <small>{line.note}</small>}
           </div>
         ))}
@@ -1667,7 +1667,7 @@ export default function ProjectileLab() {
                       以 {state.speed.toFixed(1)} m/s {Math.abs(state.angle) < 1e-6 ? "水平" : `${state.angle.toFixed(0)}° 斜向`}離開階梯頂端，落在第 {model.landing.step} 階。
                       {model.horizontalStep ? (
                         <>
-                          水平拋出可用 <Tex>{`n = \\left\\lceil 2v_0^2 r / (g w^2) \\right\\rceil = ${model.horizontalStep}`}</Tex> 驗算；<Tex>{"n"}</Tex> 與 <Tex>{"v_0^2"}</Tex> 成正比。
+                          水平拋出可用 <Tex dynamic>{`n = \\left\\lceil 2v_0^2 r / (g w^2) \\right\\rceil = ${model.horizontalStep}`}</Tex> 驗算；<Tex>{"n"}</Tex> 與 <Tex>{"v_0^2"}</Tex> 成正比。
                         </>
                       ) : null}
                     </>
