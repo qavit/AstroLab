@@ -325,8 +325,10 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
 .projectile-transport { display:flex; align-items:center; gap:12px; padding:9px 12px; }
 .projectile-transport-buttons,.projectile-transport-speeds { display:flex; gap:4px; }
 .projectile-transport button { min-height:34px; padding:7px 11px; font-size:12px; font-variant-numeric:tabular-nums; }
+.projectile-transport button:disabled { cursor:not-allowed; opacity:.42; transform:none; }
 .projectile-transport-speeds button { min-width:48px; }
 .projectile-scrub { flex:1; min-width:120px; }
+.projectile-scrub:disabled { cursor:not-allowed; opacity:.48; }
 .projectile-clock { min-width:136px; color:var(--muted); font-family:ui-monospace,monospace; font-size:13px; text-align:right; }
 .projectile-readout { display:flex; flex-wrap:wrap; gap:6px 22px; padding:9px 13px; border-top:1px solid var(--line); }
 .projectile-readout span { display:inline-flex; align-items:baseline; gap:7px; font-family:Georgia,"Noto Serif TC",serif; font-size:16px; }

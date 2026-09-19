@@ -156,3 +156,13 @@ export function isRaisedHeightReady(height: number, targetHeight = 25): boolean 
 export function comparisonVisible(session: GuidedSession): boolean {
   return session.activityId !== "complementary" || session.phase !== "predict";
 }
+
+/** Scenario and preset controls belong to free exploration; guided activities own a known state. */
+export function canUseFreeStateControls(session: GuidedSession | null): boolean {
+  return session === null;
+}
+
+/** Prediction is a real interaction gate, not just a visual phase label. */
+export function canManipulateTime(session: GuidedSession | null): boolean {
+  return session === null || session.phase !== "predict";
+}

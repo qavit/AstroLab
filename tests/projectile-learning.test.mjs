@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  canManipulateTime,
+  canUseFreeStateControls,
   comparisonVisible,
   isNearApex,
   isRaisedHeightReady,
@@ -70,4 +72,20 @@ test("restart and progressive helpers return predictable activity-local state", 
 test("apex detection is forgiving without accepting an unrelated point in the flight", () => {
   assert.equal(isNearApex(1.73, 1.68, 0.45, 3.46), true);
   assert.equal(isNearApex(1.73, 0.4, 13.0, 3.46), false);
+});
+
+test("guided mode reserves scenario and preset state for its complete activity setup", () => {
+  assert.equal(canUseFreeStateControls(null), true, "free exploration keeps header state controls");
+  assert.equal(canUseFreeStateControls(newGuidedSession("apex")), false, "guided mode owns its reference state");
+});
+
+test("time manipulation is blocked only until a guided prediction is committed", () => {
+  const predicting = newGuidedSession("apex");
+  const manipulating = submitPrediction(predicting, "vertical-only");
+  const observing = revealObservation(manipulating);
+
+  assert.equal(canManipulateTime(null), true, "free exploration retains all time controls");
+  assert.equal(canManipulateTime(predicting), false, "prediction cannot be bypassed with the cursor");
+  assert.equal(canManipulateTime(manipulating), true, "manipulation begins immediately after prediction");
+  assert.equal(canManipulateTime(observing), true, "observation keeps the instruments available");
 });

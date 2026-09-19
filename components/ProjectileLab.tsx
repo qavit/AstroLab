@@ -38,6 +38,8 @@ import {
   type ProjectileState,
 } from "@/models/projectile";
 import {
+  canManipulateTime,
+  canUseFreeStateControls,
   comparisonVisible,
   isNearApex,
   isRaisedHeightReady,
@@ -375,7 +377,7 @@ function Arrow({ x1, y1, x2, y2, color, width = 2, dash }: {
 
 type Probe = { t: number; point: Vec2; velocity: Vec2; acceleration: PathAcceleration; angle: number };
 
-function TrajectoryView({ state, model, cursor, geometry, manualView, onManualViewChange, onScrubTo }: {
+function TrajectoryView({ state, model, cursor, geometry, manualView, onManualViewChange, onScrubTo, timeInteractionEnabled }: {
   state: ProjectileState;
   model: ProjectileReadout;
   cursor: CursorReadout;
@@ -383,6 +385,7 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
   manualView: ManualView | null;
   onManualViewChange: (view: ManualView | null) => void;
   onScrubTo: (t: number) => void;
+  timeInteractionEnabled: boolean;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [probe, setProbe] = useState<Probe | null>(null);
@@ -584,6 +587,7 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
   };
 
   const handleHover = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (!timeInteractionEnabled) return;
     setProbe(readProbe(event.clientX, event.clientY));
   };
 
@@ -662,7 +666,7 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
     pointersRef.current.delete(event.pointerId);
     if (pointersRef.current.size < 2) pinchRef.current = null;
     if (pointersRef.current.size > 0) return;
-    if (!draggedRef.current) {
+    if (!draggedRef.current && timeInteractionEnabled) {
       const t = probeTimeAt(event.clientX, event.clientY);
       if (t !== null) onScrubTo(t);
     }
@@ -694,23 +698,24 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
   /* The readout is HTML rather than SVG text so its symbols can be typeset: an SVG <text> cannot
    * hold MathJax, which is why this used to spell v_y out with an underscore. The acceleration
    * split only appears when its layer is on, so the box answers what is actually being shown. */
-  const tooltipRows: [string, string][] = probe
+  const shownProbe = timeInteractionEnabled ? probe : null;
+  const tooltipRows: [string, string][] = shownProbe
     ? [
-        ["t", `${probe.t.toFixed(2)} s`],
-        ["x", `${probe.point.x.toFixed(2)} m`],
-        ["y", `${probe.point.y.toFixed(2)} m`],
-        ["v", `${probe.acceleration.speed.toFixed(2)} m/s`],
-        ["v_x", `${probe.velocity.x.toFixed(2)} m/s`],
-        ["v_y", `${probe.velocity.y.toFixed(2)} m/s`],
-        ["\\theta_\\text{path}", `${probe.angle.toFixed(1)}°`],
+        ["t", `${shownProbe.t.toFixed(2)} s`],
+        ["x", `${shownProbe.point.x.toFixed(2)} m`],
+        ["y", `${shownProbe.point.y.toFixed(2)} m`],
+        ["v", `${shownProbe.acceleration.speed.toFixed(2)} m/s`],
+        ["v_x", `${shownProbe.velocity.x.toFixed(2)} m/s`],
+        ["v_y", `${shownProbe.velocity.y.toFixed(2)} m/s`],
+        ["\\theta_\\text{path}", `${shownProbe.angle.toFixed(1)}°`],
         ...(state.showAcceleration
           ? ([
-              ["a_\\parallel", `${probe.acceleration.tangential.toFixed(2)} m/s²`],
-              ["a_\\perp", `${probe.acceleration.normal.toFixed(2)} m/s²`],
+              ["a_\\parallel", `${shownProbe.acceleration.tangential.toFixed(2)} m/s²`],
+              ["a_\\perp", `${shownProbe.acceleration.normal.toFixed(2)} m/s²`],
               [
                 "\\rho",
-                Number.isFinite(probe.acceleration.radiusOfCurvature)
-                  ? `${probe.acceleration.radiusOfCurvature.toFixed(2)} m`
+                Number.isFinite(shownProbe.acceleration.radiusOfCurvature)
+                  ? `${shownProbe.acceleration.radiusOfCurvature.toFixed(2)} m`
                   : "∞",
               ],
             ] as [string, string][])
@@ -719,8 +724,8 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
     : [];
   const tipW = geometry.tip.w;
   const tipH = tooltipRows.length * geometry.tip.row + geometry.tip.row + 4;
-  const probeX = probe ? frame.px(probe.point.x) : 0;
-  const probeY = probe ? frame.py(probe.point.y) : 0;
+  const probeX = shownProbe ? frame.px(shownProbe.point.x) : 0;
+  const probeY = shownProbe ? frame.py(shownProbe.point.y) : 0;
   const tipX = probeX + tipW + 20 > plot.right ? probeX - tipW - 14 : probeX + 14;
   const tipY = Math.min(Math.max(plot.top, probeY - tipH / 2), Math.max(plot.top, plot.bottom - tipH));
 
@@ -854,7 +859,7 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
           </>
         )}
 
-        {probe && (
+        {shownProbe && (
           <>
             <line x1={probeX} y1={plot.top} x2={probeX} y2={plot.bottom} stroke={LABEL} strokeWidth={1} opacity={0.3} />
             <circle cx={probeX} cy={probeY} r={4} fill="none" stroke={LABEL} strokeWidth={1.6} />
@@ -867,7 +872,7 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
       )}
     </svg>
 
-    {probe && (
+    {shownProbe && (
       <div
         className="projectile-tip"
         style={{ left: tipX, top: tipY, width: tipW, fontSize: geometry.tip.font }}
@@ -1316,6 +1321,8 @@ export default function ProjectileLab() {
   const [mergedCharts, setMergedCharts] = useState(true);
   const [guidedSession, setGuidedSession] = useState<GuidedSession | null>(null);
   const [guidedChartVisible, setGuidedChartVisible] = useState(false);
+  const freeStateControlsAvailable = canUseFreeStateControls(guidedSession);
+  const timeManipulationAllowed = canManipulateTime(guidedSession);
   /* The panel's width is the reader's to set, but opening it is a fresh start: the button always
    * restores the default rather than reopening at whatever width was last dragged. */
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
@@ -1431,22 +1438,24 @@ export default function ProjectileLab() {
   }, [state.playing]);
 
   const stepBy = useCallback((seconds: number) => {
+    if (!timeManipulationAllowed) return;
     const clock = clockRef.current;
     if (clock <= 0) return;
     const next = Math.min(1, Math.max(0, cursorFraction + seconds / clock));
     patchState({ playing: false });
     recordGuidedCursor(next);
     setCursorFraction(next);
-  }, [cursorFraction, patchState, recordGuidedCursor]);
+  }, [cursorFraction, patchState, recordGuidedCursor, timeManipulationAllowed]);
 
   const scrubTo = useCallback((t: number) => {
+    if (!timeManipulationAllowed) return;
     const clock = clockRef.current;
     if (clock <= 0) return;
     const next = Math.min(1, Math.max(0, t / clock));
     patchState({ playing: false });
     recordGuidedCursor(next);
     setCursorFraction(next);
-  }, [patchState, recordGuidedCursor]);
+  }, [patchState, recordGuidedCursor, timeManipulationAllowed]);
 
   const isStairs = state.scenario === "staircase";
   const dragActive = model.dragSamples.length > 0;
@@ -1479,16 +1488,20 @@ export default function ProjectileLab() {
           <h1><span className="live-dot" />拋體運動</h1>
         </div>
         <div className="header-actions">
-          <Menu label="情境">
-            <button className={!isStairs ? "active" : ""} onClick={() => { patchState({ scenario: "field", ...SCENARIO_DEFAULTS.field }); setManualView(null); }}>平地拋射</button>
-            <button className={isStairs ? "active" : ""} onClick={() => { patchState({ scenario: "staircase", ...SCENARIO_DEFAULTS.staircase }); setManualView(null); }}>階梯落點</button>
-          </Menu>
-          <Menu label="教學預設">
-            {Object.entries(PROJECTILE_PRESETS).map(([key, preset]) => {
-              const { label, ...patch } = preset;
-              return <button key={key} onClick={() => { patchState(patch); setCursorFraction(0); setManualView(null); }}>{label}</button>;
-            })}
-          </Menu>
+          {freeStateControlsAvailable && (
+            <>
+              <Menu label="情境">
+                <button className={!isStairs ? "active" : ""} onClick={() => { patchState({ scenario: "field", ...SCENARIO_DEFAULTS.field }); setManualView(null); }}>平地拋射</button>
+                <button className={isStairs ? "active" : ""} onClick={() => { patchState({ scenario: "staircase", ...SCENARIO_DEFAULTS.staircase }); setManualView(null); }}>階梯落點</button>
+              </Menu>
+              <Menu label="教學預設">
+                {Object.entries(PROJECTILE_PRESETS).map(([key, preset]) => {
+                  const { label, ...patch } = preset;
+                  return <button key={key} onClick={() => { patchState(patch); setCursorFraction(0); setManualView(null); }}>{label}</button>;
+                })}
+              </Menu>
+            </>
+          )}
           <button
             className={guidedSession ? "active" : ""}
             onClick={() => guidedSession ? closeGuided() : selectGuidedActivity("apex")}
@@ -1525,7 +1538,16 @@ export default function ProjectileLab() {
             </div>
           </div>
           <div className="canvas-host" ref={chartHostRef}>
-            <TrajectoryView state={state} model={model} cursor={cursor} geometry={geometry} manualView={manualView} onManualViewChange={setManualView} onScrubTo={scrubTo} />
+            <TrajectoryView
+              state={state}
+              model={model}
+              cursor={cursor}
+              geometry={geometry}
+              manualView={manualView}
+              onManualViewChange={setManualView}
+              onScrubTo={scrubTo}
+              timeInteractionEnabled={timeManipulationAllowed}
+            />
           </div>
           <div className="legend">
             <span><i style={{ background: PATH }} />本次軌跡</span>
@@ -1703,14 +1725,14 @@ export default function ProjectileLab() {
       <div className="projectile-dock">
         <div className="projectile-transport">
           <div className="projectile-transport-buttons">
-            <button onClick={() => { patchState({ playing: false }); setCursorFraction(0); }} aria-label="回到起點" title="回到起點"><SkipBack size={14} /></button>
-            <button onClick={() => stepBy(-STEP_SECONDS)} aria-label={`退 ${STEP_SECONDS} 秒`}>−{STEP_SECONDS}s</button>
-            <button className={state.playing ? "active" : ""} onClick={() => patchState({ playing: !state.playing })} aria-label={state.playing ? "暫停" : "播放"}>
+            <button disabled={!timeManipulationAllowed} onClick={() => { patchState({ playing: false }); setCursorFraction(0); }} aria-label="回到起點" title="回到起點"><SkipBack size={14} /></button>
+            <button disabled={!timeManipulationAllowed} onClick={() => stepBy(-STEP_SECONDS)} aria-label={`退 ${STEP_SECONDS} 秒`}>−{STEP_SECONDS}s</button>
+            <button disabled={!timeManipulationAllowed} className={state.playing ? "active" : ""} onClick={() => patchState({ playing: !state.playing })} aria-label={state.playing ? "暫停" : "播放"}>
               {state.playing ? <Pause size={14} /> : <Play size={14} />}{state.playing ? "暫停" : "播放"}
             </button>
-            <button onClick={() => stepBy(STEP_SECONDS)} aria-label={`進 ${STEP_SECONDS} 秒`}>+{STEP_SECONDS}s</button>
-            <button className={state.direction < 0 ? "active" : ""} onClick={() => patchState({ direction: state.direction < 0 ? 1 : -1 })} aria-label="反向播放" title="反向播放"><Undo2 size={14} /></button>
-            <button onClick={() => { patchState({ playing: false }); setCursorFraction(1); }} aria-label="跳到結束" title="跳到結束"><SkipForward size={14} /></button>
+            <button disabled={!timeManipulationAllowed} onClick={() => stepBy(STEP_SECONDS)} aria-label={`進 ${STEP_SECONDS} 秒`}>+{STEP_SECONDS}s</button>
+            <button disabled={!timeManipulationAllowed} className={state.direction < 0 ? "active" : ""} onClick={() => patchState({ direction: state.direction < 0 ? 1 : -1 })} aria-label="反向播放" title="反向播放"><Undo2 size={14} /></button>
+            <button disabled={!timeManipulationAllowed} onClick={() => { patchState({ playing: false }); setCursorFraction(1); }} aria-label="跳到結束" title="跳到結束"><SkipForward size={14} /></button>
           </div>
           <input
             className="projectile-scrub"
@@ -1720,7 +1742,9 @@ export default function ProjectileLab() {
             step="0.001"
             value={cursorFraction}
             aria-label="時間游標"
+            disabled={!timeManipulationAllowed}
             onChange={(event) => {
+              if (!timeManipulationAllowed) return;
               const next = Number(event.target.value);
               setCursorFraction(next);
               patchState({ playing: false });
@@ -1730,7 +1754,7 @@ export default function ProjectileLab() {
           <output className="projectile-clock">{cursor.clockTime.toFixed(2)} / {model.clockDuration.toFixed(2)} s</output>
           <div className="projectile-transport-speeds">
             {[0.25, 0.5, 1, 2].map((speed) => (
-              <button key={speed} className={Math.abs(state.animationSpeed - speed) < 0.01 ? "active" : ""} onClick={() => patchState({ animationSpeed: speed })}>{speed}×</button>
+              <button disabled={!timeManipulationAllowed} key={speed} className={Math.abs(state.animationSpeed - speed) < 0.01 ? "active" : ""} onClick={() => patchState({ animationSpeed: speed })}>{speed}×</button>
             ))}
           </div>
         </div>
