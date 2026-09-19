@@ -101,11 +101,11 @@ export function MathProvider({ children }: { children: ReactNode }) {
  * files that use both. Falls back to the raw LaTeX source until MathJax is confirmed working, and stays
  * that way permanently if it never loads — legible either way, and never a crash.
  */
-export function Tex({ children, className }: { children: string; className?: string }) {
+export function Tex({ children, className, dynamic = false }: { children: string; className?: string; dynamic?: boolean }) {
   const status = useMathStatus();
   const classes = ["formula-inline", className].filter(Boolean).join(" ");
   if (status !== "ok") return <code className={`${classes} formula-plain`}>{children}</code>;
-  return <MathJax inline className={classes}>{`\\(${children}\\)`}</MathJax>;
+  return <MathJax inline dynamic={dynamic} className={classes}>{`\\(${children}\\)`}</MathJax>;
 }
 
 /** Display math, set on its own line. */

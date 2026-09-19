@@ -1188,7 +1188,7 @@ function MiniChart({ chart, duration, cursorT }: { chart: ChartSpec; duration: n
         {chart.series.map((line) => (
           <div key={`e${line.symbol}`}>
             <i style={{ background: line.color, borderTop: line.dash ? `2px dashed ${line.color}` : undefined }} />
-            <Tex>{line.equation}</Tex>
+            <Tex dynamic>{line.equation}</Tex>
             {line.note && <small>{line.note}</small>}
           </div>
         ))}
@@ -1199,17 +1199,17 @@ function MiniChart({ chart, duration, cursorT }: { chart: ChartSpec; duration: n
           mathematics names it — and so the area under a velocity curve can be checked against the
           position chart's own reading at the same instant. */}
       <div className="projectile-mini-probe">
-        <div className="projectile-probe-t"><Tex>{`t = ${probeT.toFixed(2)}`}</Tex> s</div>
+        <div className="projectile-probe-t"><Tex dynamic>{`t = ${probeT.toFixed(2)}`}</Tex> s</div>
         {chart.series.map((line) => {
           const value = valueAt(line.points, probeT);
           const slope = line.slopeAt(probeT);
           const area = line.areaAt?.(probeT);
           return (
             <div key={`p${line.symbol}`} style={{ color: line.color }}>
-              <span><Tex>{`${line.symbol} = ${value.toFixed(2)}`}</Tex> {line.unit}</span>
-              <span><Tex>{`\\mathrm{d}${line.symbol}/\\mathrm{d}t = ${slope.toFixed(2)}`}</Tex> {line.slopeUnit}</span>
+              <span><Tex dynamic>{`${line.symbol} = ${value.toFixed(2)}`}</Tex> {line.unit}</span>
+              <span><Tex dynamic>{`\\mathrm{d}${line.symbol}/\\mathrm{d}t = ${slope.toFixed(2)}`}</Tex> {line.slopeUnit}</span>
               {area !== undefined && (
-                <span><Tex>{`\\int_0^t ${line.symbol}\\,\\mathrm{d}t = ${area.toFixed(2)}`}</Tex> m</span>
+                <span><Tex dynamic>{`\\int_0^t ${line.symbol}\\,\\mathrm{d}t = ${area.toFixed(2)}`}</Tex> m</span>
               )}
             </div>
           );
@@ -1667,7 +1667,7 @@ export default function ProjectileLab() {
                       以 {state.speed.toFixed(1)} m/s {Math.abs(state.angle) < 1e-6 ? "水平" : `${state.angle.toFixed(0)}° 斜向`}離開階梯頂端，落在第 {model.landing.step} 階。
                       {model.horizontalStep ? (
                         <>
-                          水平拋出可用 <Tex>{`n = \\left\\lceil 2v_0^2 r / (g w^2) \\right\\rceil = ${model.horizontalStep}`}</Tex> 驗算；<Tex>{"n"}</Tex> 與 <Tex>{"v_0^2"}</Tex> 成正比。
+                          水平拋出可用 <Tex dynamic>{`n = \\left\\lceil 2v_0^2 r / (g w^2) \\right\\rceil = ${model.horizontalStep}`}</Tex> 驗算；<Tex>{"n"}</Tex> 與 <Tex>{"v_0^2"}</Tex> 成正比。
                         </>
                       ) : null}
                     </>
