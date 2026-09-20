@@ -333,3 +333,16 @@ test("keeps projectile motion analytic, with the drag integrator quarantined", a
   assert.doesNotMatch(analytic, /dragDerivative|k1|RK4/, "no integration may appear above the drag marker");
   assert.match(science.slice(marker), /dragDerivative/);
 });
+
+test("re-typesets only changing projectile formulas in production", async () => {
+  const [mathjax, view] = await Promise.all([
+    readFile(new URL("../components/projectile/mathjax.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/ProjectileLab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(mathjax, /dynamic = false/);
+  assert.match(mathjax, /<MathJax inline dynamic=\{dynamic\}/);
+  assert.equal(view.match(/<Tex dynamic>/g)?.length, 6, "chart equation, probe formulas, and staircase result must re-typeset");
+  assert.match(view, /<Tex dynamic>\{line\.equation\}<\/Tex>/, "state-dependent chart equations must re-typeset");
+  assert.match(view, /<Tex dynamic>\{`n = .*\$\{model\.horizontalStep\}`\}<\/Tex>/, "state-dependent staircase result must re-typeset");
+  assert.match(view, /<Tex>\{"n"\}<\/Tex>/, "fixed formulas must stay non-dynamic");
+});
