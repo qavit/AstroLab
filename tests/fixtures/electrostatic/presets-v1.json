@@ -1,0 +1,35 @@
+{
+  "schema": "electrostatic-presets-golden-1",
+  "note": "Versioned golden data for the three v0.1 presets (schema v1, SI). Changing a preset requires updating this file deliberately.",
+  "presets": {
+    "single-positive": {
+      "sources": [{ "id": "s1", "x_m": 0, "y_m": 0, "q_C": 3e-9 }],
+      "probe": { "x_m": 0.6, "y_m": 0.3, "visible": true },
+      "testParticle": { "x_m": -1.2, "y_m": 0.4, "vx_mps": 0.8, "vy_mps": 0, "q_C": 2.5e-10, "mass_kg": 1e-8 }
+    },
+    "like-pair": {
+      "sources": [
+        { "id": "s1", "x_m": -0.6, "y_m": 0, "q_C": 3e-9 },
+        { "id": "s2", "x_m": 0.6, "y_m": 0, "q_C": 3e-9 }
+      ],
+      "probe": { "x_m": 0, "y_m": 0, "visible": true },
+      "testParticle": { "x_m": 0.1, "y_m": -0.8, "vx_mps": 0, "vy_mps": 0.6, "q_C": 2.5e-10, "mass_kg": 1e-8 }
+    },
+    "dipole": {
+      "sources": [
+        { "id": "s1", "x_m": -0.6, "y_m": 0, "q_C": 3e-9 },
+        { "id": "s2", "x_m": 0.6, "y_m": 0, "q_C": -3e-9 }
+      ],
+      "probe": { "x_m": 0, "y_m": 0, "visible": true },
+      "testParticle": { "x_m": -0.4, "y_m": -0.9, "vx_mps": 0.5, "vy_mps": 0, "q_C": 2.5e-10, "mass_kg": 1e-8 }
+    }
+  },
+  "fixed": {
+    "schemaVersion": 1,
+    "modelVersion": "electrostatic-point-charge-1",
+    "domain": { "xmin": -2, "xmax": 2, "ymin": -1.5, "ymax": 1.5 },
+    "singularity": { "policy": "excluded-core", "rCore_m": 0.12 },
+    "integrator": { "kind": "velocity-verlet-bounded", "dt_s": 0.0010416666666666667, "maxSubsteps": 4 },
+    "fieldStyle": { "Emin_N_per_C": 1, "Emax_N_per_C": 5000, "gridDensity": "standard" }
+  }
+}
