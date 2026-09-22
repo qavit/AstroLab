@@ -43,7 +43,7 @@
   grid-template-columns: minmax(0, 1.55fr) minmax(330px, .72fr);
   gap: 14px;
   margin-top: 14px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .viewportCard {
@@ -112,7 +112,7 @@
 .keyboardHelp { margin: 9px 0 0; color: #607985; font-size: 12px; line-height: 1.55; }
 .shareButton { background: #173f58 !important; border-color: #173f58 !important; color: #fff !important; }
 
-.evidenceGrid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr); gap: 14px; margin-top: 14px; }
+.evidenceGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(260px, .6fr); gap: 14px; margin-top: 14px; }
 .probePanel,
 .legend { padding: 16px; }
 .probePosition { margin: -5px 0 12px; color: #5e7782; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -151,6 +151,10 @@
 
 .footer { display: flex; justify-content: space-between; gap: 15px; margin-top: 15px; padding-top: 12px; border-top: 1px solid #cbd8dd; color: #6b838e; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+.timeControls { margin-top: 12px; padding: 16px; border: 1px solid #c9d7da; border-radius: 10px; background: #ffffff; }
+.timeButtons { display: flex; flex-wrap: wrap; gap: 8px; }
+.timeButtons button { min-height: 44px; min-width: 44px; }
 
 @media (max-width: 1023px) {
   .workspace { grid-template-columns: 1fr; }

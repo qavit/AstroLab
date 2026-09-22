@@ -3,20 +3,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { normalizedStrength, sampleFieldGrid } from "../../lib/science/electrostatics/sampling.ts";
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
-import { probeReadout, type ElectrostaticSetup } from "../../models/electrostatic.ts";
+import { probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import AccessibleObjects, { type DraggableObject } from "./AccessibleObjects";
-import { drawDynamicField, drawStaticField, prepareCanvas, type ProbeVectorGlyph, type SelectedObject } from "./render.ts";
-import { fitCamera } from "./viewport.ts";
+import {
+  drawDynamicField,
+  drawStaticField,
+  prepareCanvas,
+  type ParticleGlyph,
+  type ProbeVectorGlyph,
+  type SelectedObject,
+} from "./render.ts";
+import { fitCamera, worldToScreen } from "./viewport.ts";
 import styles from "./ElectrostaticFieldLab.module.css";
 
 interface FieldCanvasProps {
   readonly setup: ElectrostaticSetup;
+  readonly runtime: ElectrostaticRuntime;
+  readonly onDragStart: (target: DraggableObject) => void;
   readonly selected: SelectedObject;
   readonly onSelect: (target: SelectedObject) => void;
   readonly onMove: (target: DraggableObject, point: Vec2) => void;
 }
 
-export default function FieldCanvas({ setup, selected, onSelect, onMove }: FieldCanvasProps) {
+export default function FieldCanvas({ setup, runtime, selected, onSelect, onMove, onDragStart }: FieldCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -75,6 +84,16 @@ export default function FieldCanvas({ setup, selected, onSelect, onMove }: Field
     if (context) drawStaticField(context, camera, grid, setup.sources, setup.singularity.rCore_m);
   }, [camera, grid, setup.sources, setup.singularity.rCore_m, size]);
 
+  const particleGlyph: ParticleGlyph = useMemo(() => ({
+    initial: { x: setup.testParticle.x_m, y: setup.testParticle.y_m },
+    current: { x: runtime.particle.x_m, y: runtime.particle.y_m },
+    velocity: { x: runtime.particle.vx_mps, y: runtime.particle.vy_mps },
+    positive: setup.testParticle.q_C > 0,
+    stopped: runtime.status === "stopped",
+    trail: runtime.trail.points,
+    trailCount: runtime.trail.count,
+  }), [setup.testParticle, runtime.particle, runtime.status, runtime.trail]);
+
   useEffect(() => {
     const canvas = dynamicCanvasRef.current;
     if (!canvas) return;
@@ -87,9 +106,10 @@ export default function FieldCanvas({ setup, selected, onSelect, onMove }: Field
         { x: setup.probe.x_m, y: setup.probe.y_m },
         probeVectors,
         selected,
+        particleGlyph,
       );
     }
-  }, [camera, probeVectors, selected, setup.probe.x_m, setup.probe.y_m, setup.sources, size]);
+  }, [camera, particleGlyph, probeVectors, selected, setup.probe.x_m, setup.probe.y_m, setup.sources, size]);
 
   return (
     <div
@@ -98,6 +118,11 @@ export default function FieldCanvas({ setup, selected, onSelect, onMove }: Field
       data-testid="field-viewport"
       data-grid={`${dimensions.cols}x${dimensions.rows}`}
       data-sample-count={grid.ok ? grid.samples.length : 0}
+      data-trail-count={runtime.trail.count}
+      data-particle-screen={(() => {
+        const p = worldToScreen({ x: runtime.particle.x_m, y: runtime.particle.y_m }, camera);
+        return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+      })()}
     >
       <canvas ref={staticCanvasRef} className={styles.canvasLayer} aria-hidden="true" />
       <canvas ref={dynamicCanvasRef} className={styles.canvasLayer} aria-hidden="true" />
@@ -108,9 +133,11 @@ export default function FieldCanvas({ setup, selected, onSelect, onMove }: Field
         selected={selected}
         onSelect={onSelect}
         onMove={onMove}
+        onDragStart={onDragStart}
+        particle={{ initial: { x: setup.testParticle.x_m, y: setup.testParticle.y_m }, q_C: setup.testParticle.q_C, mass_kg: setup.testParticle.mass_kg }}
       />
       <p className={styles.srOnly} id="field-semantic-summary">
-        電場方向與大小由可見箭頭呈現；下方圖例文字說明零場、低截斷、正常、高截斷與 excluded core。來源與探針可由鍵盤操作，完整數值在探針讀值表。
+        電場方向與大小由可見箭頭呈現；下方圖例文字說明零場、低截斷、正常、高截斷與 excluded core。來源、探針與測試粒子初始位置可由鍵盤操作；完整數值在探針讀值表與粒子證據表。
       </p>
     </div>
   );

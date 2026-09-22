@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { ElectrostaticSetup, PresetId } from "../../models/electrostatic.ts";
 import type { SelectedObject } from "./render.ts";
 import styles from "./ElectrostaticFieldLab.module.css";
@@ -17,6 +18,8 @@ interface ControlsProps {
   readonly onProbePosition: (axis: "x" | "y", value_m: number) => void;
   readonly onReset: () => void;
   readonly onShare: () => void;
+  /** Test-particle initial-condition controls, placed after the probe in focus order. */
+  readonly children?: ReactNode;
 }
 
 const PRESETS: readonly { id: PresetId; label: string }[] = [
@@ -119,8 +122,10 @@ export default function Controls(props: ControlsProps) {
         </div>
       </fieldset>
 
+      {props.children}
+
       <p id="electrostatic-keyboard-help" className={styles.keyboardHelp}>
-        鍵盤：Tab 選取來源或 probe；方向鍵移動 0.01 m，Shift＋方向鍵移動 0.10 m；Escape 取消選取。
+        鍵盤：Tab 選取來源、probe 或測試粒子初始位置；方向鍵移動 0.01 m，Shift＋方向鍵移動 0.10 m；Escape 取消選取。
       </p>
       <div className={styles.primaryActions}>
         <button type="button" onClick={props.onReset} data-testid="reset-setup">重設設定</button>

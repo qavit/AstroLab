@@ -17,7 +17,7 @@ test("route loads with semantic Canvas alternative and fixed scale", async ({ pa
   await expect(page).toHaveTitle("靜電場工作室｜Kakau Lab");
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-grid", "40x30");
   await expect(page.getByTestId("field-legend")).toContainText("1–5,000 N/C");
-  await expect(page.getByLabel("可操作的來源電荷與電場探針")).toBeVisible();
+  await expect(page.getByLabel("可操作的來源電荷、電場探針與測試粒子")).toBeVisible();
 });
 
 test("three presets reconstruct their canonical source counts", async ({ page }) => {
