@@ -127,7 +127,10 @@ test("B: zero answer hidden before commit; contributions then zero total after",
   assert.deepEqual([policy.probeContributions, policy.probeTotal, policy.globalField], [true, true, true]);
   state = advance(state);
   assert.equal(state.step, "manipulate");
-  assert.equal(evidencePolicy(state).sourceMagnitudeId, "s2");
+  const manipulate = evidencePolicy(state);
+  assert.equal(manipulate.sourceMagnitudeId, "s2", "only s2's magnitude may change");
+  assert.equal(manipulate.sourcesMovable, false, "source positions stay locked in the magnitude experiment");
+  assert.equal(manipulate.probeMovable, true, "the probe may hunt for the new zero");
 });
 
 test("B: manipulation uses true model evidence; transfer is the four-charge centre", () => {

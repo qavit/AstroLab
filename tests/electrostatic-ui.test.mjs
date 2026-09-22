@@ -5,6 +5,7 @@ import { classifyField, normalizedStrength, sampleFieldGrid } from "../lib/scien
 import { probeReadout, ELECTROSTATIC_PRESETS, initialRuntime, applySetupEdit } from "../models/electrostatic.ts";
 import { fitCamera, screenToWorld, worldToScreen } from "../components/electrostatic/viewport.ts";
 import { createShareUrl, initialStateFromShare, retainFieldSceneReferences } from "../components/electrostatic/share.ts";
+import { encodeSetup } from "../models/electrostatic-serialization.ts";
 
 test("viewport coordinate transform round-trips across the 4×3 m world", () => {
   const domain = ELECTROSTATIC_PRESETS["single-positive"].domain;
@@ -85,7 +86,7 @@ test("schema v1 URL helper round-trips setup and fails closed on malformed input
   assert.equal(parsed.pathname, "/electrostatic-field");
   assert.deepEqual([...parsed.searchParams.keys()], ["s"]);
   assert.equal(parsed.hash, "");
-  const loaded = initialStateFromShare(parsed.searchParams.get("s"));
+  const loaded = initialStateFromShare({ present: true, encoded: parsed.searchParams.get("s") });
   assert.equal(loaded.error, null);
   assert.deepEqual(loaded.setup, setup);
 
@@ -93,7 +94,7 @@ test("schema v1 URL helper round-trips setup and fails closed on malformed input
   assert.equal(tooLong.ok, false);
   if (!tooLong.ok) assert.match(tooLong.message, /2,000/);
 
-  const malformed = initialStateFromShare("not!base64");
+  const malformed = initialStateFromShare({ present: true, encoded: "not!base64" });
   assert.ok(malformed.error);
   assert.deepEqual(malformed.setup, ELECTROSTATIC_PRESETS["single-positive"]);
 });
@@ -112,4 +113,27 @@ test("probe-only edits retain field-scene references and the desktop grid stays 
   assert.equal(grid.ok, true);
   if (grid.ok) assert.equal(grid.samples.length, 1200);
   assert.ok(Number.isFinite(elapsed));
+});
+
+test("share route input separates parameter presence from payload validity", () => {
+  const absent = initialStateFromShare({ present: false });
+  assert.equal(absent.sandbox, false, "no `s` opens guided Activity A");
+  assert.equal(absent.error, null);
+  assert.deepEqual(absent.issues, []);
+
+  const empty = initialStateFromShare({ present: true, encoded: "" });
+  assert.equal(empty.sandbox, true, "an empty `s` is still a share parameter: sandbox");
+  assert.ok(empty.error, "empty payload fails closed with a warning");
+  assert.equal(empty.setup.presetId, "single-positive");
+
+  const repeated = initialStateFromShare({ present: true, repeated: true });
+  assert.equal(repeated.sandbox, true);
+  assert.ok(repeated.error);
+  assert.deepEqual(repeated.issues.map((issue) => issue.code), ["repeated-parameter"]);
+  assert.equal(repeated.setup.presetId, "single-positive");
+
+  const valid = initialStateFromShare({ present: true, encoded: encodeSetup(ELECTROSTATIC_PRESETS.dipole).encoded });
+  assert.equal(valid.sandbox, true);
+  assert.equal(valid.error, null);
+  assert.deepEqual(valid.setup, ELECTROSTATIC_PRESETS.dipole);
 });

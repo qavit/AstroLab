@@ -115,6 +115,18 @@ test("server-renders a schema-v1 share URL with sandbox semantics", async () => 
   assert.doesNotMatch(html, /Activity A｜/);
 });
 
+test("share-parameter presence, not payload validity, decides sandbox vs guided (SSR)", async () => {
+  for (const [label, query] of [["empty", "?s="], ["repeated", "?s=a&s=b"], ["malformed", "?s=not!base64"]]) {
+    const response = await render(`/electrostatic-field${query}`);
+    assert.equal(response.status, 200, label);
+    const html = await response.text();
+    assert.match(html, /Sandbox 設定/, `${label} opens sandbox`);
+    assert.doesNotMatch(html, /Activity A｜|用對稱性做預測/, `${label} must not open guided`);
+    assert.match(html, /已載入安全的單電荷設定/, `${label} warns and fails closed`);
+    assert.match(html, /data-source-count="1"/, `${label} loads the safe preset`);
+  }
+});
+
 test("keeps the learning layer free of physics, rendering and browser APIs", async () => {
   const learning = await readFile(new URL("../models/electrostatic-learning.ts", import.meta.url), "utf8");
   assert.doesNotMatch(learning, /COULOMB_K|fieldAt|stepMacro|accelerationFromField|forceFromField|from "react"|document\.|requestAnimationFrame|Canvas/);

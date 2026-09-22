@@ -12,7 +12,7 @@ import GuidedActivities from "./electrostatic/GuidedActivities";
 import ProbePanel from "./electrostatic/ProbePanel";
 import type { DraggableObject } from "./electrostatic/AccessibleObjects";
 import type { SelectedObject } from "./electrostatic/render";
-import { createShareUrl, initialStateFromShare, retainFieldSceneReferences } from "./electrostatic/share";
+import { createShareUrl, initialStateFromShare, retainFieldSceneReferences, type ShareRouteInput } from "./electrostatic/share";
 import styles from "./electrostatic/ElectrostaticFieldLab.module.css";
 import type { Vec2 } from "../lib/science/electrostatics/types.ts";
 import {
@@ -45,7 +45,7 @@ import {
 } from "../models/electrostatic-learning.ts";
 
 interface ElectrostaticFieldLabProps {
-  readonly initialShare: string | null;
+  readonly share: ShareRouteInput;
 }
 
 const ADD_SOURCE_POSITIONS: readonly Vec2[] = [
@@ -94,14 +94,14 @@ function isInteractive(target: EventTarget | null): boolean {
     target.closest("input, textarea, select, button, a, summary, [role='button'], [contenteditable='true']") !== null;
 }
 
-export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFieldLabProps) {
+export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabProps) {
   const shellRef = useRef<HTMLElement>(null);
-  const initial = useMemo(() => initialStateFromShare(initialShare), [initialShare]);
+  const initial = useMemo(() => initialStateFromShare(share), [share]);
   // D-05 + D-07: no `s` → guided Activity A; any `s` (valid or failed-closed) → sandbox semantics.
-  const [learning, setLearning] = useState<LearningState | null>(() => (initialShare ? null : startActivity("A")));
+  const [learning, setLearning] = useState<LearningState | null>(() => (initial.sandbox ? null : startActivity("A")));
   const [focusToken, setFocusToken] = useState(0);
   const [lab, setLab] = useState<LabState>(() => {
-    const first = initialShare ? initial.setup : activitySetup(startActivity("A"));
+    const first = initial.sandbox ? initial.setup : activitySetup(startActivity("A"));
     return { setup: first, runtime: initialRuntime(first) };
   });
   const policy = evidencePolicy(learning);
@@ -113,7 +113,7 @@ export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFie
   const { setup, runtime } = lab;
   const [announcement, setAnnouncement] = useState("");
   const [baseline, setBaseline] = useState<ElectrostaticSetup>(initial.setup);
-  const [selected, setSelected] = useState<SelectedObject>(() => (initialShare ? { kind: "source", id: initial.setup.sources[0].id } : null));
+  const [selected, setSelected] = useState<SelectedObject>(() => (initial.sandbox ? { kind: "source", id: initial.setup.sources[0].id } : null));
   const [notice, setNotice] = useState<string | null>(() => initial.error ?? (initial.issues[0]?.message ?? null));
   const [shareStatus, setShareStatus] = useState<string | null>(null);
 

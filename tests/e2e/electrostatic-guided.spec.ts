@@ -33,7 +33,8 @@ async function expectProbeAnswerHidden(page: Page) {
   expect(html).not.toMatch(/data-probe-state="(zero|valid|contributions)"/);
   expect(html).not.toMatch(/data-model=|data-match=/);
   const aria = await ariaText(page);
-  // Static legend and task titles are not answers; target evidence rows, verdicts and angles are.
+  // Generic UI chrome (legend, units) may stay only when it does not reveal or strongly cue the
+  // answer to the current prediction. Task wording is audited per activity, not exempted.
   expect(aria).not.toMatch(/row "合場|各來源對探針位置的電場貢獻|未定義（零場）|模型證據|合場為零|\d°|Eₓ|Eᵧ/);
   expect(await brightPixels(page, 1, true)).toBe(0);
 }
@@ -125,6 +126,69 @@ test("Activity A: predict → commit → reveal in order → explain → transfe
   await expect(page.getByTestId("time-controls")).toBeVisible();
   await expect(page.getByTestId("particle-panel")).toBeVisible();
   await expect(page.getByTestId("total-ex")).toBeVisible();
+});
+
+test("answer leak B: the task heading must not cue 零場 before either commitment", async ({ page }) => {
+  await page.getByTestId("activity-B").click();
+  const heading = page.locator("#guided-task-heading");
+  await expect(heading).toHaveText("Activity B｜用對稱性做預測");
+  const beforeCommit = await page.getByTestId("guided-panel").innerText();
+  expect(beforeCommit.split("你的方向預測")[0]).not.toContain("零場");
+  expect(await ariaText(page)).not.toMatch(/零場 \/ 近零場[\s\S]*heading "Activity B｜對稱與零場"|heading "[^"]*零場/);
+  await commitDirection(page, "zero");
+  // After the commitment the concept is the point of the activity.
+  await expect(heading).toHaveText("Activity B｜對稱與零場");
+  await page.getByTestId("reveal-next").click();
+  await expect(page.getByTestId("zero-direction")).toContainText("零");
+  await page.getByTestId("advance").click();
+  await page.getByTestId("explain-b-toward-smaller").check();
+  await page.getByTestId("submit-explanation").click();
+  await expect(page.getByTestId("guided-panel")).toHaveAttribute("data-step", "transfer-predict");
+  await expect(heading).toHaveText("Activity B｜用對稱性做預測");
+  const transferPanel = await page.getByTestId("guided-panel").innerText();
+  expect(transferPanel.split("你的方向預測")[0]).not.toContain("零場");
+  expect(await ariaText(page)).not.toMatch(/heading "[^"]*零場/);
+});
+
+test("Activity B manipulate: s2 magnitude is editable while source positions stay locked", async ({ page }) => {
+  await page.getByTestId("activity-B").click();
+  await commitDirection(page, "zero");
+  await page.getByTestId("reveal-next").click();
+  await page.getByTestId("advance").click();
+  await expect(page.getByTestId("guided-panel")).toContainText("來源位置在本步驟保持固定");
+  const s1 = page.getByTestId("source-handle-s1");
+  const before = await s1.getAttribute("aria-label");
+  await s1.focus();
+  await page.keyboard.press("Shift+ArrowUp");
+  await expect(s1).toHaveAttribute("aria-label", before ?? "");
+  const box = await s1.boundingBox();
+  if (box) {
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 40, { steps: 4 });
+    await page.mouse.up();
+  }
+  await expect(s1).toHaveAttribute("aria-label", before ?? "");
+  // The declared experiment still works: magnitude changes, and the probe hunts the new zero.
+  await page.getByTestId("guided-s2-magnitude").fill("5");
+  await expect(page.getByTestId("source-handle-s2")).toHaveAccessibleName(/5\.00 nC/);
+  await expect(page.getByTestId("probe-panel")).toHaveAttribute("data-probe-state", "valid");
+  await page.getByTestId("probe-handle").focus();
+  await page.keyboard.press("Shift+ArrowLeft");
+  await expect(page.getByTestId("probe-position")).toContainText("x = -0.100 m");
+  await expect(page.getByTestId("explain-b-toward-smaller")).toBeVisible();
+});
+
+test("share parameter presence decides the mode: empty and repeated `s` fail closed into sandbox", async ({ page }) => {
+  for (const query of ["?s=", "?s=a&s=b", "?s=not!base64"]) {
+    await page.goto(`/electrostatic-field${query}`);
+    await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+    await expect(page.getByTestId("electrostatic-lab"), query).toHaveAttribute("data-mode", "sandbox");
+    await expect(page.getByTestId("guided-panel")).toHaveCount(0);
+    await expect(page.getByTestId("setup-notice")).toContainText("已載入安全的單電荷設定");
+    await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "1");
+    await expect(page.getByTestId("source-magnitude")).toHaveValue("3");
+  }
 });
 
 test("Activity B: zero field is gated, then shown as zero with undefined direction", async ({ page }) => {

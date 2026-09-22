@@ -36,6 +36,17 @@ const ACTIVITY_TITLE: Record<ActivityId, string> = {
   C: "Activity C｜E、F、a 不是同一件事",
 };
 
+/**
+ * Task wording is part of the answer-leak surface: B's own topic ("零場") is one of the options
+ * the learner must choose between, so the heading stays neutral until the prediction is committed.
+ */
+function taskTitle(state: LearningState): string {
+  if (state.activity === "B" && (state.step === "predict" || state.step === "transfer-predict")) {
+    return "Activity B｜用對稱性做預測";
+  }
+  return ACTIVITY_TITLE[state.activity];
+}
+
 export interface GuidedHandlers {
   readonly onCommitDirection: (prediction: DirectionPrediction) => void;
   readonly onCommitChange: (prediction: CFlipPrediction) => void;
@@ -288,7 +299,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
       const s2 = setup.sources.find((source) => source.id === "s2");
       body = (
         <div className={styles.guidedForm}>
-          <p className={styles.guidedPrompt}>Manipulate：改變 s2 的大小或位置，再移動探針找新的零場點。</p>
+          <p className={styles.guidedPrompt}>Manipulate：把 s2 的電量大小改變，再移動探針尋找新的零場點。來源位置在本步驟保持固定。</p>
           {s2 ? (
             <label>s2 大小（nC）
               <input
@@ -326,7 +337,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
           >Activity {id}</button>
         ))}
       </nav>
-      <h2 id="guided-task-heading" ref={headingRef} tabIndex={-1} className={styles.guidedHeading}>{ACTIVITY_TITLE[learning.activity]}</h2>
+      <h2 id="guided-task-heading" ref={headingRef} tabIndex={-1} className={styles.guidedHeading}>{taskTitle(learning)}</h2>
       {body}
       <div className={styles.inlineActions}>
         <button type="button" onClick={props.onRestart} data-testid="restart-activity">重新開始此活動</button>

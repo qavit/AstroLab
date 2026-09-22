@@ -307,9 +307,11 @@ export function evidencePolicy(state: LearningState | null): EvidencePolicy {
       return { ...HIDDEN, probeContributions: true, probeTotal: state.reveal >= 2, probeComponents: state.reveal >= 2, globalField: state.reveal >= 2 };
     }
     if (state.step === "manipulate") {
+      // Charge-magnitude perturbation only: positions stay locked so the explanation options
+      // describe the experiment the learner actually ran.
       return {
         ...HIDDEN, probeMovable: true, probeContributions: true, probeTotal: true, probeComponents: true,
-        globalField: true, sourcesMovable: true, sourceMagnitudeId: "s2",
+        globalField: true, sourcesMovable: false, sourceMagnitudeId: "s2",
       };
     }
     if (state.step === "complete") {
