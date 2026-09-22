@@ -14,6 +14,7 @@ import type { DraggableObject } from "./electrostatic/AccessibleObjects";
 import type { SelectedObject } from "./electrostatic/render";
 import { createShareUrl, initialStateFromShare, retainFieldSceneReferences, type ShareRouteInput } from "./electrostatic/share";
 import styles from "./electrostatic/ElectrostaticFieldLab.module.css";
+import { MathProvider, Tex } from "./math/MathJax";
 import type { Vec2 } from "../lib/science/electrostatics/types.ts";
 import {
   advancePlayback,
@@ -22,11 +23,17 @@ import {
   initialRuntime,
   pauseRuntime,
   playRuntime,
-  stepRuntime,
   type ElectrostaticRuntime,
   type ElectrostaticSetup,
   type PresetId,
 } from "../models/electrostatic.ts";
+import {
+  checkpointCollector,
+  createPlaybackHistory,
+  recordPlayback,
+  seekRuntime,
+  type PlaybackHistory,
+} from "../models/electrostatic-history.ts";
 import {
   ACTIVITY_SETUPS,
   activitySetup,
@@ -72,21 +79,17 @@ interface LabState {
 
 function stopAnnouncement(runtime: ElectrostaticRuntime): string | null {
   if (runtime.stop?.reason === "entered-source-core") {
-    return `模擬停止：粒子在 t = ${runtime.stop.t_s.toFixed(4)} s 進入來源 ${runtime.stop.sourceId ?? ""} 的 0.12 m excluded core（entered-source-core），停在首次交點。按「重設粒子／模擬」重新開始。`;
+    return `測試電荷在 ${runtime.stop.t_s.toFixed(3)} 秒時太靠近來源電荷，因此停在模型仍有效的邊界。請按「重新開始」再試一次。`;
   }
   if (runtime.stop?.reason === "left-domain") {
-    return `模擬停止：粒子在 t = ${runtime.stop.t_s.toFixed(4)} s 離開 4 × 3 m 世界範圍（left-domain），停在邊界交點。按「重設粒子／模擬」重新開始。`;
+    return `測試電荷在 ${runtime.stop.t_s.toFixed(3)} 秒時離開觀察範圍，已停在邊界。請按「重新開始」再試一次。`;
   }
-  if (runtime.error) return `數值錯誤（${runtime.error}）：已暫停並保留最後有效狀態。請重設粒子／模擬。`;
+  if (runtime.error) return "計算暫時無法繼續，已保留最後一個有效狀態。請按「重新開始」。";
   if (runtime.autoPause === "behind-realtime") {
-    return "播放落後即時：單次待補算已超過即時播放預算，已自動暫停；模擬時間沒有跳躍。按播放重新開始。";
+    return "裝置來不及連續顯示每一步，已自動暫停；模型時間沒有跳過。按播放即可繼續。";
   }
   if (runtime.autoPause === "hidden") return "分頁已隱藏，播放自動暫停；模擬時間沒有跳躍。按播放重新開始。";
   return null;
-}
-
-function isTextEntry(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest("input, textarea, select, [contenteditable='true']") !== null;
 }
 
 function isInteractive(target: EventTarget | null): boolean {
@@ -97,13 +100,18 @@ function isInteractive(target: EventTarget | null): boolean {
 export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabProps) {
   const shellRef = useRef<HTMLElement>(null);
   const initial = useMemo(() => initialStateFromShare(share), [share]);
-  // D-05 + D-07: no `s` → guided Activity A; any `s` (valid or failed-closed) → sandbox semantics.
-  const [learning, setLearning] = useState<LearningState | null>(() => (initial.sandbox ? null : startActivity("A")));
+  // D-05 + D-07: no `s` pauses at an intent choice; any present `s` bypasses it into free exploration.
+  const [entryPending, setEntryPending] = useState(() => !initial.sandbox);
+  const [learning, setLearning] = useState<LearningState | null>(null);
   const [focusToken, setFocusToken] = useState(0);
   const [lab, setLab] = useState<LabState>(() => {
-    const first = initial.sandbox ? initial.setup : activitySetup(startActivity("A"));
+    const first = initial.setup;
     return { setup: first, runtime: initialRuntime(first) };
   });
+  const [initialHistory] = useState(() => createPlaybackHistory(lab.runtime));
+  const historyRef = useRef<PlaybackHistory>(initialHistory);
+  const [maxSimulatedSteps, setMaxSimulatedSteps] = useState(lab.runtime.macroSteps);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const policy = evidencePolicy(learning);
   const policyRef = useRef(policy);
   useEffect(() => {
@@ -113,7 +121,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   const { setup, runtime } = lab;
   const [announcement, setAnnouncement] = useState("");
   const [baseline, setBaseline] = useState<ElectrostaticSetup>(initial.setup);
-  const [selected, setSelected] = useState<SelectedObject>(() => (initial.sandbox ? { kind: "source", id: initial.setup.sources[0].id } : null));
+  const [selected, setSelected] = useState<SelectedObject>(null);
   const [notice, setNotice] = useState<string | null>(() => initial.error ?? (initial.issues[0]?.message ?? null));
   const [shareStatus, setShareStatus] = useState<string | null>(null);
 
@@ -125,6 +133,12 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   const commitLab = useCallback((next: LabState) => {
     labRef.current = next;
     setLab(next);
+  }, []);
+
+  const resetHistory = useCallback((runtime: ElectrostaticRuntime) => {
+    const history = createPlaybackHistory(runtime);
+    historyRef.current = history;
+    setMaxSimulatedSteps(history.maxSimulatedSteps);
   }, []);
 
   const updateRuntime = useCallback((transition: (current: LabState) => ElectrostaticRuntime) => {
@@ -141,6 +155,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       return null;
     }
     const next = retainFieldSceneReferences(current.setup, result.setup);
+    if (result.runtime !== current.runtime) resetHistory(result.runtime);
     commitLab({ setup: next, runtime: result.runtime });
     setNotice(result.warnings.length > 0 ? firstIssueMessage(result.warnings) : null);
     setShareStatus(null);
@@ -154,7 +169,9 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       setNotice(firstIssueMessage(result.issues));
       return;
     }
-    commitLab({ setup: result.setup, runtime: initialRuntime(result.setup) });
+    const runtime = initialRuntime(result.setup);
+    resetHistory(runtime);
+    commitLab({ setup: result.setup, runtime });
     if (updateBaseline) setBaseline(result.setup);
     setSelected({ kind: "source", id: result.setup.sources[0].id });
     setNotice(result.warnings.length > 0 ? firstIssueMessage(result.warnings) : null);
@@ -218,44 +235,44 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     });
   };
 
-  const setMagnitude = (magnitude_nC: number) => {
-    if (!selectedSource) return;
+  const setMagnitude = (magnitude_nC: number): boolean => {
+    if (!selectedSource) return false;
     const sign = selectedSource.q_C < 0 ? -1 : 1;
-    commitCandidate({
+    return commitCandidate({
       ...setup,
       sources: setup.sources.map((source) => source.id === selectedSource.id
         ? { ...source, q_C: sign * magnitude_nC * 1e-9 }
         : source),
       presetId: null,
-    });
+    }) !== null;
   };
 
-  const setSourcePosition = (axis: "x" | "y", value_m: number) => {
-    if (!selectedSource) return;
-    commitCandidate({
+  const setSourcePosition = (axis: "x" | "y", value_m: number): boolean => {
+    if (!selectedSource) return false;
+    return commitCandidate({
       ...setup,
       sources: setup.sources.map((source) => source.id === selectedSource.id
         ? { ...source, [axis === "x" ? "x_m" : "y_m"]: value_m }
         : source),
       presetId: null,
-    });
+    }) !== null;
   };
 
-  const setProbePosition = (axis: "x" | "y", value_m: number) => {
-    commitCandidate({
+  const setProbePosition = (axis: "x" | "y", value_m: number): boolean => {
+    return commitCandidate({
       ...setup,
       probe: { ...setup.probe, [axis === "x" ? "x_m" : "y_m"]: value_m },
       presetId: null,
-    });
+    }) !== null;
   };
 
-  const editParticle = (field: "x_m" | "y_m" | "vx_mps" | "vy_mps" | "q_nC" | "mass_ug", value: number) => {
+  const editParticle = (field: "x_m" | "y_m" | "vx_mps" | "vy_mps" | "q_nC" | "mass_ug", value: number): boolean => {
     const particle = labRef.current.setup.testParticle;
     const sign = particle.q_C < 0 ? -1 : 1;
     const patch = field === "q_nC" ? { q_C: sign * (value / 1e9) }
       : field === "mass_ug" ? { mass_kg: value / 1e9 }
       : { [field]: value };
-    commitCandidate({ ...labRef.current.setup, testParticle: { ...particle, ...patch }, presetId: null });
+    return commitCandidate({ ...labRef.current.setup, testParticle: { ...particle, ...patch }, presetId: null }) !== null;
   };
 
   const toggleParticleSign = () => {
@@ -274,14 +291,21 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     }
   }, [updateRuntime]);
 
-  const stepOnce = useCallback(() => {
-    updateRuntime(({ setup, runtime }) => stepRuntime(setup, pauseRuntime(runtime)));
-  }, [updateRuntime]);
-
   const resetRuntime = useCallback(() => {
-    updateRuntime(({ setup }) => initialRuntime(setup));
-    setAnnouncement("粒子與模擬已重設：t = 0，暫停；設定未改變。");
-  }, [updateRuntime]);
+    const current = labRef.current;
+    const next = initialRuntime(current.setup);
+    resetHistory(next);
+    commitLab({ setup: current.setup, runtime: next });
+    setAnnouncement("測試電荷已回到起點；設定沒有改變。");
+  }, [commitLab, resetHistory]);
+
+  const seekTo = useCallback((macroSteps: number) => {
+    const current = labRef.current;
+    const result = seekRuntime(current.setup, historyRef.current, macroSteps);
+    if (!result.ok) return;
+    commitLab({ setup: current.setup, runtime: result.runtime });
+    setAnnouncement(`已回到 ${result.runtime.particle.t_s.toFixed(2)} 秒。`);
+  }, [commitLab]);
 
   const pauseForDrag = (target: DraggableObject) => {
     if (target.kind === "probe") return;
@@ -299,12 +323,19 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     const tick = (now: number) => {
       const elapsed_s = last === null ? 0 : (now - last) / 1000;
       last = now;
-      updateRuntime(({ setup, runtime }) => advancePlayback(setup, runtime, elapsed_s));
+      updateRuntime(({ setup, runtime }) => {
+        const candidates: ElectrostaticRuntime[] = [];
+        const next = advancePlayback(setup, runtime, elapsed_s * playbackSpeed, checkpointCollector(candidates));
+        const history = recordPlayback(historyRef.current, next, candidates);
+        historyRef.current = history;
+        setMaxSimulatedSteps(history.maxSimulatedSteps);
+        return next;
+      });
       if (labRef.current.runtime.status === "running") frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [running, updateRuntime]);
+  }, [playbackSpeed, running, updateRuntime]);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -321,16 +352,13 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       if (event.key === " " && clockAllowed && !isInteractive(event.target)) {
         event.preventDefault();
         togglePlay();
-      } else if (event.key === "." && clockAllowed && !isTextEntry(event.target)) {
-        event.preventDefault();
-        stepOnce();
       } else if (event.key === "Escape" && !isInteractive(event.target)) {
         setSelected(null);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [stepOnce, togglePlay]);
+  }, [togglePlay]);
 
   // Stop, error and auto-pause messages take priority; user actions announce otherwise.
   const clockMessage = stopAnnouncement(runtime);
@@ -338,7 +366,9 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   /** Atomic activity (re)load: pause, canonical setup, fresh runtime, fresh learning state. */
   const loadLearning = (next: LearningState, focus: boolean) => {
     const target = structuredClone(activitySetup(next));
-    commitLab({ setup: target, runtime: initialRuntime(target) });
+    const freshRuntime = initialRuntime(target);
+    resetHistory(freshRuntime);
+    commitLab({ setup: target, runtime: freshRuntime });
     setLearning(next);
     setSelected(null);
     setNotice(null);
@@ -347,8 +377,9 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   };
 
   const enterActivity = (activity: ActivityId) => {
+    setEntryPending(false);
     loadLearning(startActivity(activity), true);
-    setAnnouncement(`已開始 Activity ${activity}；模擬已重設。`);
+    setAnnouncement(`已開始任務 ${activity}；模型已回到任務起點。`);
   };
 
   /** Learning transitions; a step that needs a different canonical setup loads it atomically. */
@@ -366,14 +397,17 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     updateRuntime(({ runtime }) => pauseRuntime(runtime));
     if (!keepSetup) {
       const fresh = clonePreset(DEFAULT_SANDBOX_PRESET);
-      commitLab({ setup: fresh, runtime: initialRuntime(fresh) });
+      const freshRuntime = initialRuntime(fresh);
+      resetHistory(freshRuntime);
+      commitLab({ setup: fresh, runtime: freshRuntime });
       setBaseline(fresh);
     } else {
       setBaseline(labRef.current.setup);
     }
     setLearning(null);
-    setSelected({ kind: "source", id: labRef.current.setup.sources[0].id });
-    setAnnouncement("已進入 sandbox：全部儀器與讀值已開放。");
+    setEntryPending(false);
+    setSelected(null);
+    setAnnouncement("已進入自由探索；全部操作與讀值都已開放。");
   };
 
   const setGuidedSourceMagnitude = (id: string, magnitude_nC: number) => {
@@ -398,7 +432,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     window.history.replaceState(null, "", result.url);
     try {
       await navigator.clipboard?.writeText(result.url);
-      setShareStatus("分享網址已建立並複製；重新開啟會以 sandbox initial setup 載入。");
+      setShareStatus("分享網址已建立並複製；重新開啟會直接進入自由探索。");
     } catch {
       setShareStatus("分享網址已建立；瀏覽器未允許自動複製，請從網址列複製。");
     }
@@ -406,26 +440,24 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   };
 
   return (
-    <main
+    <MathProvider><main
       ref={shellRef}
       className={styles.labShell}
       data-testid="electrostatic-lab"
       data-source-count={setup.sources.length}
-      data-mode={learning ? "guided" : "sandbox"}
+      data-mode={entryPending ? "intent" : learning ? "guided" : "sandbox"}
       data-activity={learning?.activity ?? ""}
     >
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>MODEL 09 · EXPERIMENTAL</p>
-          <h1>靜電場工作室</h1>
-          <p className={styles.subtitle}>建立來源、觀察全域場，再用 probe 拆解每一個向量貢獻。</p>
+          <p className={styles.eyebrow}>實驗中 · MODEL 09</p>
+          <h1>靜電學</h1>
+          <p className={styles.subtitle}>從點電荷與電場開始，探索看不見的電作用。</p>
         </div>
         <div className={styles.headerActions}>
-          {learning ? (
-            <button type="button" className={styles.catalogLink} onClick={() => exploreSandbox(false)} data-testid="direct-explore">直接探索（sandbox）</button>
-          ) : (
-            <button type="button" className={styles.catalogLink} onClick={() => enterActivity("A")} data-testid="enter-guided">引導活動</button>
-          )}
+          {!entryPending && (learning
+            ? <button type="button" className={styles.catalogLink} onClick={() => exploreSandbox(false)} data-testid="direct-explore">自由探索</button>
+            : <button type="button" className={styles.catalogLink} onClick={() => enterActivity("A")} data-testid="enter-guided">探索任務</button>)}
           <Link href="/" className={styles.catalogLink}>返回模型目錄</Link>
         </div>
       </header>
@@ -433,11 +465,17 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       {notice ? <div className={styles.notice} role="status" data-testid="setup-notice">{notice}</div> : null}
       {shareStatus ? <div className={styles.shareStatus} role="status" data-testid="share-status">{shareStatus}</div> : null}
 
+      {!entryPending ? <nav className={styles.mobileTabs} aria-label="學習面板">
+        <button type="button" aria-pressed={learning !== null} onClick={() => learning ? undefined : setSelected(null)}>任務</button>
+        <button type="button" aria-pressed={!learning && selected?.kind === "source"} disabled={learning !== null} onClick={() => setSelected({ kind: "source", id: setup.sources[0].id })}>操作</button>
+        <button type="button" aria-pressed={!learning && (selected?.kind === "probe" || selected?.kind === "particle")} disabled={learning !== null} onClick={() => setSelected({ kind: "probe" })}>讀值</button>
+      </nav> : null}
+
       <div className={styles.workspace}>
         <section className={styles.viewportCard} aria-labelledby="field-viewport-title" aria-describedby="field-semantic-summary">
           <div className={styles.viewportTitle}>
             <span>01</span>
-            <div><h2 id="field-viewport-title">Electric field</h2><p>4 × 3 m · fixed logarithmic scale</p></div>
+            <div><h2 id="field-viewport-title">電場</h2><p>箭頭指出方向，明暗與長度表示強弱</p></div>
           </div>
           <FieldCanvas
             setup={setup}
@@ -450,8 +488,26 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
           />
         </section>
 
-        <aside className={styles.sidePanel} aria-label={learning ? "引導活動" : "Sandbox 控制與證據"}>
-          {learning ? (
+        <aside className={styles.sidePanel} aria-label={entryPending ? "選擇探索方式" : learning ? "探索任務" : "自由探索工具"}>
+          {entryPending ? (
+            <section className={styles.intentPanel} data-testid="intent-choice">
+              <p className={styles.eyebrow}>從哪裡開始？</p>
+              <h2>你想跟著任務，還是自己試？</h2>
+              <p>兩種方式使用同一個物理模型，隨時都能切換。</p>
+              <button type="button" className={styles.intentChoice} onClick={() => enterActivity("A")} data-testid="choose-guided">
+                <strong>探索任務</strong><span>先預測，再用測量結果找出規律</span>
+              </button>
+              <div className={styles.taskPreview}>
+                <span>任務一　兩個電場會往哪裡？</span>
+                <span>任務二　對稱會留下什麼？</span>
+                <span>任務三　從電場到運動</span>
+              </div>
+              <button type="button" className={styles.intentChoice} onClick={() => exploreSandbox(false)} data-testid="choose-sandbox">
+                <strong>自由探索</strong><span>直接移動電荷與測量點，自己組合情境</span>
+              </button>
+            </section>
+          ) : learning ? (
+            <>
             <GuidedActivities
               learning={learning}
               setup={setup}
@@ -463,18 +519,21 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               onCommitVelocity={(p) => transition(commitVelocity(learning, p), "預測已送出；可以單步或播放觀察。")}
               onReveal={() => transition(revealNext(learning), "已顯示下一層證據。")}
               onAdvance={() => transition(advance(learning), "進入下一步。")}
-              onExplainA={(e) => transition(explainA(learning, e), "說明已送出；Transfer 已載入新設定。")}
-              onExplainB={(e) => transition(explainB(learning, e), "說明已送出；Transfer 已載入新設定。")}
+              onExplainA={(e) => transition(explainA(learning, e), "說明已送出；已換成新的情境。")}
+              onExplainB={(e) => transition(explainB(learning, e), "說明已送出；已換成新的情境。")}
               onSwitch={enterActivity}
               onRestart={() => enterActivity(learning.activity)}
               onExplore={() => exploreSandbox(true)}
               onShare={shareSetup}
               onSourceMagnitude={setGuidedSourceMagnitude}
             />
+            {learning.activity === "C"
+              ? <ParticlePanel setup={setup} runtime={runtime} policy={policy} />
+              : <ProbePanel setup={setup} policy={policy} />}
+            </>
           ) : <Controls
             setup={setup}
             selected={selected}
-            onSelect={setSelected}
             onPreset={applyPreset}
             onAddSource={addSource}
             onRemoveSource={removeSource}
@@ -485,32 +544,41 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
             onReset={() => replaceWith(structuredClone(baseline), false)}
             onShare={shareSetup}
           >
-            <ParticleControls
-              setup={setup}
-              selected={selected?.kind === "particle"}
-              onSelect={() => setSelected({ kind: "particle" })}
-              onEdit={editParticle}
-              onToggleSign={toggleParticleSign}
-            />
+            {selected?.kind === "particle" ? <>
+              <ParticleControls setup={setup} onEdit={editParticle} onToggleSign={toggleParticleSign} />
+              <ParticlePanel setup={setup} runtime={runtime} policy={policy} />
+            </> : null}
+            {selected?.kind === "probe" ? <ProbePanel setup={setup} policy={policy} /> : null}
           </Controls>}
-          {policy.timeControls
-            ? <TimeControls runtime={runtime} onTogglePlay={togglePlay} onStep={stepOnce} onResetRuntime={resetRuntime} />
-            : null}
         </aside>
       </div>
 
       {clockMessage ? <div className={styles.notice} data-testid="clock-notice">{clockMessage}</div> : null}
       <p className={styles.srOnly} role="status" aria-live="polite" data-testid="clock-announcer">{clockMessage ?? announcement}</p>
 
-      <div className={styles.evidenceGrid}>
-        {policy.particle ? <ParticlePanel setup={setup} runtime={runtime} policy={policy} /> : null}
-        {policy.probe ? <ProbePanel setup={setup} policy={policy} /> : null}
-        {policy.globalField ? <FieldLegend /> : null}
-      </div>
+      {!entryPending && policy.timeControls
+        ? <TimeControls
+            runtime={runtime}
+            maxSimulatedSteps={maxSimulatedSteps}
+            speed={playbackSpeed}
+            onSpeed={setPlaybackSpeed}
+            onTogglePlay={togglePlay}
+            onSeek={seekTo}
+            onResetRuntime={resetRuntime}
+          />
+        : null}
+
+      {!entryPending ? <details className={styles.modelNotes}>
+        <summary>這個模型畫的是什麼？</summary>
+        <div className={styles.modelNotesGrid}>
+          <div><h2>點電荷模型</h2><p>每顆來源電荷固定不動；畫面顯示它們在平面上造成的三維反平方電場。測試電荷不會改變來源。</p><p><Tex>{"\\vec E = \\sum_i \\vec E_i"}</Tex>，箭頭相加後得到合電場。灰色核心內不使用點電荷近似。</p></div>
+          <FieldLegend />
+        </div>
+      </details> : null}
       <footer className={styles.footer}>
-        <span>Canonical SI · schema v1 · {learning ? "guided session（不進網址）" : "sandbox semantics"}</span>
-        <span>Point-charge model valid only outside each 0.12 m source core</span>
+        <span>schema v1 · {learning ? "探索任務不會寫入網址" : "分享只保存起始物理設定"}</span>
+        <span>點電荷模型只在每顆電荷的灰色核心之外使用</span>
       </footer>
-    </main>
+    </main></MathProvider>
   );
 }

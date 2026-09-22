@@ -17,6 +17,15 @@ import {
 import { decodeSetup } from "../models/electrostatic-serialization.ts";
 import { createShareUrl } from "../components/electrostatic/share.ts";
 import { TRAIL_LIMIT, trailPoint } from "../models/electrostatic-trail.ts";
+import {
+  CHECKPOINT_INTERVAL_STEPS,
+  LEARNER_SEEK_STEPS,
+  MAX_CHECKPOINTS,
+  checkpointCollector,
+  createPlaybackHistory,
+  recordPlayback,
+  seekRuntime,
+} from "../models/electrostatic-history.ts";
 
 const single = ELECTROSTATIC_PRESETS["single-positive"];
 const dipole = ELECTROSTATIC_PRESETS.dipole;
@@ -73,6 +82,65 @@ test("N-02 true render schedules: 30, 60 and 120 Hz over the same 1 s wall time 
     assert.deepEqual(runtime.particle, reference, `${hz} Hz matches ${n} direct stepMacro calls bitwise`);
     assert.ok(runtime.accumulator_s < 1e-12, `${hz} Hz remainder is floating-point only`);
   }
+});
+
+test("D-10 records exact sparse checkpoints and deterministically seeks within maxSimulated history", () => {
+  const setup = { ...ELECTROSTATIC_PRESETS["like-pair"], testParticle: { ...ELECTROSTATIC_PRESETS["like-pair"].testParticle, x_m: 0, y_m: -0.8, vy_mps: 0, q_C: -2.5e-10 } };
+  let runtime = playRuntime(initialRuntime(setup));
+  let history = createPlaybackHistory(runtime);
+  while (runtime.macroSteps < 960) {
+    const candidates = [];
+    runtime = advancePlayback(setup, runtime, 64 * MACRO_DT_S, checkpointCollector(candidates));
+    history = recordPlayback(history, runtime, candidates);
+  }
+  assert.equal(CHECKPOINT_INTERVAL_STEPS, 480);
+  assert.equal(LEARNER_SEEK_STEPS, 96);
+  assert.deepEqual(history.checkpoints.map((item) => item.macroSteps), [0, 480, 960]);
+  assert.equal(history.maxSimulatedSteps, 960);
+
+  for (const target of [0, 96, 479, 480, 777, 960]) {
+    const sought = seekRuntime(setup, history, target);
+    assert.equal(sought.ok, true);
+    if (!sought.ok) continue;
+    assert.equal(sought.runtime.status, "paused");
+    assert.equal(sought.runtime.macroSteps, target);
+    assert.deepEqual(sought.runtime.particle, pureSteps(setup, target));
+  }
+  assert.deepEqual(seekRuntime(setup, history, 961), { ok: false, reason: "outside-history" });
+  assert.deepEqual(seekRuntime(setup, history, -1), { ok: false, reason: "outside-history" });
+});
+
+test("D-10 checkpoint storage is bounded while checkpoint zero remains available", () => {
+  const initial = initialRuntime(single);
+  let history = createPlaybackHistory(initial);
+  for (let index = 1; index <= MAX_CHECKPOINTS + 20; index += 1) {
+    const runtime = { ...initial, macroSteps: index * CHECKPOINT_INTERVAL_STEPS, particle: { ...initial.particle, t_s: index / 2 } };
+    history = recordPlayback(history, runtime, [runtime]);
+  }
+  assert.equal(history.checkpoints.length, MAX_CHECKPOINTS);
+  assert.equal(history.checkpoints[0].macroSteps, 0);
+  assert.equal(history.checkpoints.at(-1).macroSteps, (MAX_CHECKPOINTS + 20) * CHECKPOINT_INTERVAL_STEPS);
+});
+
+test("D-10 terminal events become the exact history boundary", () => {
+  const setup = { ...single, testParticle: { ...single.testParticle, x_m: -0.5, y_m: 0, vx_mps: 1, vy_mps: 0, q_C: -2.5e-10 } };
+  let runtime = playRuntime(initialRuntime(setup));
+  let history = createPlaybackHistory(runtime);
+  while (runtime.status === "running") {
+    const candidates = [];
+    runtime = advancePlayback(setup, runtime, 32 * MACRO_DT_S, checkpointCollector(candidates));
+    history = recordPlayback(history, runtime, candidates);
+  }
+  assert.equal(history.terminalSteps, runtime.macroSteps);
+  assert.equal(history.maxSimulatedSteps, runtime.macroSteps);
+  const terminal = seekRuntime(setup, history, runtime.macroSteps);
+  assert.equal(terminal.ok, true);
+  if (terminal.ok) {
+    assert.equal(terminal.runtime.status, "stopped");
+    assert.deepEqual(terminal.runtime.particle, runtime.particle);
+    assert.deepEqual(terminal.runtime.stop, runtime.stop);
+  }
+  assert.deepEqual(seekRuntime(setup, history, runtime.macroSteps + 1), { ok: false, reason: "outside-history" });
 });
 
 test("D-08 boundary: 64 due steps all run; 65 due runs zero and pauses behind-realtime", () => {

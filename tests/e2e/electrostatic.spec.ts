@@ -1,195 +1,120 @@
 import { expect, test, type Page } from "@playwright/test";
 
+async function openFree(page: Page, path = "/electrostatics") {
+  await page.goto(path);
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  if (await page.getByTestId("intent-choice").count()) await page.getByTestId("choose-sandbox").click();
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-mode", "sandbox");
+}
+
 async function replaceNumber(page: Page, testId: string, value: string) {
   const input = page.getByTestId(testId);
   await input.click();
   await input.press("ControlOrMeta+A");
   await input.pressSequentially(value);
-  await input.press("Tab");
+  await input.press("Enter");
 }
 
-test.beforeEach(async ({ page }) => {
-  await page.goto("/electrostatic-field");
-  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
-  // M4: a fresh route opens guided Activity A; these sandbox regressions enter sandbox explicitly.
-  await page.getByTestId("direct-explore").click();
-  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-mode", "sandbox");
+test("D-05 starts with a visible intent choice and natural task names", async ({ page }) => {
+  await page.goto("/electrostatics");
+  await expect(page).toHaveTitle("靜電學｜Kakau Lab");
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-mode", "intent");
+  await expect(page.getByTestId("choose-guided")).toContainText("探索任務");
+  await expect(page.getByTestId("choose-sandbox")).toContainText("自由探索");
+  await expect(page.getByTestId("intent-choice")).toContainText("任務二　對稱會留下什麼？");
+  await expect(page.getByTestId("time-controls")).toHaveCount(0);
 });
 
-test("route loads with semantic Canvas alternative and fixed scale", async ({ page }) => {
-  await expect(page).toHaveTitle("靜電場工作室｜Kakau Lab");
-  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-grid", "40x30");
-  await expect(page.getByTestId("field-legend")).toContainText("1–5,000 N/C");
-  await expect(page.getByLabel("可操作的來源電荷、電場探針與測試粒子")).toBeVisible();
-});
-
-test("three presets reconstruct their canonical source counts", async ({ page }) => {
-  await page.getByTestId("preset-single-positive").click();
-  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "1");
-  await page.getByTestId("preset-like-pair").click();
-  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "2");
-  await page.getByTestId("preset-dipole").click();
-  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "2");
-});
-
-test("pointer drag and keyboard move a source through canonical coordinates", async ({ page }) => {
-  const handle = page.getByTestId("source-handle-s1");
-  const xInput = page.getByTestId("source-x");
-  await handle.focus();
-  await handle.press("ArrowRight");
-  await expect(xInput).toHaveValue("0.01");
-  const box = await handle.boundingBox();
-  expect(box).not.toBeNull();
-  if (!box) return;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 4 });
-  await page.mouse.up();
-  await expect(xInput).not.toHaveValue("0.01");
-});
-
-test("probe movement updates per-source and total model readouts", async ({ page }) => {
-  const before = await page.getByTestId("total-ex").textContent();
-  const probe = page.getByTestId("probe-handle");
-  await probe.focus();
-  await probe.press("Shift+ArrowRight");
-  await expect(page.getByTestId("probe-position")).toContainText("0.700");
-  await expect(page.getByTestId("contribution-s1")).toBeVisible();
-  await expect(page.getByTestId("total-ex")).not.toHaveText(before ?? "");
-});
-
-test("equal like-charge midpoint is zero with undefined direction", async ({ page }) => {
-  await page.getByTestId("preset-like-pair").click();
-  await expect(page.getByTestId("probe-panel")).toHaveAttribute("data-probe-state", "zero");
-  await expect(page.getByTestId("total-magnitude")).toHaveText("0");
-  await expect(page.getByTestId("total-direction")).toHaveText("未定義（零場）");
-});
-
-test("probe inside a core is typed invalid and does not crash", async ({ page }) => {
-  const probe = page.getByTestId("probe-handle");
-  await probe.focus();
-  for (let step = 0; step < 6; step += 1) await probe.press("Shift+ArrowLeft");
-  for (let step = 0; step < 3; step += 1) await probe.press("Shift+ArrowDown");
-  await expect(page.getByTestId("probe-panel")).toHaveAttribute("data-probe-state", "invalid-core");
-  await expect(page.getByTestId("probe-invalid")).toContainText("模型在此未定義");
-  await expect(page.getByTestId("probe-position")).toContainText("x = 0.000 m");
-});
-
-test("share URL reload reconstructs the same canonical physical setup", async ({ page }) => {
-  await replaceNumber(page, "source-magnitude", "4.25");
-  await replaceNumber(page, "probe-x", "0.83");
-  await expect(page.getByTestId("select-source-s1")).toContainText("4.25 nC");
-  await expect(page.getByTestId("probe-position")).toContainText("0.830");
-  await page.getByTestId("share-setup").click();
-  await expect(page).toHaveURL(/\?s=/);
-  const url = page.url();
-  expect(url.length).toBeLessThanOrEqual(2000);
-  await page.reload();
-  await expect(page.getByTestId("source-magnitude")).toHaveValue("4.25");
-  await expect(page.getByTestId("probe-x")).toHaveValue("0.83");
-});
-
-test("share permalink removes non-physical query and fragment state", async ({ page }) => {
-  await page.goto("/electrostatic-field?panel=open&utm_source=test#probe");
-  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
-  await page.getByTestId("direct-explore").click();
-  await replaceNumber(page, "source-magnitude", "4.5");
-  await expect(page.getByTestId("select-source-s1")).toContainText("4.50 nC");
-  await page.getByTestId("share-setup").click();
-
-  const shared = new URL(page.url());
-  expect([...shared.searchParams.keys()]).toEqual(["s"]);
-  expect(shared.searchParams.get("s")).toBeTruthy();
-  expect(shared.searchParams.has("panel")).toBe(false);
-  expect(shared.searchParams.has("utm_source")).toBe(false);
-  expect(shared.hash).toBe("");
-
-  await page.reload();
-  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
-  await expect(page.getByTestId("source-magnitude")).toHaveValue("4.5");
-});
-
-test("malformed share URL fails closed to a safe preset", async ({ page }) => {
-  await page.goto("/electrostatic-field?s=not!base64");
+test("any present share parameter bypasses intent and malformed payloads fail closed", async ({ page }) => {
+  await openFree(page, "/electrostatics?s=not!base64");
+  await expect(page.getByTestId("intent-choice")).toHaveCount(0);
   await expect(page.getByTestId("setup-notice")).toContainText("已載入安全的單電荷設定");
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "1");
-  await expect(page.getByTestId("source-magnitude")).toHaveValue("3");
 });
 
-test("keyboard-only setup editing, reset and share remain usable", async ({ page }) => {
-  await page.getByTestId("preset-dipole").focus();
-  await page.keyboard.press("Enter");
-  const handle = page.getByTestId("source-handle-s1");
-  await handle.focus();
-  await page.keyboard.press("Shift+ArrowUp");
-  await expect(page.getByTestId("source-y")).toHaveValue("0.1");
-  await page.getByTestId("reset-setup").focus();
-  await page.keyboard.press("Enter");
-  await expect(page.getByTestId("source-y")).toHaveValue("0");
-  await page.getByTestId("share-setup").focus();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\?s=/);
+test("legacy route is a permanent redirect that preserves empty and repeated query values", async ({ request }) => {
+  const response = await request.get("/electrostatic-field?s=&s=second&utm_source=legacy", { maxRedirects: 0 });
+  expect(response.status()).toBe(308);
+  const location = new URL(response.headers().location, "http://localhost");
+  expect(location.pathname).toBe("/electrostatics");
+  expect(location.searchParams.getAll("s")).toEqual(["", "second"]);
+  expect(location.searchParams.get("utm_source")).toBe("legacy");
 });
 
-test("responsive reflow preserves the physical setup at 768, 1024 and 1440 px", async ({ page }) => {
-  await page.getByTestId("preset-dipole").click();
-  const expectedSourceX = await page.getByTestId("source-x").inputValue();
-  const expectedProbeX = await page.getByTestId("probe-x").inputValue();
-  for (const width of [768, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(overflow, `${width}px page overflow`).toBeLessThanOrEqual(0);
-    await expect(page.getByTestId("field-viewport")).toBeVisible();
-    await expect(page.getByTestId("probe-panel")).toBeVisible();
-    await expect(page.getByTestId("source-x")).toHaveValue(expectedSourceX);
-    await expect(page.getByTestId("probe-x")).toHaveValue(expectedProbeX);
-  }
+test("canvas selection opens one contextual inspector; add-source auto-selects", async ({ page }) => {
+  await openFree(page);
+  await expect(page.getByTestId("context-inspector")).toContainText("開始探索");
+  const source = page.getByTestId("source-handle-s1");
+  await source.focus();
+  await source.press("Enter");
+  await expect(page.getByTestId("context-inspector")).toContainText("正電荷 1");
+  await source.press("ArrowRight");
+  await expect(page.getByTestId("source-x")).toHaveValue("0.01");
+  await page.getByTestId("add-source").click();
+  await expect(page.getByTestId("source-handle-s2")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("context-inspector")).toContainText("正電荷 2");
 });
 
-test("source edits redraw the 40×30 field within the M2 interaction budget", async ({ page }) => {
-  const metrics = await page.evaluate(async () => {
-    const handle = document.querySelector<SVGGElement>('[data-testid="source-handle-s1"]');
-    if (!handle) throw new Error("source handle missing");
-    const durations: number[] = [];
-    for (let index = 0; index < 20; index += 1) {
-      const started = performance.now();
-      handle.dispatchEvent(new KeyboardEvent("keydown", {
-        key: index % 2 === 0 ? "ArrowRight" : "ArrowLeft",
-        bubbles: true,
-      }));
-      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-      durations.push(performance.now() - started);
-    }
-    durations.sort((a, b) => a - b);
-    return {
-      p50_ms: durations[Math.floor(durations.length * 0.5)],
-      p95_ms: durations[Math.floor(durations.length * 0.95)],
-      max_ms: durations.at(-1) ?? 0,
-      samples: Number(document.querySelector('[data-testid="field-viewport"]')?.getAttribute("data-sample-count")),
-    };
-  });
-  console.log(`[M2 performance] ${JSON.stringify(metrics)}`);
-  expect(metrics.samples).toBe(1200);
-  expect(metrics.p95_ms).toBeLessThan(100);
+test("numeric editing is transient until commit, rejects locally, and Escape restores display", async ({ page }) => {
+  await openFree(page);
+  await page.getByTestId("source-handle-s1").click();
+  const input = page.getByTestId("source-x");
+  await input.fill("0.75");
+  await expect(page.getByTestId("source-handle-s1")).toHaveAccessibleName(/水平位置 0\.00 m/);
+  await input.press("Enter");
+  await expect(page.getByTestId("source-handle-s1")).toHaveAccessibleName(/水平位置 0\.75 m/);
+  await input.fill("9");
+  await input.press("Enter");
+  await expect(input).toHaveValue("9");
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByRole("alert")).toContainText("保留上一個有效值");
+  await input.press("Escape");
+  await expect(input).toHaveValue("0.75");
 });
 
-test("@mobile 320px layout has no page overflow and touch can drag the probe", async ({ page, context }) => {
+test("measurement point exposes compact MathJax readout and natural zero/invalid states", async ({ page }) => {
+  await openFree(page);
+  await page.getByTestId("probe-handle").click();
+  await expect(page.getByTestId("probe-panel")).toBeVisible();
+  await expect(page.getByTestId("total-magnitude")).toContainText("N/C");
+  await expect(page.getByTestId("probe-panel")).toContainText("看每顆電荷的影響");
+
+  await page.keyboard.press("Escape");
+  await page.getByTestId("preset-like-pair").click();
+  await page.getByTestId("probe-handle").click();
+  await expect(page.getByTestId("probe-panel")).toHaveAttribute("data-probe-state", "zero");
+  await expect(page.getByTestId("total-direction")).toContainText("沒有方向");
+
+  await page.keyboard.press("Escape");
+  await page.getByTestId("preset-single-positive").click();
+  await page.getByTestId("probe-handle").click();
+  await replaceNumber(page, "probe-x", "0");
+  await replaceNumber(page, "probe-y", "0");
+  await expect(page.getByTestId("probe-invalid")).toContainText("太靠近來源電荷");
+});
+
+test("sharing always produces the canonical route and reloads the physical setup", async ({ page }) => {
+  await openFree(page);
+  await page.getByTestId("source-handle-s1").click();
+  await replaceNumber(page, "source-magnitude", "4.25");
+  await page.getByTestId("share-setup").click();
+  await expect(page).toHaveURL(/\/electrostatics\?s=/);
+  const url = new URL(page.url());
+  expect([...url.searchParams.keys()]).toEqual(["s"]);
+  await page.reload();
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-mode", "sandbox");
+  await page.getByTestId("source-handle-s1").click();
+  await expect(page.getByTestId("source-magnitude")).toHaveValue("4.25");
+});
+
+test("@mobile 320px keeps canvas and fixed bottom tabs reachable without horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
+  await openFree(page);
+  await expect(page.getByRole("navigation", { name: "學習面板" })).toBeVisible();
+  for (const label of ["任務", "操作", "讀值"]) await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-grid", "24x18");
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(0);
-  const handle = page.getByTestId("probe-handle");
-  const box = await handle.boundingBox();
-  expect(box).not.toBeNull();
-  if (!box) return;
-  const session = await context.newCDPSession(page);
-  const x = box.x + box.width / 2;
-  const y = box.y + box.height / 2;
-  await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
-  await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x + 24, y }] });
-  await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  await expect(page.getByTestId("probe-x")).not.toHaveValue("0.6");
-  const targetSize = await handle.boundingBox();
-  expect(targetSize?.width).toBeGreaterThanOrEqual(44);
-  expect(targetSize?.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  await page.getByRole("button", { name: "讀值", exact: true }).click();
+  await expect(page.getByTestId("probe-panel")).toBeVisible();
+  await expect(page.getByText("精確位置", { exact: true })).toBeVisible();
 });

@@ -103,35 +103,35 @@ test("server-renders the model explanation page", async () => {
   assert.match(html, /返回模型/);
 });
 
-test("server-renders guided Activity A by default with no target evidence in the HTML", async () => {
+test("server-renders the D-05 intent choice when no share parameter is present", async () => {
   const response = await render("/electrostatics");
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /<title>靜電學｜Kakau Lab<\/title>/);
-  assert.match(html, /Activity A｜先判斷合場方向/);
-  assert.match(html, /直接探索/);
-  assert.match(html, /data-probe-state="gated"/);
-  assert.match(html, /data-field-visible="false"/);
-  assert.doesNotMatch(html, /data-testid="total-|data-testid="contribution-|data-probe-state="(zero|valid)"/);
-  assert.doesNotMatch(html, /時間控制|測試粒子讀值|Sandbox 設定/);
+  assert.match(html, /data-mode="intent"/);
+  assert.match(html, /data-testid="intent-choice"/);
+  assert.match(html, /探索任務/);
+  assert.match(html, /自由探索/);
+  assert.match(html, /任務二　對稱會留下什麼？/);
+  assert.doesNotMatch(html, /data-testid="guided-panel"|data-testid="time-controls"/);
   assert.doesNotMatch(html, /等位線|電位/);
 });
 
-test("server-renders a schema-v1 share URL with sandbox semantics", async () => {
+test("server-renders a schema-v1 share URL with free-exploration semantics", async () => {
   const { encodeSetup } = await import("../models/electrostatic-serialization.ts");
   const { ELECTROSTATIC_PRESETS } = await import("../models/electrostatic.ts");
   const encoded = encodeSetup(ELECTROSTATIC_PRESETS.dipole);
   const response = await render(`/electrostatics?s=${encoded.encoded}`);
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Sandbox 設定/);
-  assert.match(html, /探針讀值/);
-  assert.match(html, /場強圖例/);
+  assert.match(html, /data-mode="sandbox"/);
+  assert.match(html, /data-testid="context-inspector"/);
+  assert.match(html, /自由探索/);
+  assert.match(html, /怎麼看箭頭/);
   assert.match(html, /schema v1/);
   assert.match(html, /時間控制/);
-  assert.match(html, /測試粒子讀值/);
-  assert.match(html, /重設粒子／模擬/);
-  assert.doesNotMatch(html, /Activity A｜/);
+  assert.match(html, /重新開始/);
+  assert.doesNotMatch(html, /data-testid="intent-choice"|data-testid="guided-panel"/);
 });
 
 test("share-parameter presence, not payload validity, decides sandbox vs guided (SSR)", async () => {
@@ -139,8 +139,9 @@ test("share-parameter presence, not payload validity, decides sandbox vs guided 
     const response = await render(`/electrostatics${query}`);
     assert.equal(response.status, 200, label);
     const html = await response.text();
-    assert.match(html, /Sandbox 設定/, `${label} opens sandbox`);
-    assert.doesNotMatch(html, /Activity A｜|用對稱性做預測/, `${label} must not open guided`);
+    assert.match(html, /data-mode="sandbox"/, `${label} opens free exploration`);
+    assert.match(html, /data-testid="context-inspector"/, `${label} renders the free-exploration inspector`);
+    assert.doesNotMatch(html, /data-testid="intent-choice"|data-testid="guided-panel"/, `${label} bypasses intent and guided mode`);
     assert.match(html, /已載入安全的單電荷設定/, `${label} warns and fails closed`);
     assert.match(html, /data-source-count="1"/, `${label} loads the safe preset`);
   }
@@ -455,7 +456,7 @@ test("keeps projectile motion analytic, with the drag integrator quarantined", a
 
 test("re-typesets only changing projectile formulas in production", async () => {
   const [mathjax, view] = await Promise.all([
-    readFile(new URL("../components/projectile/mathjax.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/math/MathJax.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/ProjectileLab.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(mathjax, /dynamic = false/);

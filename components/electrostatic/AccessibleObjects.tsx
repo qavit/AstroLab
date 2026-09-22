@@ -35,7 +35,7 @@ interface AccessibleObjectsProps {
 
 function labelSource(source: SourceCharge): string {
   const sign = source.q_C > 0 ? "正" : "負";
-  return `來源電荷 ${source.id}，${sign} ${Math.abs(source.q_C / 1e-9).toPrecision(3)} nC，x ${source.x_m.toFixed(2)} m，y ${source.y_m.toFixed(2)} m`;
+  return `${sign}來源電荷，${Math.abs(source.q_C / 1e-9).toPrecision(3)} nC，水平位置 ${source.x_m.toFixed(2)} m，垂直位置 ${source.y_m.toFixed(2)} m`;
 }
 
 const PROBE = { kind: "probe" } as const;
@@ -43,7 +43,7 @@ const PARTICLE = { kind: "particle" } as const;
 
 function labelParticle(particle: ParticleHandle): string {
   const sign = particle.q_C > 0 ? "正" : "負";
-  return `測試粒子初始位置，${sign} ${Math.abs(particle.q_C * 1e9).toPrecision(3)} nC，${(particle.mass_kg * 1e9).toPrecision(3)} µg，x ${particle.initial.x.toFixed(2)} m，y ${particle.initial.y.toFixed(2)} m；移動會重設模擬`;
+  return `${sign}測試電荷初始位置，${Math.abs(particle.q_C * 1e9).toPrecision(3)} nC，${(particle.mass_kg * 1e9).toPrecision(3)} µg，水平位置 ${particle.initial.x.toFixed(2)} m，垂直位置 ${particle.initial.y.toFixed(2)} m；移動會重新開始運動`;
 }
 
 export default function AccessibleObjects({ camera, sources, probe, selected, onSelect, onMove, onDragStart, particle, showProbe, showParticle }: AccessibleObjectsProps) {
@@ -90,7 +90,7 @@ export default function AccessibleObjects({ camera, sources, probe, selected, on
       ref={svgRef}
       className={styles.objectOverlay}
       viewBox={`0 0 ${camera.width} ${camera.height}`}
-      aria-label="可操作的來源電荷、電場探針與測試粒子"
+      aria-label="可操作的來源電荷、測量點與測試電荷"
       aria-describedby="electrostatic-keyboard-help"
     >
       {sources.map((source) => {
@@ -120,7 +120,7 @@ export default function AccessibleObjects({ camera, sources, probe, selected, on
         <g
           role="button"
           tabIndex={0}
-          aria-label={`電場探針，x ${probe.x.toFixed(2)} m，y ${probe.y.toFixed(2)} m`}
+          aria-label={`測量點，水平位置 ${probe.x.toFixed(2)} m，垂直位置 ${probe.y.toFixed(2)} m`}
           aria-pressed={selected?.kind === "probe"}
           data-testid="probe-handle"
           className={styles.objectHandle}

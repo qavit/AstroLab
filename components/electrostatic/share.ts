@@ -8,8 +8,8 @@ export const ELECTROSTATICS_PATH = "/electrostatics";
 
 /**
  * What the route saw in the query string. Presence and payload are separate facts: an absent
- * `s` opens guided Activity A (D-05), while any present `s` — valid, empty or repeated — opens
- * sandbox semantics (D-07) and fails closed when it cannot be decoded.
+ * `s` opens the intent choice (D-05), while any present `s` — valid, empty or repeated — bypasses
+ * it into free exploration (D-07) and fails closed when it cannot be decoded.
  */
 export type ShareRouteInput =
   | { readonly present: false }

@@ -139,6 +139,13 @@ model converts it into whole macro steps, and a tick owing more than 64 of them 
 behind-realtime rather than enlarging a step or discarding physics time. Simulation time therefore
 only ever advances by steps that actually ran.
 
+The learner transport deliberately hides that numerical step. Its visible ±0.1 s controls map to
+exactly 96 macro steps, while sparse checkpoints are captured every 0.5 s (480 macro steps).
+History is bounded, keeps the initial checkpoint, and never serializes into schema v1. A seek first
+pauses, restores the latest checkpoint at or before the target, then replays positive fixed steps;
+targets beyond `maxSimulatedSteps` are rejected. Playback speed changes wall-clock scheduling only.
+Source or test-charge initial edits invalidate this history; measurement-point edits do not.
+
 `/electrostatics` opens with an intent choice between a guided task and free exploration. Once a
 guided task begins, evidence is withheld until the learner commits a prediction. Gating is a
 presentation decision only — `models/electrostatic-learning.ts` chooses what is visible, never
@@ -147,6 +154,10 @@ parameter bypasses the choice and opens free-exploration
 semantics instead; schema v1 carries the **physical initial setup only** (sources, probe, test
 particle, domain, singularity, integrator, field scale), never the runtime, the trail or any
 learning state, and an undecodable payload fails closed to a safe preset.
+
+The electrostatics readouts reuse the same self-hosted MathJax provider as the projectile model.
+The implementation now lives at `components/math/MathJax.tsx`; the old projectile module is only a
+compatibility re-export, so there is one provider and no second math runtime.
 
 ## Kakau Lab integration (Stage 0)
 

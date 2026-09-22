@@ -117,12 +117,12 @@ test("probe-only edits retain field-scene references and the desktop grid stays 
 
 test("share route input separates parameter presence from payload validity", () => {
   const absent = initialStateFromShare({ present: false });
-  assert.equal(absent.sandbox, false, "no `s` opens guided Activity A");
+  assert.equal(absent.sandbox, false, "no `s` leaves the route at the D-05 intent choice");
   assert.equal(absent.error, null);
   assert.deepEqual(absent.issues, []);
 
   const empty = initialStateFromShare({ present: true, encoded: "" });
-  assert.equal(empty.sandbox, true, "an empty `s` is still a share parameter: sandbox");
+  assert.equal(empty.sandbox, true, "an empty `s` is still a share parameter: free exploration");
   assert.ok(empty.error, "empty payload fails closed with a warning");
   assert.equal(empty.setup.presetId, "single-positive");
 

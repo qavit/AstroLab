@@ -1,3 +1,4 @@
+import { Tex } from "@/components/math/MathJax";
 import { probeReadout, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import { SANDBOX_POLICY, type EvidencePolicy } from "../../models/electrostatic-learning.ts";
 import styles from "./ElectrostaticFieldLab.module.css";
@@ -16,84 +17,68 @@ interface ProbePanelProps {
 
 function GatedProbePanel({ setup }: { readonly setup: ElectrostaticSetup }) {
   return (
-    <section className={styles.probePanel} aria-labelledby="probe-panel-title" data-testid="probe-panel" data-probe-state="gated">
-      <div className={styles.sectionHeading}>
-        <p>MODEL-DERIVED EVIDENCE</p>
-        <h2 id="probe-panel-title">探針讀值</h2>
-      </div>
-      <p className={styles.probePosition} data-testid="probe-position">
-        x = {setup.probe.x_m.toFixed(3)} m　y = {setup.probe.y_m.toFixed(3)} m
-      </p>
-      <p className={styles.helperText} data-testid="probe-gated">先送出你的預測，才會逐步顯示探針證據。</p>
+    <section className={styles.readoutPanel} aria-labelledby="probe-panel-title" data-testid="probe-panel" data-probe-state="gated">
+      <h3 id="probe-panel-title">這裡的電場</h3>
+      <p className={styles.probePosition} data-testid="probe-position">x = {setup.probe.x_m.toFixed(3)} m　y = {setup.probe.y_m.toFixed(3)} m</p>
+      <p className={styles.helperText} data-testid="probe-gated">先送出你的預測，再用測量結果核對想法。</p>
     </section>
   );
 }
 
-/**
- * Probe evidence. Gated layers are not rendered at all (no hidden DOM, no data attributes), so
- * nothing leaks to the accessibility tree before the learner commits.
- */
 export default function ProbePanel({ setup, policy = SANDBOX_POLICY }: ProbePanelProps) {
   if (!policy.probeContributions) return <GatedProbePanel setup={setup} />;
   const showTotal = policy.probeTotal;
   const showComponents = policy.probeComponents;
   const readout = probeReadout(setup);
-  const sourceById = new Map(setup.sources.map((source) => [source.id, source]));
+  const sourceById = new Map(setup.sources.map((source, index) => [source.id, { source, index }]));
   const state = !readout.valid ? "invalid-core" : !showTotal ? "contributions" : readout.isZero ? "zero" : "valid";
   return (
-    <section className={styles.probePanel} aria-labelledby="probe-panel-title" data-testid="probe-panel" data-probe-state={state}>
-      <div className={styles.sectionHeading}>
-        <p>MODEL-DERIVED EVIDENCE</p>
-        <h2 id="probe-panel-title">探針讀值</h2>
-      </div>
-      <p className={styles.probePosition} data-testid="probe-position">
-        x = {setup.probe.x_m.toFixed(3)} m　y = {setup.probe.y_m.toFixed(3)} m
-      </p>
+    <section className={styles.readoutPanel} aria-labelledby="probe-panel-title" data-testid="probe-panel" data-probe-state={state}>
+      <h3 id="probe-panel-title">這裡的電場</h3>
+      <p className={styles.probePosition} data-testid="probe-position">x = {setup.probe.x_m.toFixed(3)} m　y = {setup.probe.y_m.toFixed(3)} m</p>
       {!readout.valid ? (
         <div className={styles.invalidReadout} role="status" data-testid="probe-invalid">
-          <strong>點電荷模型在此未定義</strong>
-          <span>探針位於來源 {readout.sourceId ?? "未知"} 的 0.12 m excluded core 內；座標未被移動。</span>
+          <strong>這個位置太靠近來源電荷，點電荷模型無法給出讀值。</strong>
+          <span>測量點仍留在原位；把它移出灰色區域即可繼續測量。</span>
         </div>
       ) : (
         <>
-          <div className={styles.tableWrap}>
-            <table className={styles.probeTable}>
-              <caption>各來源對探針位置的電場貢獻</caption>
-              <thead><tr>
-                <th scope="col">來源</th><th scope="col">q</th>
-                {showComponents ? <><th scope="col">Eₓ</th><th scope="col">Eᵧ</th></> : null}
-                <th scope="col">|E|</th>
-              </tr></thead>
-              <tbody>
-                {readout.contributions.map((item) => {
-                  const source = sourceById.get(item.sourceId);
-                  return (
-                    <tr key={item.sourceId} data-testid={`contribution-${item.sourceId}`}>
-                      <th scope="row">{item.sourceId}</th>
-                      <td>{source ? formatValue(source.q_C / 1e-9, "nC") : "—"}</td>
-                      {showComponents ? <><td>{formatValue(item.Ex_N_per_C)}</td><td>{formatValue(item.Ey_N_per_C)}</td></> : null}
-                      <td>{formatValue(item.magnitude_N_per_C)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              {showTotal ? <tfoot>
-                <tr data-testid="total-field-row">
-                  <th scope="row">合場</th><td>—</td>
-                  {showComponents ? <>
-                    <td data-testid="total-ex">{formatValue(readout.Ex_N_per_C)}</td>
-                    <td data-testid="total-ey">{formatValue(readout.Ey_N_per_C)}</td>
-                  </> : null}
-                  <td data-testid="total-magnitude">{formatValue(readout.magnitude_N_per_C)}</td>
-                </tr>
-              </tfoot> : null}
-            </table>
-          </div>
-          {showComponents ? <dl className={styles.totalReadout}>
-            <div><dt>單位</dt><dd>N/C</dd></div>
-            <div><dt>方向</dt><dd data-testid="total-direction">{readout.direction_rad === null ? "未定義（零場）" : `${(readout.direction_rad * 180 / Math.PI).toFixed(2)}°`}</dd></div>
-            <div><dt>zero tolerance</dt><dd>{formatValue(readout.zeroTolerance_N_per_C, "N/C")}</dd></div>
-          </dl> : null}
+          {showTotal ? (
+            <div className={styles.heroReadout}>
+              <span><Tex>{"|\\vec E|"}</Tex> 電場大小</span>
+              <strong data-testid="total-magnitude">{formatValue(readout.magnitude_N_per_C, "N/C")}</strong>
+              <small data-testid="total-direction">{readout.direction_rad === null ? "合電場為零，因此沒有方向" : `方向 ${(readout.direction_rad * 180 / Math.PI).toFixed(1)}°`}</small>
+            </div>
+          ) : <p className={styles.helperText}>先比較每顆來源電荷造成的電場；下一步才會顯示合電場。</p>}
+          <details className={styles.readoutDetails}>
+            <summary>看每顆電荷的影響</summary>
+            <div className={styles.tableWrap}>
+              <table className={styles.probeTable}>
+                <caption>各來源電荷對測量點的電場貢獻</caption>
+                <thead><tr><th scope="col">來源</th><th scope="col">電量</th>{showComponents ? <><th scope="col">Eₓ</th><th scope="col">Eᵧ</th></> : null}<th scope="col">大小</th></tr></thead>
+                <tbody>
+                  {readout.contributions.map((item) => {
+                    const record = sourceById.get(item.sourceId);
+                    return (
+                      <tr key={item.sourceId} data-testid={`contribution-${item.sourceId}`}>
+                        <th scope="row">{record ? `${record.source.q_C > 0 ? "正" : "負"}電荷 ${record.index + 1}` : "來源"}</th>
+                        <td>{record ? formatValue(record.source.q_C / 1e-9, "nC") : "—"}</td>
+                        {showComponents ? <><td>{formatValue(item.Ex_N_per_C)}</td><td>{formatValue(item.Ey_N_per_C)}</td></> : null}
+                        <td>{formatValue(item.magnitude_N_per_C, "N/C")}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {showTotal ? <tfoot><tr data-testid="total-field-row"><th scope="row">合電場</th><td>—</td>{showComponents ? <><td data-testid="total-ex">{formatValue(readout.Ex_N_per_C)}</td><td data-testid="total-ey">{formatValue(readout.Ey_N_per_C)}</td></> : null}<td>{formatValue(readout.magnitude_N_per_C, "N/C")}</td></tr></tfoot> : null}
+              </table>
+            </div>
+          </details>
+          {showComponents ? (
+            <details className={styles.readoutDetails}>
+              <summary>看合電場的 x、y 分量</summary>
+              <p><Tex dynamic>{`\\vec E = (${formatValue(readout.Ex_N_per_C)},\\ ${formatValue(readout.Ey_N_per_C)})\\ \\mathrm{N/C}`}</Tex></p>
+            </details>
+          ) : null}
         </>
       )}
     </section>

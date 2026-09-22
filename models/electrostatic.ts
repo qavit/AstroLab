@@ -202,11 +202,14 @@ function sameParticleScene(a: ElectrostaticSetup, b: ElectrostaticSetup): boolea
  * stop event (recorded in the trail) or a numerical error (paused, last finite state kept).
  * A stopped or errored runtime does not advance. The trail is copied once per call.
  */
-function executeMacroSteps(
+export type MacroStepObserver = (runtime: ElectrostaticRuntime) => void;
+
+export function executeMacroSteps(
   setup: ElectrostaticSetup,
   runtime: ElectrostaticRuntime,
   count: number,
   status: "paused" | "running",
+  onStep?: MacroStepObserver,
 ): ElectrostaticRuntime {
   if (runtime.status === "stopped" || runtime.error !== null) return runtime;
   if (count <= 0) return runtime.status === status ? runtime : { ...runtime, status };
@@ -227,12 +230,15 @@ function executeMacroSteps(
     state = result.state;
     if (result.status === "stopped") {
       pushTrail(trail, state.x_m, state.y_m, true);
-      return {
+      const stopped: ElectrostaticRuntime = {
         ...runtime, status: "stopped", particle: state, macroSteps: steps, stop: result.event,
         accumulator_s: 0, autoPause: null, trail: finishTrail(trail),
       };
+      onStep?.(stopped);
+      return stopped;
     }
     pushTrail(trail, state.x_m, state.y_m);
+    onStep?.({ ...runtime, status, particle: state, macroSteps: steps, trail: finishTrail(trail) });
   }
   return { ...runtime, status, particle: state, macroSteps: steps, trail: finishTrail(trail) };
 }
@@ -268,6 +274,7 @@ export function advancePlayback(
   setup: ElectrostaticSetup,
   runtime: ElectrostaticRuntime,
   elapsed_s: number,
+  onStep?: MacroStepObserver,
 ): ElectrostaticRuntime {
   if (runtime.status !== "running") return runtime;
   if (!Number.isFinite(elapsed_s) || elapsed_s < 0) return pauseRuntime(runtime, "behind-realtime");
@@ -275,7 +282,7 @@ export function advancePlayback(
   const owed = runtime.accumulator_s + elapsed_s;
   const due = Math.floor(owed / dt + ACCUMULATOR_EPSILON);
   if (due > MAX_CATCHUP_MACRO_STEPS) return pauseRuntime(runtime, "behind-realtime");
-  const next = executeMacroSteps(setup, runtime, due, "running");
+  const next = executeMacroSteps(setup, runtime, due, "running", onStep);
   if (next.status !== "running") return next;
   return { ...next, accumulator_s: Math.max(0, owed - due * dt) };
 }

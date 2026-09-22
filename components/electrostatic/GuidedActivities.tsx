@@ -17,7 +17,6 @@ import {
   type CVelocityPrediction,
   type DirectionPrediction,
   type LearningState,
-  type ReasonTag,
 } from "../../models/electrostatic-learning.ts";
 import { initialRuntime, particleReadout, probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import styles from "./ElectrostaticFieldLab.module.css";
@@ -25,15 +24,12 @@ import styles from "./ElectrostaticFieldLab.module.css";
 const COMPASS_LABEL: Record<Compass, string> = {
   E: "→ 向右", NE: "↗ 右上", N: "↑ 向上", NW: "↖ 左上", W: "← 向左", SW: "↙ 左下", S: "↓ 向下", SE: "↘ 右下", zero: "零場",
 };
-const REASON_LABEL: Record<ReasonTag, string> = {
-  symmetry: "對稱", components: "分量", nearest: "最近的來源影響最大", sign: "正負電荷方向", other: "其他",
-};
 const CHANGE_LABEL: Record<Change, string> = { same: "不變", reverse: "反向", double: "加倍", half: "減半" };
 
 const ACTIVITY_TITLE: Record<ActivityId, string> = {
-  A: "Activity A｜先判斷合場方向",
-  B: "Activity B｜對稱與零場",
-  C: "Activity C｜E、F、a 不是同一件事",
+  A: "任務一｜兩個電場會往哪裡？",
+  B: "任務二｜對稱會留下什麼？",
+  C: "任務三｜從電場到運動",
 };
 
 /**
@@ -42,7 +38,7 @@ const ACTIVITY_TITLE: Record<ActivityId, string> = {
  */
 function taskTitle(state: LearningState): string {
   if (state.activity === "B" && (state.step === "predict" || state.step === "transfer-predict")) {
-    return "Activity B｜用對稱性做預測";
+    return "任務二｜對稱會留下什麼？";
   }
   return ACTIVITY_TITLE[state.activity];
 }
@@ -105,25 +101,21 @@ function RadioGroup<T extends string>(props: {
 function DirectionForm(props: {
   readonly prompt: string;
   readonly options: readonly Compass[];
-  readonly withReason: boolean;
   readonly onCommit: (prediction: DirectionPrediction) => void;
 }) {
   const [direction, setDirection] = useState<Compass | null>(null);
-  const [reason, setReason] = useState<ReasonTag | null>(props.withReason ? null : "other");
   return (
     <form
       className={styles.guidedForm}
       onSubmit={(event) => {
         event.preventDefault();
-        if (direction && reason) props.onCommit({ direction, reason });
+        if (direction) props.onCommit({ direction, reason: "other" });
       }}
     >
       <p className={styles.guidedPrompt}>{props.prompt}</p>
       <RadioGroup legend="你的方向預測" name="predict-direction" options={props.options} labels={COMPASS_LABEL} value={direction} onChange={setDirection} />
-      {props.withReason ? (
-        <RadioGroup legend="主要理由" name="predict-reason" options={Object.keys(REASON_LABEL) as ReasonTag[]} labels={REASON_LABEL} value={reason} onChange={setReason} />
-      ) : null}
-      <button type="submit" className={styles.shareButton} disabled={!direction || !reason} data-testid="commit-prediction">送出預測（送出後不能修改）</button>
+      <details className={styles.hintDisclosure}><summary>需要一點提示？</summary><p>先分別想每顆電荷在測量點造成的方向，再把兩支箭頭合起來。</p></details>
+      <button type="submit" className={styles.shareButton} disabled={!direction} data-testid="commit-prediction">鎖定預測，查看證據</button>
     </form>
   );
 }
@@ -160,7 +152,9 @@ function Verdict({ predicted, model }: { readonly predicted: string; readonly mo
   const match = model !== null && predicted === model;
   return (
     <p className={styles.guidedVerdict} data-testid="prediction-verdict" data-match={match ? "true" : "false"}>
-      你的預測：{predicted}；模型證據：{model ?? "未定義"}。{match ? "一致。" : "不一致——看證據找原因。"}
+      {match
+        ? `你抓到關鍵了：預測與測量結果都是${model}。接著看看每顆電荷的箭頭如何合成。`
+        : `這次的測量結果是${model ?? "未定義"}，和預測的${predicted}不同。先比較各來源箭頭，再找出是哪個分量改變了方向。`}
     </p>
   );
 }
@@ -172,11 +166,11 @@ function AExplainForm({ onSubmit }: { readonly onSubmit: (e: AExplanation) => vo
   const verdicts = { cancel: "互相抵消（至少部分）", add: "互相相加" };
   return (
     <form className={styles.guidedForm} onSubmit={(event) => { event.preventDefault(); if (x && y && revise) onSubmit({ x, y, revise }); }}>
-      <p className={styles.guidedPrompt}>Explain：用分量說明合場方向。</p>
+      <p className={styles.guidedPrompt}>用分量說明合場方向。</p>
       <RadioGroup legend="兩個來源的 x 分量" name="explain-x" options={["cancel", "add"] as const} labels={verdicts} value={x} onChange={setX} />
       <RadioGroup legend="兩個來源的 y 分量" name="explain-y" options={["cancel", "add"] as const} labels={verdicts} value={y} onChange={setY} />
       <RadioGroup legend="你的原預測" name="explain-revise" options={["kept", "revised"] as const} labels={{ kept: "不用修正", revised: "需要修正" }} value={revise} onChange={setRevise} />
-      <button type="submit" className={styles.shareButton} disabled={!x || !y || !revise} data-testid="submit-explanation">送出說明，進入 Transfer</button>
+      <button type="submit" className={styles.shareButton} disabled={!x || !y || !revise} data-testid="submit-explanation">送出說明，換個情境</button>
     </form>
   );
 }
@@ -191,7 +185,7 @@ function BExplainForm({ onSubmit }: { readonly onSubmit: (e: BExplanation) => vo
   return (
     <form className={styles.guidedForm} onSubmit={(event) => { event.preventDefault(); if (value) onSubmit(value); }}>
       <RadioGroup legend="原本的零場點為什麼不再在中點？" name="explain-b" options={Object.keys(labels) as BExplanation[]} labels={labels} value={value} onChange={setValue} />
-      <button type="submit" className={styles.shareButton} disabled={!value} data-testid="submit-explanation">送出說明，進入 Transfer</button>
+      <button type="submit" className={styles.shareButton} disabled={!value} data-testid="submit-explanation">送出說明，換個情境</button>
     </form>
   );
 }
@@ -200,11 +194,11 @@ function stepLabel(state: LearningState): string {
   if (state.activity === "C") {
     if (state.step === "complete") return "完成";
     const stage = { c1: "1 初始加速度", c2: "2 反轉 q", c3: "3 質量加倍", c4: "4 加入初速度" }[state.stage];
-    return `${stage} · ${state.step === "predict" ? "Predict" : "Observe"}`;
+    return `${stage} · ${state.step === "predict" ? "先預測" : "看證據"}`;
   }
   return {
-    predict: "Predict", observe: "Manipulate／Observe", explain: "Explain", manipulate: "Manipulate／Explain",
-    "transfer-predict": "Transfer · Predict", "transfer-observe": "Transfer · Observe", complete: "完成 → Explore",
+    predict: "先預測", observe: "看證據", explain: "說明原因", manipulate: "動手找規律",
+    "transfer-predict": "換個情境再預測", "transfer-observe": "換個情境看證據", complete: "完成",
   }[state.step];
 }
 
@@ -229,9 +223,8 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
           key={formKey}
           prompt={learning.step === "predict"
             ? "來源已鎖定。只看電荷符號與位置：探針所在目標點的合電場指向哪裡？"
-            : "Transfer：右側來源 s2 已反轉為負電荷。重新預測目標點的合電場方向。"}
+            : "換個情境：右側來源已反轉為負電荷。重新預測測量點的合電場方向。"}
           options={[...COMPASS_8, "zero"]}
-          withReason
           onCommit={props.onCommitDirection}
         />
       );
@@ -240,7 +233,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
       const nextLabel = ["", "顯示合場向量", "顯示 Eₓ、Eᵧ 與方向數值"][learning.reveal];
       body = (
         <div className={styles.guidedForm}>
-          <p className={styles.guidedPrompt}>你已承諾：{COMPASS_LABEL[predicted.direction]}（{REASON_LABEL[predicted.reason]}）。可以移動探針，逐層查看證據。</p>
+          <p className={styles.guidedPrompt}>你的預測是{COMPASS_LABEL[predicted.direction]}。現在移動測量點，逐層查看證據。</p>
           <ol className={styles.revealList} data-testid="reveal-progress" data-reveal={learning.reveal}>
             <li>各來源貢獻 Eᵢ（已顯示）</li>
             <li>{learning.reveal >= 2 ? "合場向量（已顯示）" : "合場向量"}</li>
@@ -249,7 +242,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
           {learning.reveal >= 3 ? <Verdict predicted={COMPASS_LABEL[predicted.direction]} model={modelDirection ? COMPASS_LABEL[modelDirection] : null} /> : null}
           {learning.reveal < 3
             ? <button type="button" onClick={props.onReveal} data-testid="reveal-next">{nextLabel}</button>
-            : <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">{learning.step === "observe" ? "進入 Explain" : "完成 Activity A"}</button>}
+            : <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">{learning.step === "observe" ? "說說原因" : "完成任務一"}</button>}
         </div>
       );
     } else if (learning.step === "explain") {
@@ -269,9 +262,8 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
           key={formKey}
           prompt={learning.step === "predict"
             ? "兩顆等量正電荷左右對稱，探針在中點。中點的合電場指向哪裡？"
-            : "Transfer：四顆等量正電荷位於矩形四角，探針在中心。中心的合電場是？"}
+            : "換個情境：四顆等量正電荷位於矩形四角，測量點在中心。中心的合電場是？"}
           options={COMPASS_4_ZERO}
-          withReason={false}
           onCommit={props.onCommitDirection}
         />
       );
@@ -292,16 +284,16 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
           ) : null}
           {learning.reveal < 2
             ? <button type="button" onClick={props.onReveal} data-testid="reveal-next">顯示合場</button>
-            : <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">{learning.step === "observe" ? "進入 Manipulate" : "完成 Activity B"}</button>}
+            : <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">{learning.step === "observe" ? "動手找零場點" : "完成任務二"}</button>}
         </div>
       );
     } else if (learning.step === "manipulate") {
       const s2 = setup.sources.find((source) => source.id === "s2");
       body = (
         <div className={styles.guidedForm}>
-          <p className={styles.guidedPrompt}>Manipulate：把 s2 的電量大小改變，再移動探針尋找新的零場點。來源位置在本步驟保持固定。</p>
+          <p className={styles.guidedPrompt}>把右側電荷的大小改變，再移動測量點尋找新的零場點。這一步先不移動來源電荷。</p>
           {s2 ? (
-            <label>s2 大小（nC）
+            <label>右側電荷大小（nC）
               <input
                 type="number" min="1" max="5" step="0.5"
                 value={Math.abs(s2.q_C) * 1e9}
@@ -323,7 +315,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
   return (
     <section className={styles.guidedPanel} aria-labelledby="guided-task-heading" data-testid="guided-panel" data-activity={learning.activity} data-step={learning.step}>
       <div className={styles.sectionHeading}>
-        <p>GUIDED · {stepLabel(learning)}</p>
+        <p>探索任務 · {stepLabel(learning)}</p>
       </div>
       <nav className={styles.activityTabs} aria-label="引導活動">
         {(["A", "B", "C"] as const).map((id) => (
@@ -334,7 +326,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
             className={learning.activity === id ? styles.activeButton : undefined}
             onClick={() => props.onSwitch(id)}
             data-testid={`activity-${id}`}
-          >Activity {id}</button>
+          >{ACTIVITY_TITLE[id].split("｜")[0]}</button>
         ))}
       </nav>
       <h2 id="guided-task-heading" ref={headingRef} tabIndex={-1} className={styles.guidedHeading}>{taskTitle(learning)}</h2>
@@ -350,8 +342,8 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
 function CompletePanel({ onExplore }: { readonly onExplore: () => void }) {
   return (
     <div className={styles.guidedForm}>
-      <p className={styles.guidedPrompt} data-testid="activity-complete">活動完成。現在可以在 sandbox 自由操作同一個模型。</p>
-      <button type="button" className={styles.shareButton} onClick={onExplore} data-testid="explore-sandbox">在 sandbox 繼續探索此配置</button>
+      <p className={styles.guidedPrompt} data-testid="activity-complete">任務完成。你可以保留這個配置，繼續自由探索。</p>
+      <button type="button" className={styles.shareButton} onClick={onExplore} data-testid="explore-sandbox">繼續自由探索</button>
     </div>
   );
 }
@@ -368,7 +360,6 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
           key={props.formKey}
           prompt="來源與測試粒子都固定、粒子靜止。這顆正測試電荷的初始加速度指向哪裡？"
           options={[...COMPASS_8, "zero"]}
-          withReason
           onCommit={props.onCommitDirection}
         />
       );
@@ -429,7 +420,7 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
       <p className={styles.guidedPrompt}>證據已顯示：下方「測試粒子讀值」列出同一位置的 E、F、a。E 屬於場；F 依賴 q；a 依賴 q/m。</p>
       {verdict}
       <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">
-        {stage === "c4" ? "完成 Activity C" : "下一步"}
+        {stage === "c4" ? "完成任務三" : "下一步"}
       </button>
     </div>
   );
