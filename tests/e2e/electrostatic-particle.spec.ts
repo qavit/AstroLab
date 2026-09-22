@@ -212,10 +212,10 @@ test("an oversized wall-clock gap auto-pauses behind-realtime without advancing 
   await page.clock.runFor(200);
   const before = await snapshot(page);
   await page.clock.fastForward(5000);
-  await page.clock.runFor(50);
+  await expect(page.getByTestId("particle-panel")).toHaveAttribute("data-clock-status", "paused");
   const after = await snapshot(page);
-  expect(after.status).toBe("paused");
-  expect(after.t).toBeLessThanOrEqual(before.t + 17 * DT + 1e-12);
+  expect(after.t).toBe(before.t);
+  expect(after.steps).toBe(before.steps);
   expect(Number.isFinite(after.x) && Number.isFinite(after.vx)).toBe(true);
   await expect(page.getByTestId("clock-notice")).toContainText("播放落後即時");
   await page.clock.runFor(500);
@@ -293,4 +293,44 @@ test("@mobile 320px touch drags the particle initial position without overflow",
   expect(await snapshot(page)).toMatchObject({ t: 0, status: "paused" });
   await page.getByTestId("step-once").tap();
   expect((await snapshot(page)).steps).toBe(1);
+});
+
+test("D-08: a single 100 ms gap (> 64 macro steps) pauses with zero physics for that tick", async ({ page }) => {
+  await page.getByTestId("play-toggle").click();
+  await page.clock.runFor(200);
+  const before = await snapshot(page);
+  await page.clock.fastForward(100);
+  await expect(page.getByTestId("particle-panel")).toHaveAttribute("data-clock-status", "paused");
+  const after = await snapshot(page);
+  expect(after.steps).toBe(before.steps);
+  expect(after.t).toBe(before.t);
+  await expect(page.getByTestId("clock-notice")).toContainText("即時播放預算");
+});
+
+test.describe("D-08: browser-equivalent 30 Hz cadence", () => {
+  test.beforeEach(async ({ page }) => {
+    // Re-open with RAF paced at 30 Hz (still driven by the fake clock), replacing the 60 Hz default.
+    await page.addInitScript(() => {
+      window.requestAnimationFrame = (callback) =>
+        window.setTimeout(() => callback(performance.now()), 1000 / 30) as unknown as number;
+      window.cancelAnimationFrame = (id) => window.clearTimeout(id);
+    });
+    await page.goto("/electrostatic-field");
+    await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  });
+
+  test("sustained 30 Hz frames keep running in real time without behind-realtime", async ({ page }) => {
+    await page.getByTestId("play-toggle").click();
+    const wallStart = await page.evaluate(() => performance.now());
+    await page.clock.runFor(1000);
+    const wall_s = (await page.evaluate(() => performance.now()) - wallStart) / 1000;
+    const state = await snapshot(page);
+    expect(state.status).toBe("running");
+    await expect(page.getByTestId("clock-notice")).toHaveCount(0);
+    expect(state.t).toBeLessThanOrEqual(wall_s + 1e-9);
+    // Only the not-yet-fired frame's worth (< 2 frames) may be outstanding: no whole-step backlog builds up.
+    expect(wall_s - state.t).toBeLessThan(2 / 30);
+    expect(state.steps).toBeGreaterThan(900);
+  });
 });

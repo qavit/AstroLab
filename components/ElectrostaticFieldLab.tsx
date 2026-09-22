@@ -60,7 +60,7 @@ function stopAnnouncement(runtime: ElectrostaticRuntime): string | null {
   }
   if (runtime.error) return `數值錯誤（${runtime.error}）：已暫停並保留最後有效狀態。請重設粒子／模擬。`;
   if (runtime.autoPause === "behind-realtime") {
-    return "播放落後即時：待補算已超過 16 個 1/960 s 步，已自動暫停；模擬時間沒有跳躍。按播放重新開始。";
+    return "播放落後即時：單次待補算已超過即時播放預算，已自動暫停；模擬時間沒有跳躍。按播放重新開始。";
   }
   if (runtime.autoPause === "hidden") return "分頁已隱藏，播放自動暫停；模擬時間沒有跳躍。按播放重新開始。";
   return null;

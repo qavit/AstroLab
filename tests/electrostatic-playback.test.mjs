@@ -51,18 +51,59 @@ test("play clock executes whole fixed macro steps only and carries the remainder
   assert.deepEqual(runtime.particle, pureSteps(single, 3));
 });
 
-test("controller playback equals N direct stepMacro calls for 30, 60 and 120 Hz schedules", () => {
-  const n = 480;
-  const reference = pureSteps(dipole, n);
+test("N-02 true render schedules: 30, 60 and 120 Hz over the same 1 s wall time are identical", () => {
+  const results = [];
   for (const hz of [30, 60, 120]) {
-    // 30 Hz owes 32 steps per tick: 16 run, 16 carried as backlog, so it stays within the ceiling
-    // only for a single tick. Drive whole-step elapsed values so every schedule reaches exactly n.
-    const perTick = Math.min(MAX_CATCHUP_MACRO_STEPS, 960 / hz);
     let runtime = playRuntime(initialRuntime(dipole));
-    while (runtime.macroSteps < n) runtime = advancePlayback(dipole, runtime, perTick * MACRO_DT_S);
-    assert.equal(runtime.macroSteps, n);
-    assert.deepEqual(runtime.particle, reference, `${hz} Hz schedule matches the pure model bitwise`);
+    for (let i = 0; i < hz; i += 1) {
+      const before = runtime.macroSteps;
+      runtime = advancePlayback(dipole, runtime, 1 / hz);
+      assert.equal(runtime.status, "running", `${hz} Hz tick ${i} keeps running`);
+      assert.ok(runtime.macroSteps - before <= Math.ceil(960 / hz), "no burst beyond the frame's due steps");
+      assert.ok(runtime.accumulator_s >= 0 && runtime.accumulator_s < MACRO_DT_S, "no whole-step backlog");
+    }
+    results.push({ hz, runtime });
   }
+  const n = results[0].runtime.macroSteps;
+  assert.equal(n, 960);
+  const reference = pureSteps(dipole, n);
+  for (const { hz, runtime } of results) {
+    assert.equal(runtime.macroSteps, n, `${hz} Hz macro-step count`);
+    assert.equal(runtime.particle.t_s, reference.t_s, `${hz} Hz t_s`);
+    assert.deepEqual(runtime.particle, reference, `${hz} Hz matches ${n} direct stepMacro calls bitwise`);
+    assert.ok(runtime.accumulator_s < 1e-12, `${hz} Hz remainder is floating-point only`);
+  }
+});
+
+test("D-08 boundary: 64 due steps all run; 65 due runs zero and pauses behind-realtime", () => {
+  const warm = run(single, [0, 16 * MACRO_DT_S]);
+  const at64 = advancePlayback(single, warm, 64 * MACRO_DT_S);
+  assert.equal(at64.status, "running");
+  assert.equal(at64.macroSteps, warm.macroSteps + 64);
+  assert.ok(at64.accumulator_s < MACRO_DT_S);
+  assert.deepEqual(at64.particle, pureSteps(single, warm.macroSteps + 64));
+
+  const at65 = advancePlayback(single, warm, 65 * MACRO_DT_S);
+  assert.equal(at65.status, "paused");
+  assert.equal(at65.autoPause, "behind-realtime");
+  assert.equal(at65.particle, warm.particle, "same particle state reference");
+  assert.equal(at65.macroSteps, warm.macroSteps);
+  assert.equal(at65.particle.t_s, warm.particle.t_s);
+  assert.equal(at65.accumulator_s, 0);
+  assert.equal(MAX_CATCHUP_MACRO_STEPS, 64);
+});
+
+test("D-08 normal jitter above the 60 Hz nominal 16 steps runs every due step without pausing", () => {
+  let runtime = run(single, [0]);
+  let expected = 0;
+  for (const due of [17, 33, 48, 16, 32, 64]) {
+    runtime = advancePlayback(single, runtime, due * MACRO_DT_S);
+    expected += due;
+    assert.equal(runtime.status, "running", `${due} due`);
+    assert.equal(runtime.macroSteps, expected);
+    assert.ok(runtime.accumulator_s < MACRO_DT_S);
+  }
+  assert.deepEqual(runtime.particle, pureSteps(single, expected));
 });
 
 test("a single step is exactly one 1/960 s macro step and leaves the clock paused", () => {
@@ -126,28 +167,18 @@ test("particle edits are validated, never clamped: q/m, speed, source clearance,
   assert.equal(ok.setup.testParticle.q_C, -2.5e-10);
 });
 
-test("oversized elapsed time auto-pauses behind-realtime with no step and no time jump", () => {
+test("oversized or invalid elapsed time auto-pauses behind-realtime with no step and no time jump", () => {
   const warm = run(single, [0, 16 * MACRO_DT_S]);
-  const before = warm.particle;
-  for (const elapsed of [33 * MACRO_DT_S, 5, 3600, Number.POSITIVE_INFINITY, Number.NaN, -1]) {
+  for (const elapsed of [0.1, 5, 3600, Number.POSITIVE_INFINITY, Number.NaN, -1]) {
     const next = advancePlayback(single, warm, elapsed);
     assert.equal(next.status, "paused");
     assert.equal(next.autoPause, "behind-realtime");
-    assert.equal(next.particle, before, `no physics for elapsed ${elapsed}`);
+    assert.equal(next.particle, warm.particle, `no physics for elapsed ${elapsed}`);
     assert.equal(next.macroSteps, warm.macroSteps);
     assert.equal(next.accumulator_s, 0);
     assert.ok(Object.values(next.particle).every(Number.isFinite));
   }
-  // Up to 16 steps of backlog is tolerated: 32 owed runs 16 and carries 16.
-  const tolerated = advancePlayback(single, warm, 32 * MACRO_DT_S);
-  assert.equal(tolerated.status, "running");
-  assert.equal(tolerated.macroSteps, warm.macroSteps + MAX_CATCHUP_MACRO_STEPS);
-  // Sustained 30 Hz grows the backlog and pauses deterministically on the second tick.
-  const slow = advancePlayback(single, tolerated, 32 * MACRO_DT_S);
-  assert.equal(slow.autoPause, "behind-realtime");
-  assert.equal(slow.particle, tolerated.particle);
-  // Play restarts from a fresh wall-clock baseline.
-  const resumed = playRuntime(slow);
+  const resumed = playRuntime(advancePlayback(single, warm, 5));
   assert.equal(resumed.status, "running");
   assert.equal(resumed.autoPause, null);
   assert.equal(resumed.accumulator_s, 0);

@@ -59,7 +59,7 @@ export interface ElectrostaticRuntime {
   readonly particle: ParticleState;
   readonly stop: StopEvent | null;
   readonly error: StepInvalidReason | null;
-  /** Wall time owed to the fixed clock but not yet executed (s); at most 17 macro steps after a tick. */
+  /** Wall time owed to the fixed clock but not yet executed (s); 0 ≤ remainder < one macro step after a tick. */
   readonly accumulator_s: number;
   /** Executed macro steps since reset. */
   readonly macroSteps: number;
@@ -68,12 +68,12 @@ export interface ElectrostaticRuntime {
 }
 
 /**
- * Catch-up ceiling (owner-approved plan). A playback tick executes at most 16 macro steps (one
- * 60 Hz frame of 1/960 s steps); owed time beyond that stays in the accumulator as catch-up
- * backlog. When the backlog would exceed 16 macro steps the clock auto-pauses as
- * behind-realtime and executes nothing, so simulation time never jumps and no step is enlarged.
+ * D-08 browser catch-up budget (Owner resolved 2026-09-22). Physics stays 1/960 s (D-02); a
+ * playback tick executes every whole due macro step when due ≤ 64 (two 30 Hz frames of 32
+ * steps). When due > 64 the tick executes zero steps and auto-pauses as behind-realtime, so
+ * simulation time never jumps, no step is enlarged and no catch-up spiral starts.
  */
-export const MAX_CATCHUP_MACRO_STEPS = 16;
+export const MAX_CATCHUP_MACRO_STEPS = 64;
 
 /** Accumulator slack so exact multiples of dt are not lost to floating-point division. */
 const ACCUMULATOR_EPSILON = 1e-9;
@@ -259,10 +259,10 @@ export function pauseRuntime(runtime: ElectrostaticRuntime, reason: AutoPauseRea
 }
 
 /**
- * Pure fixed-clock transition. The browser supplies only wall-clock elapsed seconds since its
- * previous tick; the model converts owed time into 0..16 whole macro steps and carries the rest.
- * A catch-up backlog above `MAX_CATCHUP_MACRO_STEPS`, or a non-finite / negative elapsed time,
- * auto-pauses as behind-realtime without executing any step.
+ * Pure fixed-clock transition (D-08). The browser supplies only wall-clock elapsed seconds since
+ * its previous tick. due = floor((accumulator + elapsed) / dt): due ≤ 64 executes all due macro
+ * steps and keeps only the sub-step remainder; due > 64, or a non-finite / negative elapsed time,
+ * auto-pauses as behind-realtime with zero steps, unchanged particle state and accumulator 0.
  */
 export function advancePlayback(
   setup: ElectrostaticSetup,
@@ -274,11 +274,10 @@ export function advancePlayback(
   const dt = setup.integrator.dt_s;
   const owed = runtime.accumulator_s + elapsed_s;
   const due = Math.floor(owed / dt + ACCUMULATOR_EPSILON);
-  const run = Math.min(due, MAX_CATCHUP_MACRO_STEPS);
-  if (due - run > MAX_CATCHUP_MACRO_STEPS) return pauseRuntime(runtime, "behind-realtime");
-  const next = executeMacroSteps(setup, runtime, run, "running");
+  if (due > MAX_CATCHUP_MACRO_STEPS) return pauseRuntime(runtime, "behind-realtime");
+  const next = executeMacroSteps(setup, runtime, due, "running");
   if (next.status !== "running") return next;
-  return { ...next, accumulator_s: Math.max(0, owed - run * dt) };
+  return { ...next, accumulator_s: Math.max(0, owed - due * dt) };
 }
 
 /** Probe readout: per-source contributions, sum, components, magnitude and direction. */
