@@ -16,9 +16,9 @@ test("registry numbers are unique", () => {
   assert.equal(new Set(numbers).size, numbers.length);
 });
 
-test("registry numbers 01 through 08 are all present", () => {
+test("registry numbers 01 through 09 are all present", () => {
   const numbers = new Set(labRegistry.map((lab) => lab.number));
-  for (let n = 1; n <= 8; n += 1) {
+  for (let n = 1; n <= 9; n += 1) {
     assert.ok(numbers.has(String(n).padStart(2, "0")), `missing number ${n}`);
   }
 });
@@ -43,6 +43,16 @@ test("model 08 is the external kakau-web interference lab", () => {
   assert.equal(model08.implementation.app, "kakau-web");
   assert.equal(model08.implementation.url, "https://kakau.tw/lab/interference");
   assert.equal(model08.status, "published");
+});
+
+test("model 09 is the experimental local electrostatic field route", () => {
+  const model09 = labRegistry.find((lab) => lab.number === "09");
+  assert.ok(model09);
+  assert.equal(model09.id, "electrostatic-field");
+  assert.equal(model09.implementation.app, "kakau-lab");
+  assert.equal(model09.implementation.route, "/electrostatic-field");
+  assert.equal(model09.status, "experimental");
+  assert.equal(publishedLabs().includes(model09), false);
 });
 
 test("every manifest carries the required fields", () => {

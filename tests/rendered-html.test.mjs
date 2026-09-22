@@ -84,6 +84,36 @@ test("server-renders the model explanation page", async () => {
   assert.match(html, /返回模型/);
 });
 
+test("server-renders the experimental electrostatic sandbox shell", async () => {
+  const response = await render("/electrostatic-field");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<title>靜電場工作室｜Kakau Lab<\/title>/);
+  assert.match(html, /靜電場工作室/);
+  assert.match(html, /Sandbox 設定/);
+  assert.match(html, /探針讀值/);
+  assert.match(html, /場強圖例/);
+  assert.match(html, /schema v1/);
+  assert.doesNotMatch(html, /播放|單步|Activity A|等位線|電位/);
+});
+
+test("keeps electrostatic rendering model-owned and free of duplicated Coulomb physics", async () => {
+  const [science, model, renderer, view] = await Promise.all([
+    readFile(new URL("../lib/science/electrostatics/field.ts", import.meta.url), "utf8"),
+    readFile(new URL("../models/electrostatic.ts", import.meta.url), "utf8"),
+    readFile(new URL("../components/electrostatic/render.ts", import.meta.url), "utf8"),
+    readFile(new URL("../components/ElectrostaticFieldLab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(science, /export function fieldAt/);
+  assert.doesNotMatch(science, /react|document|canvas|three/i);
+  assert.match(model, /probeReadout/);
+  assert.doesNotMatch(model, /from "react"|CanvasRenderingContext2D|from "three/);
+  assert.doesNotMatch(renderer, /COULOMB_K|q_C \/|Math\.pow\(|fieldAt\(/);
+  assert.doesNotMatch(renderer, /@\/lib\/render|from "three/);
+  assert.match(view, /applySetupEdit/);
+  assert.doesNotMatch(view, /COULOMB_K|8\.987/);
+});
+
 test("keeps science calculations separate from the Three.js view", async () => {
   const [science, model, view, geocentric, packageJson] = await Promise.all([
     readFile(new URL("../lib/science/solar.ts", import.meta.url), "utf8"),

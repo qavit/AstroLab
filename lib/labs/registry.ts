@@ -191,6 +191,20 @@ export const labRegistry: readonly LabManifest[] = [
     status: "published",
     presentation: { tone: "interference", icon: "waves" },
   },
+  {
+    id: "electrostatic-field",
+    number: "09",
+    title: "靜電場工作室",
+    subject: "physics",
+    description: "建立固定點電荷配置，以向量場與空間探針檢驗電場疊加。",
+    topics: ["庫侖定律", "向量疊加", "電場探針"],
+    concepts: ["electric-field", "vector-superposition", "source-core"],
+    representations: ["vector-field", "spatial-probe", "per-source-contributions"],
+    level: ["high-school"],
+    implementation: { app: "kakau-lab", route: "/electrostatic-field" },
+    status: "experimental",
+    presentation: { tone: "electrostatic", icon: "zap" },
+  },
 ];
 
 export function publishedLabs(registry: readonly LabManifest[] = labRegistry): readonly LabManifest[] {
