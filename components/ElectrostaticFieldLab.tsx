@@ -8,6 +8,7 @@ import FieldLegend from "./electrostatic/FieldLegend";
 import ParticleControls from "./electrostatic/ParticleControls";
 import ParticlePanel from "./electrostatic/ParticlePanel";
 import TimeControls from "./electrostatic/TimeControls";
+import GuidedActivities from "./electrostatic/GuidedActivities";
 import ProbePanel from "./electrostatic/ProbePanel";
 import type { DraggableObject } from "./electrostatic/AccessibleObjects";
 import type { SelectedObject } from "./electrostatic/render";
@@ -26,6 +27,22 @@ import {
   type ElectrostaticSetup,
   type PresetId,
 } from "../models/electrostatic.ts";
+import {
+  ACTIVITY_SETUPS,
+  activitySetup,
+  advance,
+  commitChange,
+  commitDirection,
+  commitVelocity,
+  comparisonStage,
+  evidencePolicy,
+  explainA,
+  explainB,
+  revealNext,
+  startActivity,
+  type ActivityId,
+  type LearningState,
+} from "../models/electrostatic-learning.ts";
 
 interface ElectrostaticFieldLabProps {
   readonly initialShare: string | null;
@@ -41,6 +58,8 @@ const ADD_SOURCE_POSITIONS: readonly Vec2[] = [
 function firstIssueMessage(issues: readonly { message: string }[]): string {
   return issues[0]?.message ?? "設定未通過驗證；已保留上一個有效狀態。";
 }
+
+const DEFAULT_SANDBOX_PRESET: PresetId = "single-positive";
 
 function clonePreset(id: PresetId): ElectrostaticSetup {
   return structuredClone(ELECTROSTATIC_PRESETS[id]);
@@ -78,12 +97,23 @@ function isInteractive(target: EventTarget | null): boolean {
 export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFieldLabProps) {
   const shellRef = useRef<HTMLElement>(null);
   const initial = useMemo(() => initialStateFromShare(initialShare), [initialShare]);
-  const [lab, setLab] = useState<LabState>(() => ({ setup: initial.setup, runtime: initialRuntime(initial.setup) }));
+  // D-05 + D-07: no `s` → guided Activity A; any `s` (valid or failed-closed) → sandbox semantics.
+  const [learning, setLearning] = useState<LearningState | null>(() => (initialShare ? null : startActivity("A")));
+  const [focusToken, setFocusToken] = useState(0);
+  const [lab, setLab] = useState<LabState>(() => {
+    const first = initialShare ? initial.setup : activitySetup(startActivity("A"));
+    return { setup: first, runtime: initialRuntime(first) };
+  });
+  const policy = evidencePolicy(learning);
+  const policyRef = useRef(policy);
+  useEffect(() => {
+    policyRef.current = policy;
+  }, [policy]);
   const labRef = useRef<LabState>(lab);
   const { setup, runtime } = lab;
   const [announcement, setAnnouncement] = useState("");
   const [baseline, setBaseline] = useState<ElectrostaticSetup>(initial.setup);
-  const [selected, setSelected] = useState<SelectedObject>(() => ({ kind: "source", id: initial.setup.sources[0].id }));
+  const [selected, setSelected] = useState<SelectedObject>(() => (initialShare ? { kind: "source", id: initial.setup.sources[0].id } : null));
   const [notice, setNotice] = useState<string | null>(() => initial.error ?? (initial.issues[0]?.message ?? null));
   const [shareStatus, setShareStatus] = useState<string | null>(null);
 
@@ -135,6 +165,10 @@ export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFie
 
   const moveObject = (target: DraggableObject, point: Vec2) => {
     const setup = labRef.current.setup;
+    const gate = policyRef.current;
+    if (target.kind === "source" && !gate.sourcesMovable) return;
+    if (target.kind === "probe" && !gate.probeMovable) return;
+    if (target.kind === "particle" && !gate.setupControls) return;
     if (target.kind === "particle") {
       commitCandidate({ ...setup, testParticle: { ...setup.testParticle, x_m: point.x, y_m: point.y }, presetId: null });
       return;
@@ -251,6 +285,7 @@ export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFie
 
   const pauseForDrag = (target: DraggableObject) => {
     if (target.kind === "probe") return;
+    if (target.kind === "source" && !policyRef.current.sourcesMovable) return;
     updateRuntime(({ runtime }) => pauseRuntime(runtime));
   };
 
@@ -282,10 +317,11 @@ export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFie
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.key === " " && !isInteractive(event.target)) {
+      const clockAllowed = policyRef.current.timeControls;
+      if (event.key === " " && clockAllowed && !isInteractive(event.target)) {
         event.preventDefault();
         togglePlay();
-      } else if (event.key === "." && !isTextEntry(event.target)) {
+      } else if (event.key === "." && clockAllowed && !isTextEntry(event.target)) {
         event.preventDefault();
         stepOnce();
       } else if (event.key === "Escape" && !isInteractive(event.target)) {
@@ -298,6 +334,59 @@ export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFie
 
   // Stop, error and auto-pause messages take priority; user actions announce otherwise.
   const clockMessage = stopAnnouncement(runtime);
+
+  /** Atomic activity (re)load: pause, canonical setup, fresh runtime, fresh learning state. */
+  const loadLearning = (next: LearningState, focus: boolean) => {
+    const target = structuredClone(activitySetup(next));
+    commitLab({ setup: target, runtime: initialRuntime(target) });
+    setLearning(next);
+    setSelected(null);
+    setNotice(null);
+    setShareStatus(null);
+    if (focus) setFocusToken((token) => token + 1);
+  };
+
+  const enterActivity = (activity: ActivityId) => {
+    loadLearning(startActivity(activity), true);
+    setAnnouncement(`已開始 Activity ${activity}；模擬已重設。`);
+  };
+
+  /** Learning transitions; a step that needs a different canonical setup loads it atomically. */
+  const transition = (next: LearningState, message: string) => {
+    if (learning === null || next === learning) return;
+    if (activitySetup(next) !== activitySetup(learning)) loadLearning(next, true);
+    else {
+      setLearning(next);
+      setFocusToken((token) => token + 1);
+    }
+    setAnnouncement(message);
+  };
+
+  const exploreSandbox = (keepSetup: boolean) => {
+    updateRuntime(({ runtime }) => pauseRuntime(runtime));
+    if (!keepSetup) {
+      const fresh = clonePreset(DEFAULT_SANDBOX_PRESET);
+      commitLab({ setup: fresh, runtime: initialRuntime(fresh) });
+      setBaseline(fresh);
+    } else {
+      setBaseline(labRef.current.setup);
+    }
+    setLearning(null);
+    setSelected({ kind: "source", id: labRef.current.setup.sources[0].id });
+    setAnnouncement("已進入 sandbox：全部儀器與讀值已開放。");
+  };
+
+  const setGuidedSourceMagnitude = (id: string, magnitude_nC: number) => {
+    if (policyRef.current.sourceMagnitudeId !== id) return;
+    const current = labRef.current.setup;
+    commitCandidate({
+      ...current,
+      sources: current.sources.map((source) => source.id === id ? { ...source, q_C: Math.sign(source.q_C) * (magnitude_nC / 1e9) } : source),
+      presetId: null,
+    });
+  };
+
+  const comparison = learning ? comparisonStage(learning) : null;
 
   const shareSetup = async () => {
     const result = createShareUrl(setup, window.location.href);
@@ -317,14 +406,28 @@ export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFie
   };
 
   return (
-    <main ref={shellRef} className={styles.labShell} data-testid="electrostatic-lab" data-source-count={setup.sources.length}>
+    <main
+      ref={shellRef}
+      className={styles.labShell}
+      data-testid="electrostatic-lab"
+      data-source-count={setup.sources.length}
+      data-mode={learning ? "guided" : "sandbox"}
+      data-activity={learning?.activity ?? ""}
+    >
       <header className={styles.header}>
         <div>
           <p className={styles.eyebrow}>MODEL 09 · EXPERIMENTAL</p>
           <h1>靜電場工作室</h1>
           <p className={styles.subtitle}>建立來源、觀察全域場，再用 probe 拆解每一個向量貢獻。</p>
         </div>
-        <Link href="/" className={styles.catalogLink}>返回模型目錄</Link>
+        <div className={styles.headerActions}>
+          {learning ? (
+            <button type="button" className={styles.catalogLink} onClick={() => exploreSandbox(false)} data-testid="direct-explore">直接探索（sandbox）</button>
+          ) : (
+            <button type="button" className={styles.catalogLink} onClick={() => enterActivity("A")} data-testid="enter-guided">引導活動</button>
+          )}
+          <Link href="/" className={styles.catalogLink}>返回模型目錄</Link>
+        </div>
       </header>
 
       {notice ? <div className={styles.notice} role="status" data-testid="setup-notice">{notice}</div> : null}
@@ -339,6 +442,7 @@ export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFie
           <FieldCanvas
             setup={setup}
             runtime={runtime}
+            policy={policy}
             selected={selected}
             onSelect={setSelected}
             onMove={moveObject}
@@ -346,8 +450,28 @@ export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFie
           />
         </section>
 
-        <aside className={styles.sidePanel} aria-label="Sandbox 控制與證據">
-          <Controls
+        <aside className={styles.sidePanel} aria-label={learning ? "引導活動" : "Sandbox 控制與證據"}>
+          {learning ? (
+            <GuidedActivities
+              learning={learning}
+              setup={setup}
+              runtime={runtime}
+              comparisonSetup={comparison ? ACTIVITY_SETUPS[comparison] : null}
+              focusToken={focusToken}
+              onCommitDirection={(p) => transition(commitDirection(learning, p), "預測已送出；開始顯示證據。")}
+              onCommitChange={(p) => transition(commitChange(learning, p), "預測已送出；E、F、a 證據已顯示。")}
+              onCommitVelocity={(p) => transition(commitVelocity(learning, p), "預測已送出；可以單步或播放觀察。")}
+              onReveal={() => transition(revealNext(learning), "已顯示下一層證據。")}
+              onAdvance={() => transition(advance(learning), "進入下一步。")}
+              onExplainA={(e) => transition(explainA(learning, e), "說明已送出；Transfer 已載入新設定。")}
+              onExplainB={(e) => transition(explainB(learning, e), "說明已送出；Transfer 已載入新設定。")}
+              onSwitch={enterActivity}
+              onRestart={() => enterActivity(learning.activity)}
+              onExplore={() => exploreSandbox(true)}
+              onShare={shareSetup}
+              onSourceMagnitude={setGuidedSourceMagnitude}
+            />
+          ) : <Controls
             setup={setup}
             selected={selected}
             onSelect={setSelected}
@@ -368,8 +492,10 @@ export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFie
               onEdit={editParticle}
               onToggleSign={toggleParticleSign}
             />
-          </Controls>
-          <TimeControls runtime={runtime} onTogglePlay={togglePlay} onStep={stepOnce} onResetRuntime={resetRuntime} />
+          </Controls>}
+          {policy.timeControls
+            ? <TimeControls runtime={runtime} onTogglePlay={togglePlay} onStep={stepOnce} onResetRuntime={resetRuntime} />
+            : null}
         </aside>
       </div>
 
@@ -377,12 +503,12 @@ export default function ElectrostaticFieldLab({ initialShare }: ElectrostaticFie
       <p className={styles.srOnly} role="status" aria-live="polite" data-testid="clock-announcer">{clockMessage ?? announcement}</p>
 
       <div className={styles.evidenceGrid}>
-        <ParticlePanel setup={setup} runtime={runtime} />
-        <ProbePanel setup={setup} />
+        {policy.particle ? <ParticlePanel setup={setup} runtime={runtime} policy={policy} /> : null}
+        {policy.probe ? <ProbePanel setup={setup} policy={policy} /> : null}
         <FieldLegend />
       </div>
       <footer className={styles.footer}>
-        <span>Canonical SI · schema v1 · sandbox semantics</span>
+        <span>Canonical SI · schema v1 · {learning ? "guided session（不進網址）" : "sandbox semantics"}</span>
         <span>Point-charge model valid only outside each 0.12 m source core</span>
       </footer>
     </main>

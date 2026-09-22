@@ -1,10 +1,12 @@
 import { particleReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
+import { SANDBOX_POLICY, type EvidencePolicy } from "../../models/electrostatic-learning.ts";
 import { formatValue } from "./ProbePanel";
 import styles from "./ElectrostaticFieldLab.module.css";
 
 interface ParticlePanelProps {
   readonly setup: ElectrostaticSetup;
   readonly runtime: ElectrostaticRuntime;
+  readonly policy?: EvidencePolicy;
 }
 
 function vectorRow(label: string, unit: string, x: number, y: number, testId: string) {
@@ -25,8 +27,9 @@ const INVALID_TEXT: Record<string, string> = {
   "no-sources": "沒有來源電荷；不顯示 E／F／a。",
 };
 
-export default function ParticlePanel({ setup, runtime }: ParticlePanelProps) {
+export default function ParticlePanel({ setup, runtime, policy = SANDBOX_POLICY }: ParticlePanelProps) {
   const readout = particleReadout(setup, runtime);
+  const anyEvidence = policy.particleField || policy.particleForce || policy.particleAcceleration;
   const { particle } = runtime;
   return (
     <section
@@ -58,15 +61,18 @@ export default function ParticlePanel({ setup, runtime }: ParticlePanelProps) {
             {vectorRow("v", "m/s", particle.vx_mps, particle.vy_mps, "particle-velocity")}
             {readout.valid ? (
               <>
-                {vectorRow("E", "N/C", readout.field.x, readout.field.y, "particle-field")}
-                {vectorRow("F", "N", readout.force_N.x, readout.force_N.y, "particle-force")}
-                {vectorRow("a", "m/s²", readout.acceleration_mps2.x, readout.acceleration_mps2.y, "particle-acceleration")}
+                {policy.particleField ? vectorRow("E", "N/C", readout.field.x, readout.field.y, "particle-field") : null}
+                {policy.particleForce ? vectorRow("F", "N", readout.force_N.x, readout.force_N.y, "particle-force") : null}
+                {policy.particleAcceleration
+                  ? vectorRow("a", "m/s²", readout.acceleration_mps2.x, readout.acceleration_mps2.y, "particle-acceleration")
+                  : null}
               </>
             ) : null}
           </tbody>
         </table>
       </div>
-      {!readout.valid ? (
+      {!anyEvidence ? <p className={styles.helperText} data-testid="particle-gated">先送出你的預測，才會顯示 E、F、a。</p> : null}
+      {anyEvidence && !readout.valid ? (
         <div className={styles.invalidReadout} data-testid="particle-readout-invalid">
           <strong>E／F／a 未定義</strong>
           <span>{INVALID_TEXT[readout.reason] ?? "模型在此位置未定義。"}</span>

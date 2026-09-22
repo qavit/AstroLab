@@ -4,6 +4,7 @@ import { expect, test } from "@playwright/test";
 test("@a11y electrostatic sandbox has no serious or critical axe violations", async ({ page }) => {
   await page.goto("/electrostatic-field");
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  await page.getByTestId("direct-explore").click();
   const results = await new AxeBuilder({ page }).analyze();
   const blocking = results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
   expect(blocking, blocking.map((violation) => `${violation.id}: ${violation.help}`).join("\n")).toEqual([]);
@@ -16,6 +17,7 @@ test("@a11y running and stopped particle states have no serious or critical axe 
   await page.clock.install();
   await page.goto("/electrostatic-field");
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  await page.getByTestId("direct-explore").click();
   await page.getByTestId("play-toggle").click();
   await page.clock.runFor(300);
   const scan = async () => {

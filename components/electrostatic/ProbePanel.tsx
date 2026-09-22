@@ -1,4 +1,5 @@
 import { probeReadout, type ElectrostaticSetup } from "../../models/electrostatic.ts";
+import { SANDBOX_POLICY, type EvidencePolicy } from "../../models/electrostatic-learning.ts";
 import styles from "./ElectrostaticFieldLab.module.css";
 
 export function formatValue(value: number, unit = ""): string {
@@ -10,12 +11,35 @@ export function formatValue(value: number, unit = ""): string {
 
 interface ProbePanelProps {
   readonly setup: ElectrostaticSetup;
+  readonly policy?: EvidencePolicy;
 }
 
-export default function ProbePanel({ setup }: ProbePanelProps) {
+function GatedProbePanel({ setup }: { readonly setup: ElectrostaticSetup }) {
+  return (
+    <section className={styles.probePanel} aria-labelledby="probe-panel-title" data-testid="probe-panel" data-probe-state="gated">
+      <div className={styles.sectionHeading}>
+        <p>MODEL-DERIVED EVIDENCE</p>
+        <h2 id="probe-panel-title">探針讀值</h2>
+      </div>
+      <p className={styles.probePosition} data-testid="probe-position">
+        x = {setup.probe.x_m.toFixed(3)} m　y = {setup.probe.y_m.toFixed(3)} m
+      </p>
+      <p className={styles.helperText} data-testid="probe-gated">先送出你的預測，才會逐步顯示探針證據。</p>
+    </section>
+  );
+}
+
+/**
+ * Probe evidence. Gated layers are not rendered at all (no hidden DOM, no data attributes), so
+ * nothing leaks to the accessibility tree before the learner commits.
+ */
+export default function ProbePanel({ setup, policy = SANDBOX_POLICY }: ProbePanelProps) {
+  if (!policy.probeContributions) return <GatedProbePanel setup={setup} />;
+  const showTotal = policy.probeTotal;
+  const showComponents = policy.probeComponents;
   const readout = probeReadout(setup);
   const sourceById = new Map(setup.sources.map((source) => [source.id, source]));
-  const state = !readout.valid ? "invalid-core" : readout.isZero ? "zero" : "valid";
+  const state = !readout.valid ? "invalid-core" : !showTotal ? "contributions" : readout.isZero ? "zero" : "valid";
   return (
     <section className={styles.probePanel} aria-labelledby="probe-panel-title" data-testid="probe-panel" data-probe-state={state}>
       <div className={styles.sectionHeading}>
@@ -35,7 +59,11 @@ export default function ProbePanel({ setup }: ProbePanelProps) {
           <div className={styles.tableWrap}>
             <table className={styles.probeTable}>
               <caption>各來源對探針位置的電場貢獻</caption>
-              <thead><tr><th scope="col">來源</th><th scope="col">q</th><th scope="col">Eₓ</th><th scope="col">Eᵧ</th><th scope="col">|E|</th></tr></thead>
+              <thead><tr>
+                <th scope="col">來源</th><th scope="col">q</th>
+                {showComponents ? <><th scope="col">Eₓ</th><th scope="col">Eᵧ</th></> : null}
+                <th scope="col">|E|</th>
+              </tr></thead>
               <tbody>
                 {readout.contributions.map((item) => {
                   const source = sourceById.get(item.sourceId);
@@ -43,28 +71,29 @@ export default function ProbePanel({ setup }: ProbePanelProps) {
                     <tr key={item.sourceId} data-testid={`contribution-${item.sourceId}`}>
                       <th scope="row">{item.sourceId}</th>
                       <td>{source ? formatValue(source.q_C / 1e-9, "nC") : "—"}</td>
-                      <td>{formatValue(item.Ex_N_per_C)}</td>
-                      <td>{formatValue(item.Ey_N_per_C)}</td>
+                      {showComponents ? <><td>{formatValue(item.Ex_N_per_C)}</td><td>{formatValue(item.Ey_N_per_C)}</td></> : null}
                       <td>{formatValue(item.magnitude_N_per_C)}</td>
                     </tr>
                   );
                 })}
               </tbody>
-              <tfoot>
+              {showTotal ? <tfoot>
                 <tr data-testid="total-field-row">
                   <th scope="row">合場</th><td>—</td>
-                  <td data-testid="total-ex">{formatValue(readout.Ex_N_per_C)}</td>
-                  <td data-testid="total-ey">{formatValue(readout.Ey_N_per_C)}</td>
+                  {showComponents ? <>
+                    <td data-testid="total-ex">{formatValue(readout.Ex_N_per_C)}</td>
+                    <td data-testid="total-ey">{formatValue(readout.Ey_N_per_C)}</td>
+                  </> : null}
                   <td data-testid="total-magnitude">{formatValue(readout.magnitude_N_per_C)}</td>
                 </tr>
-              </tfoot>
+              </tfoot> : null}
             </table>
           </div>
-          <dl className={styles.totalReadout}>
+          {showComponents ? <dl className={styles.totalReadout}>
             <div><dt>單位</dt><dd>N/C</dd></div>
             <div><dt>方向</dt><dd data-testid="total-direction">{readout.direction_rad === null ? "未定義（零場）" : `${(readout.direction_rad * 180 / Math.PI).toFixed(2)}°`}</dd></div>
             <div><dt>zero tolerance</dt><dd>{formatValue(readout.zeroTolerance_N_per_C, "N/C")}</dd></div>
-          </dl>
+          </dl> : null}
         </>
       )}
     </section>

@@ -29,6 +29,8 @@ interface AccessibleObjectsProps {
   /** A pointer gesture begins on an object (sources and the particle pause playback). */
   readonly onDragStart: (target: DraggableObject) => void;
   readonly particle: ParticleHandle;
+  readonly showProbe: boolean;
+  readonly showParticle: boolean;
 }
 
 function labelSource(source: SourceCharge): string {
@@ -36,13 +38,18 @@ function labelSource(source: SourceCharge): string {
   return `來源電荷 ${source.id}，${sign} ${Math.abs(source.q_C / 1e-9).toPrecision(3)} nC，x ${source.x_m.toFixed(2)} m，y ${source.y_m.toFixed(2)} m`;
 }
 
+const PROBE = { kind: "probe" } as const;
+const PARTICLE = { kind: "particle" } as const;
+
 function labelParticle(particle: ParticleHandle): string {
   const sign = particle.q_C > 0 ? "正" : "負";
   return `測試粒子初始位置，${sign} ${Math.abs(particle.q_C * 1e9).toPrecision(3)} nC，${(particle.mass_kg * 1e9).toPrecision(3)} µg，x ${particle.initial.x.toFixed(2)} m，y ${particle.initial.y.toFixed(2)} m；移動會重設模擬`;
 }
 
-export default function AccessibleObjects({ camera, sources, probe, selected, onSelect, onMove, onDragStart, particle }: AccessibleObjectsProps) {
+export default function AccessibleObjects({ camera, sources, probe, selected, onSelect, onMove, onDragStart, particle, showProbe, showParticle }: AccessibleObjectsProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const probePoint = worldToScreen(probe, camera);
+  const particlePoint = worldToScreen(particle.initial, camera);
 
   const pointerDown = (target: DraggableObject) => (event: PointerEvent<SVGGElement>) => {
     event.preventDefault();
@@ -109,50 +116,40 @@ export default function AccessibleObjects({ camera, sources, probe, selected, on
           </g>
         );
       })}
-      {(() => {
-        const point = worldToScreen(probe, camera);
-        const target = { kind: "probe" } as const;
-        const active = selected?.kind === "probe";
-        return (
-          <g
-            role="button"
-            tabIndex={0}
-            aria-label={`電場探針，x ${probe.x.toFixed(2)} m，y ${probe.y.toFixed(2)} m`}
-            aria-pressed={active}
-            data-testid="probe-handle"
-            className={styles.objectHandle}
-            transform={`translate(${point.x} ${point.y})`}
-            onPointerDown={pointerDown(target)}
-            onPointerMove={(event) => pointerMove(target, event)}
-            onKeyDown={keyMove(target, probe)}
-          >
-            <circle className={styles.hitTarget} r="22" />
-            <rect className={active ? styles.focusRingActive : styles.focusRing} x="-17" y="-17" width="34" height="34" rx="7" />
-          </g>
-        );
-      })()}
-      {(() => {
-        const point = worldToScreen(particle.initial, camera);
-        const target = { kind: "particle" } as const;
-        const active = selected?.kind === "particle";
-        return (
-          <g
-            role="button"
-            tabIndex={0}
-            aria-label={labelParticle(particle)}
-            aria-pressed={active}
-            data-testid="particle-handle"
-            className={styles.objectHandle}
-            transform={`translate(${point.x} ${point.y})`}
-            onPointerDown={pointerDown(target)}
-            onPointerMove={(event) => pointerMove(target, event)}
-            onKeyDown={keyMove(target, particle.initial)}
-          >
-            <circle className={styles.hitTarget} r="22" />
-            <circle className={active ? styles.focusRingActive : styles.focusRing} r="15" strokeDasharray="4 3" />
-          </g>
-        );
-      })()}
+      {showProbe ? (
+        <g
+          role="button"
+          tabIndex={0}
+          aria-label={`電場探針，x ${probe.x.toFixed(2)} m，y ${probe.y.toFixed(2)} m`}
+          aria-pressed={selected?.kind === "probe"}
+          data-testid="probe-handle"
+          className={styles.objectHandle}
+          transform={`translate(${probePoint.x} ${probePoint.y})`}
+          onPointerDown={pointerDown(PROBE)}
+          onPointerMove={(event) => pointerMove(PROBE, event)}
+          onKeyDown={keyMove(PROBE, probe)}
+        >
+          <circle className={styles.hitTarget} r="22" />
+          <rect className={selected?.kind === "probe" ? styles.focusRingActive : styles.focusRing} x="-17" y="-17" width="34" height="34" rx="7" />
+        </g>
+      ) : null}
+      {showParticle ? (
+        <g
+          role="button"
+          tabIndex={0}
+          aria-label={labelParticle(particle)}
+          aria-pressed={selected?.kind === "particle"}
+          data-testid="particle-handle"
+          className={styles.objectHandle}
+          transform={`translate(${particlePoint.x} ${particlePoint.y})`}
+          onPointerDown={pointerDown(PARTICLE)}
+          onPointerMove={(event) => pointerMove(PARTICLE, event)}
+          onKeyDown={keyMove(PARTICLE, particle.initial)}
+        >
+          <circle className={styles.hitTarget} r="22" />
+          <circle className={selected?.kind === "particle" ? styles.focusRingActive : styles.focusRing} r="15" strokeDasharray="4 3" />
+        </g>
+      ) : null}
     </svg>
   );
 }

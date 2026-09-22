@@ -27,6 +27,15 @@ export interface ParticleGlyph {
   /** Interleaved world x, y of accepted states. */
   readonly trail: Float64Array;
   readonly trailCount: number;
+  /** Trajectory is evidence; guided steps may hide it. */
+  readonly showTrail: boolean;
+}
+
+/** What the dynamic layer may draw; answer gating is decided upstream by the learning policy. */
+export interface DynamicLayerOptions {
+  readonly showProbe: boolean;
+  /** Draw the probe's zero-field marker (only once the total is revealed and the model says zero). */
+  readonly probeZero: boolean;
 }
 
 const FIELD_BACKGROUND = "#071a27";
@@ -240,10 +249,15 @@ export function drawDynamicField(
   probeVectors: readonly ProbeVectorGlyph[],
   selected: SelectedObject,
   particle: ParticleGlyph | null = null,
+  options: DynamicLayerOptions = { showProbe: true, probeZero: false },
 ): void {
-  if (particle) drawTrail(context, camera, particle);
+  if (particle?.showTrail) drawTrail(context, camera, particle);
   for (const source of sources) {
     drawSource(context, source, camera, selected?.kind === "source" && selected.id === source.id);
+  }
+  if (!options.showProbe) {
+    if (particle) drawParticle(context, camera, particle, selected?.kind === "particle");
+    return;
   }
   const probePoint = worldToScreen(probe, camera);
   for (const vector of probeVectors) {

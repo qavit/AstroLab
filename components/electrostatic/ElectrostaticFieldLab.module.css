@@ -152,6 +152,26 @@
 .footer { display: flex; justify-content: space-between; gap: 15px; margin-top: 15px; padding-top: 12px; border-top: 1px solid #cbd8dd; color: #6b838e; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
+.headerActions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.headerActions button { cursor: pointer; font: inherit; }
+.guidedPanel { padding: 16px; }
+.guidedPanel button,
+.guidedPanel input { min-height: 44px; }
+.guidedPanel button:focus-visible,
+.guidedPanel input:focus-visible { outline: 3px solid #d9a735; outline-offset: 2px; }
+.guidedPanel button:disabled { cursor: not-allowed; opacity: .48; }
+.activityTabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+.guidedHeading { margin: 0 0 10px; font: 500 19px Georgia, "Noto Serif TC", serif; }
+.guidedHeading:focus-visible { outline: 3px solid #d9a735; outline-offset: 3px; }
+.guidedForm { display: grid; gap: 10px; margin-bottom: 12px; }
+.guidedPrompt { margin: 0; line-height: 1.6; }
+.guidedVerdict { margin: 0; padding: 10px; border-left: 3px solid #246b82; background: #eef6f8; line-height: 1.55; }
+.choiceGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 6px; }
+.choice { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px; border: 1px solid #d3dfe3; border-radius: 7px; cursor: pointer; }
+.choice:has(input:checked) { border-color: #246b82; background: #dceef2; }
+.choice input { min-height: 0; width: 18px; height: 18px; }
+.revealList { margin: 0; padding-left: 20px; line-height: 1.7; }
+
 .timeControls { margin-top: 12px; padding: 16px; border: 1px solid #c9d7da; border-radius: 10px; background: #ffffff; }
 .timeButtons { display: flex; flex-wrap: wrap; gap: 8px; }
 .timeButtons button { min-height: 44px; min-width: 44px; }

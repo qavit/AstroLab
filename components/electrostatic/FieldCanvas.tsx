@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { normalizedStrength, sampleFieldGrid } from "../../lib/science/electrostatics/sampling.ts";
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
 import { probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
+import type { EvidencePolicy } from "../../models/electrostatic-learning.ts";
 import AccessibleObjects, { type DraggableObject } from "./AccessibleObjects";
 import {
   drawDynamicField,
@@ -19,13 +20,17 @@ import styles from "./ElectrostaticFieldLab.module.css";
 interface FieldCanvasProps {
   readonly setup: ElectrostaticSetup;
   readonly runtime: ElectrostaticRuntime;
+  /** Learning visibility policy; gated evidence is never computed into draw inputs. */
+  readonly policy: EvidencePolicy;
   readonly onDragStart: (target: DraggableObject) => void;
   readonly selected: SelectedObject;
   readonly onSelect: (target: SelectedObject) => void;
   readonly onMove: (target: DraggableObject, point: Vec2) => void;
 }
 
-export default function FieldCanvas({ setup, runtime, selected, onSelect, onMove, onDragStart }: FieldCanvasProps) {
+const HIDDEN_GRID = { ok: false, reason: "no-sources" } as const;
+
+export default function FieldCanvas({ setup, runtime, policy, selected, onSelect, onMove, onDragStart }: FieldCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -47,7 +52,8 @@ export default function FieldCanvas({ setup, runtime, selected, onSelect, onMove
 
   const camera = useMemo(() => fitCamera(setup.domain, size), [setup.domain, size]);
   const dimensions = size.width < 600 ? { cols: 24, rows: 18 } : { cols: 40, rows: 30 };
-  const grid = useMemo(() => (
+  const showField = policy.globalField;
+  const grid = useMemo(() => (!showField ? HIDDEN_GRID :
     sampleFieldGrid(
       setup.sources,
       setup.domain,
@@ -56,10 +62,12 @@ export default function FieldCanvas({ setup, runtime, selected, onSelect, onMove
       setup.singularity.rCore_m,
       setup.fieldStyle,
     )
-  ), [setup.sources, setup.domain, setup.singularity, setup.fieldStyle, dimensions.cols, dimensions.rows]);
+  ), [showField, setup.sources, setup.domain, setup.singularity, setup.fieldStyle, dimensions.cols, dimensions.rows]);
   const probe = useMemo(() => probeReadout(setup), [setup]);
+  const { probe: showProbe, probeContributions, probeTotal } = policy;
+  const probeZero = showProbe && probeTotal && probe.valid && probe.isZero;
   const probeVectors: readonly ProbeVectorGlyph[] = useMemo(() => {
-    if (!probe.valid || probe.isZero) return [];
+    if (!showProbe || !probeContributions || !probe.valid) return [];
     const contributions: ProbeVectorGlyph[] = probe.contributions.map((item) => ({
       sourceId: item.sourceId,
       ux: item.Ex_N_per_C / item.magnitude_N_per_C,
@@ -67,6 +75,7 @@ export default function FieldCanvas({ setup, runtime, selected, onSelect, onMove
       strength: normalizedStrength(item.magnitude_N_per_C, setup.fieldStyle),
       kind: "contribution" as const,
     }));
+    if (!probeTotal || probe.isZero) return contributions;
     contributions.push({
       sourceId: null,
       ux: probe.Ex_N_per_C / probe.magnitude_N_per_C,
@@ -75,7 +84,7 @@ export default function FieldCanvas({ setup, runtime, selected, onSelect, onMove
       kind: "total" as const,
     });
     return contributions;
-  }, [probe, setup.fieldStyle]);
+  }, [probe, setup.fieldStyle, showProbe, probeContributions, probeTotal]);
 
   useEffect(() => {
     const canvas = staticCanvasRef.current;
@@ -92,7 +101,8 @@ export default function FieldCanvas({ setup, runtime, selected, onSelect, onMove
     stopped: runtime.status === "stopped",
     trail: runtime.trail.points,
     trailCount: runtime.trail.count,
-  }), [setup.testParticle, runtime.particle, runtime.status, runtime.trail]);
+    showTrail: policy.trajectory,
+  }), [setup.testParticle, runtime.particle, runtime.status, runtime.trail, policy.trajectory]);
 
   useEffect(() => {
     const canvas = dynamicCanvasRef.current;
@@ -106,10 +116,11 @@ export default function FieldCanvas({ setup, runtime, selected, onSelect, onMove
         { x: setup.probe.x_m, y: setup.probe.y_m },
         probeVectors,
         selected,
-        particleGlyph,
+        policy.particle ? particleGlyph : null,
+        { showProbe, probeZero },
       );
     }
-  }, [camera, particleGlyph, probeVectors, selected, setup.probe.x_m, setup.probe.y_m, setup.sources, size]);
+  }, [showProbe, probeZero, policy.particle, camera, particleGlyph, probeVectors, selected, setup.probe.x_m, setup.probe.y_m, setup.sources, size]);
 
   return (
     <div
@@ -118,7 +129,9 @@ export default function FieldCanvas({ setup, runtime, selected, onSelect, onMove
       data-testid="field-viewport"
       data-grid={`${dimensions.cols}x${dimensions.rows}`}
       data-sample-count={grid.ok ? grid.samples.length : 0}
-      data-trail-count={runtime.trail.count}
+      data-trail-count={policy.trajectory ? runtime.trail.count : 0}
+      data-field-visible={showField ? "true" : "false"}
+      data-probe-vectors={probeVectors.length}
       data-particle-screen={(() => {
         const p = worldToScreen({ x: runtime.particle.x_m, y: runtime.particle.y_m }, camera);
         return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
@@ -134,6 +147,8 @@ export default function FieldCanvas({ setup, runtime, selected, onSelect, onMove
         onSelect={onSelect}
         onMove={onMove}
         onDragStart={onDragStart}
+        showProbe={showProbe}
+        showParticle={policy.particle}
         particle={{ initial: { x: setup.testParticle.x_m, y: setup.testParticle.y_m }, q_C: setup.testParticle.q_C, mass_kg: setup.testParticle.mass_kg }}
       />
       <p className={styles.srOnly} id="field-semantic-summary">
