@@ -84,12 +84,27 @@ test("server-renders the model explanation page", async () => {
   assert.match(html, /返回模型/);
 });
 
-test("server-renders the experimental electrostatic sandbox shell", async () => {
+test("server-renders guided Activity A by default with no target evidence in the HTML", async () => {
   const response = await render("/electrostatic-field");
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /<title>靜電場工作室｜Kakau Lab<\/title>/);
-  assert.match(html, /靜電場工作室/);
+  assert.match(html, /Activity A｜先判斷合場方向/);
+  assert.match(html, /直接探索/);
+  assert.match(html, /data-probe-state="gated"/);
+  assert.match(html, /data-field-visible="false"/);
+  assert.doesNotMatch(html, /data-testid="total-|data-testid="contribution-|data-probe-state="(zero|valid)"/);
+  assert.doesNotMatch(html, /時間控制|測試粒子讀值|Sandbox 設定/);
+  assert.doesNotMatch(html, /等位線|電位/);
+});
+
+test("server-renders a schema-v1 share URL with sandbox semantics", async () => {
+  const { encodeSetup } = await import("../models/electrostatic-serialization.ts");
+  const { ELECTROSTATIC_PRESETS } = await import("../models/electrostatic.ts");
+  const encoded = encodeSetup(ELECTROSTATIC_PRESETS.dipole);
+  const response = await render(`/electrostatic-field?s=${encoded.encoded}`);
+  assert.equal(response.status, 200);
+  const html = await response.text();
   assert.match(html, /Sandbox 設定/);
   assert.match(html, /探針讀值/);
   assert.match(html, /場強圖例/);
@@ -97,7 +112,27 @@ test("server-renders the experimental electrostatic sandbox shell", async () => 
   assert.match(html, /時間控制/);
   assert.match(html, /測試粒子讀值/);
   assert.match(html, /重設粒子／模擬/);
-  assert.doesNotMatch(html, /Activity A|等位線|電位/);
+  assert.doesNotMatch(html, /Activity A｜/);
+});
+
+test("share-parameter presence, not payload validity, decides sandbox vs guided (SSR)", async () => {
+  for (const [label, query] of [["empty", "?s="], ["repeated", "?s=a&s=b"], ["malformed", "?s=not!base64"]]) {
+    const response = await render(`/electrostatic-field${query}`);
+    assert.equal(response.status, 200, label);
+    const html = await response.text();
+    assert.match(html, /Sandbox 設定/, `${label} opens sandbox`);
+    assert.doesNotMatch(html, /Activity A｜|用對稱性做預測/, `${label} must not open guided`);
+    assert.match(html, /已載入安全的單電荷設定/, `${label} warns and fails closed`);
+    assert.match(html, /data-source-count="1"/, `${label} loads the safe preset`);
+  }
+});
+
+test("keeps the learning layer free of physics, rendering and browser APIs", async () => {
+  const learning = await readFile(new URL("../models/electrostatic-learning.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(learning, /COULOMB_K|fieldAt|stepMacro|accelerationFromField|forceFromField|from "react"|document\.|requestAnimationFrame|Canvas/);
+  assert.doesNotMatch(learning, /ActivityEngine|GuidedPhase|UniversalPhase/);
+  const guided = await readFile(new URL("../components/electrostatic/GuidedActivities.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(guided, /COULOMB_K|fieldAt\(|stepMacro|\* *q_C|q_C *\*|mass_kg *\)/);
 });
 
 test("keeps electrostatic rendering model-owned and free of duplicated Coulomb physics", async () => {

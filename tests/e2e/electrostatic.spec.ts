@@ -11,6 +11,9 @@ async function replaceNumber(page: Page, testId: string, value: string) {
 test.beforeEach(async ({ page }) => {
   await page.goto("/electrostatic-field");
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  // M4: a fresh route opens guided Activity A; these sandbox regressions enter sandbox explicitly.
+  await page.getByTestId("direct-explore").click();
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-mode", "sandbox");
 });
 
 test("route loads with semantic Canvas alternative and fixed scale", async ({ page }) => {
@@ -89,6 +92,7 @@ test("share URL reload reconstructs the same canonical physical setup", async ({
 test("share permalink removes non-physical query and fragment state", async ({ page }) => {
   await page.goto("/electrostatic-field?panel=open&utm_source=test#probe");
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  await page.getByTestId("direct-explore").click();
   await replaceNumber(page, "source-magnitude", "4.5");
   await expect(page.getByTestId("select-source-s1")).toContainText("4.50 nC");
   await page.getByTestId("share-setup").click();

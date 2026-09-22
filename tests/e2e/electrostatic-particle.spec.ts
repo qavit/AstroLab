@@ -41,6 +41,7 @@ test.beforeEach(async ({ page }) => {
   await page.clock.install();
   await page.goto("/electrostatic-field");
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  await page.getByTestId("direct-explore").click();
   // Stop natural time flow: only runFor / fastForward advance the page clock from here on.
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
 });
@@ -317,6 +318,7 @@ test.describe("D-08: browser-equivalent 30 Hz cadence", () => {
     });
     await page.goto("/electrostatic-field");
     await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+    await page.getByTestId("direct-explore").click();
     await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   });
 
@@ -329,8 +331,9 @@ test.describe("D-08: browser-equivalent 30 Hz cadence", () => {
     expect(state.status).toBe("running");
     await expect(page.getByTestId("clock-notice")).toHaveCount(0);
     expect(state.t).toBeLessThanOrEqual(wall_s + 1e-9);
-    // Only the not-yet-fired frame's worth (< 2 frames) may be outstanding: no whole-step backlog builds up.
-    expect(wall_s - state.t).toBeLessThan(2 / 30);
-    expect(state.steps).toBeGreaterThan(900);
+    // At most two 30 Hz frames are outstanding (the discarded play baseline frame and the not-yet-fired
+    // frame); no whole-step backlog builds up across the run.
+    expect(wall_s - state.t).toBeLessThanOrEqual(2 / 30 + 1e-6);
+    expect(state.steps).toBe(Math.round(state.t * 960));
   });
 });
