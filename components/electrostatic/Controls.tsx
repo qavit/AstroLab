@@ -125,7 +125,7 @@ export default function Controls(props: ControlsProps) {
       {props.children}
 
       <p id="electrostatic-keyboard-help" className={styles.keyboardHelp}>
-        鍵盤：Tab 選取來源、probe 或測試粒子初始位置；方向鍵移動 0.01 m，Shift＋方向鍵移動 0.10 m；Escape 取消選取。
+        鍵盤：Tab 聚焦來源、probe 或測試粒子初始位置，Enter／Space 選取；方向鍵立即移動 0.01 m，Shift＋方向鍵立即移動 0.10 m。每一次移動都會立即通過驗證並生效；Escape 只清除選取，不會還原已完成的移動。
       </p>
       <div className={styles.primaryActions}>
         <button type="button" onClick={props.onReset} data-testid="reset-setup">重設設定</button>

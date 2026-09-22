@@ -260,6 +260,7 @@ export function drawDynamicField(
     return;
   }
   const probePoint = worldToScreen(probe, camera);
+  if (probeVectors.length > 0) drawProbeHalo(context, probePoint, probeVectors);
   for (const vector of probeVectors) {
     const length = vector.kind === "total" ? 28 + 40 * vector.strength : 18 + 22 * vector.strength;
     drawArrow(
@@ -268,8 +269,8 @@ export function drawDynamicField(
       vector.ux,
       -vector.uy,
       length,
-      vector.kind === "total" ? "#ffffff" : "rgba(180, 213, 222, 0.68)",
-      { outline: vector.kind === "contribution", width: vector.kind === "total" ? 2.5 : 1.25 },
+      vector.kind === "total" ? "#ffffff" : "rgba(196, 226, 235, 0.95)",
+      { outline: vector.kind === "contribution", width: vector.kind === "total" ? 2.8 : 1.7 },
     );
   }
   context.save();
@@ -280,6 +281,27 @@ export function drawDynamicField(
   context.beginPath(); context.arc(0, 0, 8, 0, 2 * Math.PI); context.fill(); context.stroke();
   context.beginPath(); context.moveTo(-12, 0); context.lineTo(12, 0); context.moveTo(0, -12); context.lineTo(0, 12); context.stroke();
   context.restore();  if (particle) drawParticle(context, camera, particle, selected?.kind === "particle");
+}
+
+/**
+ * Screen-space contrast patch so probe evidence reads above the background field glyphs.
+ * Presentation only: it changes no sampled value, no probe readout and no geometry.
+ */
+function drawProbeHalo(context: CanvasRenderingContext2D, centre: Vec2, vectors: readonly ProbeVectorGlyph[]): void {
+  let radius = 34;
+  for (const vector of vectors) {
+    const length = vector.kind === "total" ? 28 + 40 * vector.strength : 18 + 22 * vector.strength;
+    radius = Math.max(radius, length / 2 + 14);
+  }
+  const gradient = context.createRadialGradient(centre.x, centre.y, radius * 0.45, centre.x, centre.y, radius);
+  gradient.addColorStop(0, "rgba(4, 16, 24, 0.86)");
+  gradient.addColorStop(1, "rgba(4, 16, 24, 0)");
+  context.save();
+  context.fillStyle = gradient;
+  context.beginPath();
+  context.arc(centre.x, centre.y, radius, 0, 2 * Math.PI);
+  context.fill();
+  context.restore();
 }
 
 function drawTrail(context: CanvasRenderingContext2D, camera: CameraTransform, particle: ParticleGlyph): void {

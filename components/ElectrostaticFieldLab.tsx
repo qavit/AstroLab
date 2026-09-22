@@ -505,7 +505,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       <div className={styles.evidenceGrid}>
         {policy.particle ? <ParticlePanel setup={setup} runtime={runtime} policy={policy} /> : null}
         {policy.probe ? <ProbePanel setup={setup} policy={policy} /> : null}
-        <FieldLegend />
+        {policy.globalField ? <FieldLegend /> : null}
       </div>
       <footer className={styles.footer}>
         <span>Canonical SI · schema v1 · {learning ? "guided session（不進網址）" : "sandbox semantics"}</span>

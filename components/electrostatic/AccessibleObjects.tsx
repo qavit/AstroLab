@@ -111,7 +111,7 @@ export default function AccessibleObjects({ camera, sources, probe, selected, on
             onPointerMove={(event) => pointerMove(target, event)}
             onKeyDown={keyMove(target, { x: source.x_m, y: source.y_m })}
           >
-            <circle className={styles.hitTarget} r="22" />
+            <circle className={styles.hitTarget} r="23" />
             <circle className={active ? styles.focusRingActive : styles.focusRing} r="18" />
           </g>
         );
@@ -129,7 +129,7 @@ export default function AccessibleObjects({ camera, sources, probe, selected, on
           onPointerMove={(event) => pointerMove(PROBE, event)}
           onKeyDown={keyMove(PROBE, probe)}
         >
-          <circle className={styles.hitTarget} r="22" />
+          <circle className={styles.hitTarget} r="23" />
           <rect className={selected?.kind === "probe" ? styles.focusRingActive : styles.focusRing} x="-17" y="-17" width="34" height="34" rx="7" />
         </g>
       ) : null}
@@ -146,7 +146,7 @@ export default function AccessibleObjects({ camera, sources, probe, selected, on
           onPointerMove={(event) => pointerMove(PARTICLE, event)}
           onKeyDown={keyMove(PARTICLE, particle.initial)}
         >
-          <circle className={styles.hitTarget} r="22" />
+          <circle className={styles.hitTarget} r="23" />
           <circle className={selected?.kind === "particle" ? styles.focusRingActive : styles.focusRing} r="15" strokeDasharray="4 3" />
         </g>
       ) : null}

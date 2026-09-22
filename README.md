@@ -2,7 +2,7 @@
 
 互動式科學模型平台。這個 repo 是 **Kakau Lab** 平台的技術基礎與前身 —— `qavit/AstroLab` 這個名稱是歷史沿革，使用者看到的正式產品名稱是 **Kakau Lab**。Repo 改名是未來可選項，不是本階段（Stage 0）的 blocker。
 
-首個模組「太陽、天球與竿影」把地心天球、觀察者天空、季節日行跡與竿影放在同一份同步狀態中；目前平台共有 8 個互動模型，見 `lib/labs/registry.ts`。
+首個模組「太陽、天球與竿影」把地心天球、觀察者天空、季節日行跡與竿影放在同一份同步狀態中；目前平台共有 8 個已發布的互動模型，見 `lib/labs/registry.ts`；另有 Model 09「靜電場工作室」（`/electrostatic-field`）處於 `experimental` 狀態，尚未列入 catalog、尚未發布。
 
 ## Kakau Lab / Kakau Web 整合邊界
 

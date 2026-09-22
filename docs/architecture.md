@@ -115,6 +115,38 @@ account of the one curve that is not a closed form: why quadratic drag has none,
 scheme and step size are, and how the integrator is calibrated against the exact solution it
 generalizes. It follows the `/about` page's pattern, which until now the solar model alone used.
 
+## The electrostatic-field model
+
+`/electrostatic-field` (catalogue number 09, still `experimental` in the registry) is the
+platform's first model that pairs a spatial field instrument with a deterministic stepped
+particle, and its assumptions are deliberately narrow.
+
+The sources are **ideal point charges at rest in a plane, and the field is the ordinary
+three-dimensional inverse-square Coulomb field sampled on that plane** — not the logarithmic
+potential of genuinely two-dimensional electrostatics. Sources never move in response to anything,
+and the test particle does not back-react on them, so the field is a fixed function of position;
+that is what makes velocity Verlet a legitimate integrator here rather than a convenience.
+
+The point-charge model has no value at a source, and the product says so instead of hiding it.
+Every source carries a 0.12 m **excluded core**: inside it a field query returns a typed invalid
+result, the probe reports that the model is undefined, and a particle whose step would cross into
+the core stops at the first intersection with the event recorded. Nothing is clamped, softened or
+silently displaced. The world boundary works the same way — first intersection, no bounce, no wrap.
+
+Dynamics are fixed-step and deterministic: a 1/960 s macro step with 1, 2 or 4 bounded substeps
+chosen from the state at the start of the step. The browser only measures elapsed wall time; the
+model converts it into whole macro steps, and a tick owing more than 64 of them auto-pauses as
+behind-realtime rather than enlarging a step or discarding physics time. Simulation time therefore
+only ever advances by steps that actually ran.
+
+`/electrostatic-field` opens **guided-first**: without a share parameter it starts Activity A, where
+evidence is withheld until the learner commits a prediction. Gating is a presentation decision
+only — `models/electrostatic-learning.ts` chooses what is visible, never what a value is, and every
+number still comes from `lib/science/electrostatics`. Any present `s` parameter opens sandbox
+semantics instead; schema v1 carries the **physical initial setup only** (sources, probe, test
+particle, domain, singularity, integrator, field scale), never the runtime, the trail or any
+learning state, and an undecodable payload fails closed to a safe preset.
+
 ## Kakau Lab integration (Stage 0)
 
 This repo (`qavit/AstroLab`) is the technical foundation of **Kakau Lab**, the product's

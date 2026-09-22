@@ -32,7 +32,7 @@ export default function TimeControls({ runtime, onTogglePlay, onStep, onResetRun
         <button type="button" onClick={onResetRuntime} data-testid="reset-runtime">重設粒子／模擬</button>
       </div>
       <p className={styles.keyboardHelp} id="time-shortcut-help">
-        快捷鍵：焦點不在按鈕或輸入框時，Space 播放／暫停；句點（.）單步一個 1/960 s macro step；Escape 取消選取。重設粒子只把粒子送回初始條件、t = 0，不改設定。
+        快捷鍵：焦點不在按鈕或輸入框時，Space 播放／暫停；句點（.）單步一個 1/960 s macro step；Escape 清除選取（不會還原已完成的移動）。重設粒子只把粒子送回初始條件、t = 0，不改設定。
       </p>
     </section>
   );
