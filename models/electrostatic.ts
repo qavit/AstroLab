@@ -6,12 +6,14 @@ import {
 import { MACRO_DT_S, stepMacro } from "../lib/science/electrostatics/integrator.ts";
 import type {
   ElectrostaticSystem,
+  FieldInvalidReason,
   FieldResult,
   ParticleState,
   StepInvalidReason,
   StopEvent,
   Vec2,
 } from "../lib/science/electrostatics/types.ts";
+import { beginTrail, createTrail, finishTrail, pushTrail, type ParticleTrail } from "./electrostatic-trail.ts";
 import { validateSetup } from "./electrostatic-validation.ts";
 import type { ValidationIssue } from "./electrostatic-validation.ts";
 
@@ -43,15 +45,38 @@ export interface ElectrostaticSetup {
   readonly presetId: PresetId | null;
 }
 
-export type ClockStatus = "paused" | "stopped";
+export type ClockStatus = "paused" | "running" | "stopped";
 
-/** Runtime particle state; never serialized. Playback clock and trail arrive in M3. */
+/** Why the clock paused itself; `null` for a user pause or a fresh runtime. */
+export type AutoPauseReason = "behind-realtime" | "hidden";
+
+/**
+ * Runtime particle state; never serialized, never shared. Rebuilt from the validated initial
+ * setup by `initialRuntime`. `particle.t_s` only ever grows by executed fixed physics steps.
+ */
 export interface ElectrostaticRuntime {
   readonly status: ClockStatus;
   readonly particle: ParticleState;
   readonly stop: StopEvent | null;
   readonly error: StepInvalidReason | null;
+  /** Wall time owed to the fixed clock but not yet executed (s); 0 ≤ remainder < one macro step after a tick. */
+  readonly accumulator_s: number;
+  /** Executed macro steps since reset. */
+  readonly macroSteps: number;
+  readonly autoPause: AutoPauseReason | null;
+  readonly trail: ParticleTrail;
 }
+
+/**
+ * D-08 browser catch-up budget (Owner resolved 2026-09-22). Physics stays 1/960 s (D-02); a
+ * playback tick executes every whole due macro step when due ≤ 64 (two 30 Hz frames of 32
+ * steps). When due > 64 the tick executes zero steps and auto-pauses as behind-realtime, so
+ * simulation time never jumps, no step is enlarged and no catch-up spiral starts.
+ */
+export const MAX_CATCHUP_MACRO_STEPS = 64;
+
+/** Accumulator slack so exact multiples of dt are not lost to floating-point division. */
+const ACCUMULATOR_EPSILON = 1e-9;
 
 function baseSetup(): Omit<ElectrostaticSetup, "sources" | "probe" | "testParticle" | "presetId"> {
   return {
@@ -118,7 +143,16 @@ export function particlePropertiesOf(setup: ElectrostaticSetup): { q_C: number; 
 /** Runtime rebuilt from the validated initial condition: paused, t = 0, no stop reason. */
 export function initialRuntime(setup: ElectrostaticSetup): ElectrostaticRuntime {
   const { x_m, y_m, vx_mps, vy_mps } = setup.testParticle;
-  return { status: "paused", particle: { x_m, y_m, vx_mps, vy_mps, t_s: 0 }, stop: null, error: null };
+  return {
+    status: "paused",
+    particle: { x_m, y_m, vx_mps, vy_mps, t_s: 0 },
+    stop: null,
+    error: null,
+    accumulator_s: 0,
+    macroSteps: 0,
+    autoPause: null,
+    trail: createTrail(x_m, y_m),
+  };
 }
 
 export type SetupEdit =
@@ -127,8 +161,9 @@ export type SetupEdit =
 
 /**
  * Atomic setup transition. The whole candidate is validated; on failure the previous setup and
- * runtime are returned untouched. Source, test-initial and preset changes pause and reset the
- * runtime; a probe-only change keeps the particle runtime (spec 3.2, 3.3).
+ * runtime are returned untouched. Source and test-initial changes pause and reset the runtime;
+ * a probe-only change keeps the particle runtime (spec 3.2, 3.3). `presetId` is provenance only
+ * and does not decide a reset; applying a preset resets explicitly via `initialRuntime`.
  */
 export function applySetupEdit(
   current: ElectrostaticSetup,
@@ -141,7 +176,7 @@ export function applySetupEdit(
   return {
     ok: true,
     setup: next,
-    runtime: sameParticleScene(current, next) && current.presetId === next.presetId ? runtime : initialRuntime(next),
+    runtime: sameParticleScene(current, next) ? runtime : initialRuntime(next),
     warnings: result.warnings,
   };
 }
@@ -162,13 +197,87 @@ function sameParticleScene(a: ElectrostaticSetup, b: ElectrostaticSetup): boolea
     p.q_C === q.q_C && p.mass_kg === q.mass_kg;
 }
 
-/** One learner step = one 1/960 s macro step. A stopped or errored runtime does not advance. */
+/**
+ * Execute up to `count` fixed macro steps with the M1 `stepMacro` contract. Stops early at a
+ * stop event (recorded in the trail) or a numerical error (paused, last finite state kept).
+ * A stopped or errored runtime does not advance. The trail is copied once per call.
+ */
+function executeMacroSteps(
+  setup: ElectrostaticSetup,
+  runtime: ElectrostaticRuntime,
+  count: number,
+  status: "paused" | "running",
+): ElectrostaticRuntime {
+  if (runtime.status === "stopped" || runtime.error !== null) return runtime;
+  if (count <= 0) return runtime.status === status ? runtime : { ...runtime, status };
+  const particle = particlePropertiesOf(setup);
+  const system = systemOf(setup);
+  const trail = beginTrail(runtime.trail);
+  let state = runtime.particle;
+  let steps = runtime.macroSteps;
+  for (let i = 0; i < count; i += 1) {
+    const result = stepMacro(state, particle, system, setup.integrator.dt_s);
+    if (result.status === "invalid") {
+      return {
+        ...runtime, status: "paused", particle: state, macroSteps: steps, error: result.reason,
+        accumulator_s: 0, trail: finishTrail(trail),
+      };
+    }
+    steps += 1;
+    state = result.state;
+    if (result.status === "stopped") {
+      pushTrail(trail, state.x_m, state.y_m, true);
+      return {
+        ...runtime, status: "stopped", particle: state, macroSteps: steps, stop: result.event,
+        accumulator_s: 0, autoPause: null, trail: finishTrail(trail),
+      };
+    }
+    pushTrail(trail, state.x_m, state.y_m);
+  }
+  return { ...runtime, status, particle: state, macroSteps: steps, trail: finishTrail(trail) };
+}
+
+/**
+ * One learner step = exactly one 1/960 s macro step (or less, when a continuous stop event
+ * ends it early). Stepping always leaves the clock paused.
+ */
 export function stepRuntime(setup: ElectrostaticSetup, runtime: ElectrostaticRuntime): ElectrostaticRuntime {
   if (runtime.status === "stopped" || runtime.error !== null) return runtime;
-  const result = stepMacro(runtime.particle, particlePropertiesOf(setup), systemOf(setup), setup.integrator.dt_s);
-  if (result.status === "invalid") return { ...runtime, status: "paused", error: result.reason };
-  if (result.status === "stopped") return { status: "stopped", particle: result.state, stop: result.event, error: null };
-  return { ...runtime, particle: result.state };
+  return executeMacroSteps(setup, { ...runtime, accumulator_s: 0, autoPause: null }, 1, "paused");
+}
+
+/** Start playback. A stopped or errored runtime must be reset first. */
+export function playRuntime(runtime: ElectrostaticRuntime): ElectrostaticRuntime {
+  if (runtime.status !== "paused" || runtime.error !== null) return runtime;
+  return { ...runtime, status: "running", accumulator_s: 0, autoPause: null };
+}
+
+/** Pause keeps the current state; owed wall time is discarded, never converted to physics. */
+export function pauseRuntime(runtime: ElectrostaticRuntime, reason: AutoPauseReason | null = null): ElectrostaticRuntime {
+  if (runtime.status !== "running") return runtime;
+  return { ...runtime, status: "paused", accumulator_s: 0, autoPause: reason };
+}
+
+/**
+ * Pure fixed-clock transition (D-08). The browser supplies only wall-clock elapsed seconds since
+ * its previous tick. due = floor((accumulator + elapsed) / dt): due ≤ 64 executes all due macro
+ * steps and keeps only the sub-step remainder; due > 64, or a non-finite / negative elapsed time,
+ * auto-pauses as behind-realtime with zero steps, unchanged particle state and accumulator 0.
+ */
+export function advancePlayback(
+  setup: ElectrostaticSetup,
+  runtime: ElectrostaticRuntime,
+  elapsed_s: number,
+): ElectrostaticRuntime {
+  if (runtime.status !== "running") return runtime;
+  if (!Number.isFinite(elapsed_s) || elapsed_s < 0) return pauseRuntime(runtime, "behind-realtime");
+  const dt = setup.integrator.dt_s;
+  const owed = runtime.accumulator_s + elapsed_s;
+  const due = Math.floor(owed / dt + ACCUMULATOR_EPSILON);
+  if (due > MAX_CATCHUP_MACRO_STEPS) return pauseRuntime(runtime, "behind-realtime");
+  const next = executeMacroSteps(setup, runtime, due, "running");
+  if (next.status !== "running") return next;
+  return { ...next, accumulator_s: Math.max(0, owed - due * dt) };
 }
 
 /** Probe readout: per-source contributions, sum, components, magnitude and direction. */
@@ -184,13 +293,15 @@ export type ParticleReadout =
       readonly acceleration_mps2: Vec2;
       readonly speed_mps: number;
     }
-  | { readonly valid: false; readonly reason: string };
+  | { readonly valid: false; readonly reason: FieldInvalidReason; readonly sourceId?: string };
 
 /** E, F = qE and a = qE/m at the particle's current position. */
 export function particleReadout(setup: ElectrostaticSetup, runtime: ElectrostaticRuntime): ParticleReadout {
   const { particle } = runtime;
   const field = fieldAt({ x: particle.x_m, y: particle.y_m }, setup.sources, setup.singularity.rCore_m);
-  if (!field.valid) return { valid: false, reason: field.reason };
+  if (!field.valid) return field.sourceId === undefined
+    ? { valid: false, reason: field.reason }
+    : { valid: false, reason: field.reason, sourceId: field.sourceId };
   const { q_C, mass_kg } = setup.testParticle;
   return {
     valid: true,

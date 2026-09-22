@@ -7,7 +7,17 @@ import { screenToWorld, worldToScreen } from "./viewport.ts";
 import type { SelectedObject } from "./render.ts";
 import styles from "./ElectrostaticFieldLab.module.css";
 
-export type DraggableObject = { readonly kind: "source"; readonly id: string } | { readonly kind: "probe" };
+export type DraggableObject =
+  | { readonly kind: "source"; readonly id: string }
+  | { readonly kind: "probe" }
+  | { readonly kind: "particle" };
+
+export interface ParticleHandle {
+  /** The editable initial position, not the runtime position. */
+  readonly initial: Vec2;
+  readonly q_C: number;
+  readonly mass_kg: number;
+}
 
 interface AccessibleObjectsProps {
   readonly camera: CameraTransform;
@@ -16,6 +26,9 @@ interface AccessibleObjectsProps {
   readonly selected: SelectedObject;
   readonly onSelect: (target: SelectedObject) => void;
   readonly onMove: (target: DraggableObject, point: Vec2) => void;
+  /** A pointer gesture begins on an object (sources and the particle pause playback). */
+  readonly onDragStart: (target: DraggableObject) => void;
+  readonly particle: ParticleHandle;
 }
 
 function labelSource(source: SourceCharge): string {
@@ -23,13 +36,19 @@ function labelSource(source: SourceCharge): string {
   return `來源電荷 ${source.id}，${sign} ${Math.abs(source.q_C / 1e-9).toPrecision(3)} nC，x ${source.x_m.toFixed(2)} m，y ${source.y_m.toFixed(2)} m`;
 }
 
-export default function AccessibleObjects({ camera, sources, probe, selected, onSelect, onMove }: AccessibleObjectsProps) {
+function labelParticle(particle: ParticleHandle): string {
+  const sign = particle.q_C > 0 ? "正" : "負";
+  return `測試粒子初始位置，${sign} ${Math.abs(particle.q_C * 1e9).toPrecision(3)} nC，${(particle.mass_kg * 1e9).toPrecision(3)} µg，x ${particle.initial.x.toFixed(2)} m，y ${particle.initial.y.toFixed(2)} m；移動會重設模擬`;
+}
+
+export default function AccessibleObjects({ camera, sources, probe, selected, onSelect, onMove, onDragStart, particle }: AccessibleObjectsProps) {
   const svgRef = useRef<SVGSVGElement>(null);
 
   const pointerDown = (target: DraggableObject) => (event: PointerEvent<SVGGElement>) => {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     onSelect(target);
+    onDragStart(target);
   };
 
   const pointerMove = (target: DraggableObject, event: PointerEvent<SVGGElement>) => {
@@ -64,7 +83,7 @@ export default function AccessibleObjects({ camera, sources, probe, selected, on
       ref={svgRef}
       className={styles.objectOverlay}
       viewBox={`0 0 ${camera.width} ${camera.height}`}
-      aria-label="可操作的來源電荷與電場探針"
+      aria-label="可操作的來源電荷、電場探針與測試粒子"
       aria-describedby="electrostatic-keyboard-help"
     >
       {sources.map((source) => {
@@ -109,6 +128,28 @@ export default function AccessibleObjects({ camera, sources, probe, selected, on
           >
             <circle className={styles.hitTarget} r="22" />
             <rect className={active ? styles.focusRingActive : styles.focusRing} x="-17" y="-17" width="34" height="34" rx="7" />
+          </g>
+        );
+      })()}
+      {(() => {
+        const point = worldToScreen(particle.initial, camera);
+        const target = { kind: "particle" } as const;
+        const active = selected?.kind === "particle";
+        return (
+          <g
+            role="button"
+            tabIndex={0}
+            aria-label={labelParticle(particle)}
+            aria-pressed={active}
+            data-testid="particle-handle"
+            className={styles.objectHandle}
+            transform={`translate(${point.x} ${point.y})`}
+            onPointerDown={pointerDown(target)}
+            onPointerMove={(event) => pointerMove(target, event)}
+            onKeyDown={keyMove(target, particle.initial)}
+          >
+            <circle className={styles.hitTarget} r="22" />
+            <circle className={active ? styles.focusRingActive : styles.focusRing} r="15" strokeDasharray="4 3" />
           </g>
         );
       })()}

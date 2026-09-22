@@ -1,7 +1,7 @@
 import { probeReadout, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import styles from "./ElectrostaticFieldLab.module.css";
 
-function formatValue(value: number, unit = ""): string {
+export function formatValue(value: number, unit = ""): string {
   if (value === 0) return `0${unit ? ` ${unit}` : ""}`;
   const absolute = Math.abs(value);
   const text = absolute >= 1e4 || absolute < 1e-2 ? value.toExponential(3) : value.toPrecision(4);

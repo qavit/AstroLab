@@ -94,7 +94,10 @@ test("server-renders the experimental electrostatic sandbox shell", async () => 
   assert.match(html, /探針讀值/);
   assert.match(html, /場強圖例/);
   assert.match(html, /schema v1/);
-  assert.doesNotMatch(html, /播放|單步|Activity A|等位線|電位/);
+  assert.match(html, /時間控制/);
+  assert.match(html, /測試粒子讀值/);
+  assert.match(html, /重設粒子／模擬/);
+  assert.doesNotMatch(html, /Activity A|等位線|電位/);
 });
 
 test("keeps electrostatic rendering model-owned and free of duplicated Coulomb physics", async () => {
@@ -112,6 +115,28 @@ test("keeps electrostatic rendering model-owned and free of duplicated Coulomb p
   assert.doesNotMatch(renderer, /@\/lib\/render|from "three/);
   assert.match(view, /applySetupEdit/);
   assert.doesNotMatch(view, /COULOMB_K|8\.987/);
+});
+
+test("keeps the M3 fixed clock pure: RAF only at the component boundary, no dynamics in views", async () => {
+  const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
+  const [model, trail, integrator, lab, panel, renderer, time] = await Promise.all([
+    read("../models/electrostatic.ts"),
+    read("../models/electrostatic-trail.ts"),
+    read("../lib/science/electrostatics/integrator.ts"),
+    read("../components/ElectrostaticFieldLab.tsx"),
+    read("../components/electrostatic/ParticlePanel.tsx"),
+    read("../components/electrostatic/render.ts"),
+    read("../components/electrostatic/TimeControls.tsx"),
+  ]);
+  for (const source of [model, trail, integrator]) {
+    assert.doesNotMatch(source, /requestAnimationFrame|performance\.now|Date\.now|document\.|from "react"/);
+  }
+  assert.match(lab, /requestAnimationFrame/);
+  assert.match(lab, /advancePlayback/);
+  for (const source of [lab, panel, renderer, time]) {
+    assert.doesNotMatch(source, /stepMacro|accelerationFromField|forceFromField|mass_kg\s*\)|\* *q_C|q_C *\*/);
+  }
+  assert.match(panel, /particleReadout/);
 });
 
 test("keeps science calculations separate from the Three.js view", async () => {

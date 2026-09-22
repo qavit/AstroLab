@@ -11,3 +11,22 @@ test("@a11y electrostatic sandbox has no serious or critical axe violations", as
   await expect(page.getByTestId("probe-handle")).toHaveRole("button");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/電場探針/);
 });
+
+test("@a11y running and stopped particle states have no serious or critical axe violations", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/electrostatic-field");
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  await page.getByTestId("play-toggle").click();
+  await page.clock.runFor(300);
+  const scan = async () => {
+    const results = await new AxeBuilder({ page }).analyze();
+    return results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
+  };
+  const running = await scan();
+  expect(running, running.map((v) => `${v.id}: ${v.help}`).join("\n")).toEqual([]);
+  await page.clock.runFor(5000);
+  const stopped = await scan();
+  expect(stopped, stopped.map((v) => `${v.id}: ${v.help}`).join("\n")).toEqual([]);
+  await expect(page.getByTestId("play-toggle")).toHaveAccessibleName(/播放|暫停/);
+  await expect(page.getByTestId("particle-handle")).toHaveRole("button");
+});
