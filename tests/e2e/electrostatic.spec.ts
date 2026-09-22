@@ -86,6 +86,25 @@ test("share URL reload reconstructs the same canonical physical setup", async ({
   await expect(page.getByTestId("probe-x")).toHaveValue("0.83");
 });
 
+test("share permalink removes non-physical query and fragment state", async ({ page }) => {
+  await page.goto("/electrostatic-field?panel=open&utm_source=test#probe");
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  await replaceNumber(page, "source-magnitude", "4.5");
+  await expect(page.getByTestId("select-source-s1")).toContainText("4.50 nC");
+  await page.getByTestId("share-setup").click();
+
+  const shared = new URL(page.url());
+  expect([...shared.searchParams.keys()]).toEqual(["s"]);
+  expect(shared.searchParams.get("s")).toBeTruthy();
+  expect(shared.searchParams.has("panel")).toBe(false);
+  expect(shared.searchParams.has("utm_source")).toBe(false);
+  expect(shared.hash).toBe("");
+
+  await page.reload();
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  await expect(page.getByTestId("source-magnitude")).toHaveValue("4.5");
+});
+
 test("malformed share URL fails closed to a safe preset", async ({ page }) => {
   await page.goto("/electrostatic-field?s=not!base64");
   await expect(page.getByTestId("setup-notice")).toContainText("已載入安全的單電荷設定");

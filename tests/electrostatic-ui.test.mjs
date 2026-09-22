@@ -73,15 +73,26 @@ test("fixed scale maps and classifies all five visual semantic states", () => {
 
 test("schema v1 URL helper round-trips setup and fails closed on malformed input", () => {
   const setup = ELECTROSTATIC_PRESETS.dipole;
-  const shared = createShareUrl(setup, "https://lab.kakau.tw/electrostatic-field?panel=open#probe");
+  const shared = createShareUrl(
+    setup,
+    "https://lab.kakau.tw/electrostatic-field?panel=open&utm_source=test#probe",
+  );
   assert.equal(shared.ok, true);
   if (!shared.ok) return;
   assert.ok(shared.url.length <= 2000);
   const parsed = new URL(shared.url);
-  assert.equal(parsed.searchParams.has("panel"), true);
+  assert.equal(parsed.origin, "https://lab.kakau.tw");
+  assert.equal(parsed.pathname, "/electrostatic-field");
+  assert.deepEqual([...parsed.searchParams.keys()], ["s"]);
+  assert.equal(parsed.hash, "");
   const loaded = initialStateFromShare(parsed.searchParams.get("s"));
   assert.equal(loaded.error, null);
   assert.deepEqual(loaded.setup, setup);
+
+  const tooLong = createShareUrl(setup, `https://lab.kakau.tw/${"x".repeat(1900)}`);
+  assert.equal(tooLong.ok, false);
+  if (!tooLong.ok) assert.match(tooLong.message, /2,000/);
+
   const malformed = initialStateFromShare("not!base64");
   assert.ok(malformed.error);
   assert.deepEqual(malformed.setup, ELECTROSTATIC_PRESETS["single-positive"]);

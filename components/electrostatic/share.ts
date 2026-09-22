@@ -27,7 +27,7 @@ export type ShareUrlResult =
   | { readonly ok: true; readonly url: string; readonly encoded: string }
   | { readonly ok: false; readonly message: string; readonly issues: readonly ValidationIssue[] };
 
-/** Encode schema v1 and replace only the share query key; UI/session state never enters the URL. */
+/** Build a deterministic physics permalink: origin + pathname + schema-v1 `s`, and nothing else. */
 export function createShareUrl(setup: ElectrostaticSetup, currentUrl: string): ShareUrlResult {
   const encoded = encodeSetup(setup);
   if (!encoded.ok) {
@@ -37,7 +37,8 @@ export function createShareUrl(setup: ElectrostaticSetup, currentUrl: string): S
       issues: encoded.issues,
     };
   }
-  const url = new URL(currentUrl);
+  const current = new URL(currentUrl);
+  const url = new URL(current.pathname, current.origin);
   url.searchParams.set(SHARE_QUERY_KEY, encoded.encoded);
   if (url.toString().length > MAX_SHARE_URL_LENGTH) {
     return { ok: false, message: "完整分享網址超過 2,000 字元。", issues: [] };
