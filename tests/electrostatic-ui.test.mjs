@@ -83,16 +83,16 @@ test("schema v1 URL helper round-trips setup and fails closed on malformed input
   assert.ok(shared.url.length <= 2000);
   const parsed = new URL(shared.url);
   assert.equal(parsed.origin, "https://lab.kakau.tw");
-  assert.equal(parsed.pathname, "/electrostatic-field");
+  assert.equal(parsed.pathname, "/electrostatics");
   assert.deepEqual([...parsed.searchParams.keys()], ["s"]);
   assert.equal(parsed.hash, "");
   const loaded = initialStateFromShare({ present: true, encoded: parsed.searchParams.get("s") });
   assert.equal(loaded.error, null);
   assert.deepEqual(loaded.setup, setup);
 
-  const tooLong = createShareUrl(setup, `https://lab.kakau.tw/${"x".repeat(1900)}`);
-  assert.equal(tooLong.ok, false);
-  if (!tooLong.ok) assert.match(tooLong.message, /2,000/);
+  const noisyCurrentUrl = createShareUrl(setup, `https://lab.kakau.tw/${"x".repeat(1900)}?tracking=discarded#fragment`);
+  assert.equal(noisyCurrentUrl.ok, true, "the canonical share URL must not inherit route noise");
+  if (noisyCurrentUrl.ok) assert.equal(new URL(noisyCurrentUrl.url).pathname, "/electrostatics");
 
   const malformed = initialStateFromShare({ present: true, encoded: "not!base64" });
   assert.ok(malformed.error);

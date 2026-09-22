@@ -4,6 +4,7 @@ import type { ValidationIssue } from "../../models/electrostatic-validation.ts";
 
 export const SHARE_QUERY_KEY = "s";
 export const MAX_SHARE_URL_LENGTH = 2000;
+export const ELECTROSTATICS_PATH = "/electrostatics";
 
 /**
  * What the route saw in the query string. Presence and payload are separate facts: an absent
@@ -58,7 +59,7 @@ export function createShareUrl(setup: ElectrostaticSetup, currentUrl: string): S
     };
   }
   const current = new URL(currentUrl);
-  const url = new URL(current.pathname, current.origin);
+  const url = new URL(ELECTROSTATICS_PATH, current.origin);
   url.searchParams.set(SHARE_QUERY_KEY, encoded.encoded);
   if (url.toString().length > MAX_SHARE_URL_LENGTH) {
     return { ok: false, message: "完整分享網址超過 2,000 字元。", issues: [] };

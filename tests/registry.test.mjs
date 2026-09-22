@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { labRegistry, publishedLabs } from "../lib/labs/registry.ts";
+import { experimentalLabs, labRegistry, publishedLabs } from "../lib/labs/registry.ts";
 
 const requiredFields = ["id", "title", "subject", "description", "topics", "level", "status"];
 
@@ -45,14 +45,16 @@ test("model 08 is the external kakau-web interference lab", () => {
   assert.equal(model08.status, "published");
 });
 
-test("model 09 is the experimental local electrostatic field route", () => {
+test("model 09 is the experimental local electrostatics route", () => {
   const model09 = labRegistry.find((lab) => lab.number === "09");
   assert.ok(model09);
-  assert.equal(model09.id, "electrostatic-field");
+  assert.equal(model09.id, "electrostatics");
+  assert.equal(model09.title, "靜電學");
   assert.equal(model09.implementation.app, "kakau-lab");
-  assert.equal(model09.implementation.route, "/electrostatic-field");
+  assert.equal(model09.implementation.route, "/electrostatics");
   assert.equal(model09.status, "experimental");
   assert.equal(publishedLabs().includes(model09), false);
+  assert.deepEqual(experimentalLabs(), [model09]);
 });
 
 test("every manifest carries the required fields", () => {

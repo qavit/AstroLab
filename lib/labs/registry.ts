@@ -192,16 +192,16 @@ export const labRegistry: readonly LabManifest[] = [
     presentation: { tone: "interference", icon: "waves" },
   },
   {
-    id: "electrostatic-field",
+    id: "electrostatics",
     number: "09",
-    title: "靜電場工作室",
+    title: "靜電學",
     subject: "physics",
-    description: "建立固定點電荷配置，以向量場與空間探針檢驗電場疊加。",
-    topics: ["庫侖定律", "向量疊加", "電場探針"],
+    description: "從點電荷與電場開始，探索看不見的電作用。",
+    topics: ["庫侖定律", "向量疊加", "電場"],
     concepts: ["electric-field", "vector-superposition", "source-core"],
     representations: ["vector-field", "spatial-probe", "per-source-contributions"],
     level: ["high-school"],
-    implementation: { app: "kakau-lab", route: "/electrostatic-field" },
+    implementation: { app: "kakau-lab", route: "/electrostatics" },
     status: "experimental",
     presentation: { tone: "electrostatic", icon: "zap" },
   },
@@ -209,4 +209,8 @@ export const labRegistry: readonly LabManifest[] = [
 
 export function publishedLabs(registry: readonly LabManifest[] = labRegistry): readonly LabManifest[] {
   return registry.filter((lab) => lab.status === "published");
+}
+
+export function experimentalLabs(registry: readonly LabManifest[] = labRegistry): readonly LabManifest[] {
+  return registry.filter((lab) => lab.status === "experimental");
 }

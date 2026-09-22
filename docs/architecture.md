@@ -115,9 +115,9 @@ account of the one curve that is not a closed form: why quadratic drag has none,
 scheme and step size are, and how the integrator is calibrated against the exact solution it
 generalizes. It follows the `/about` page's pattern, which until now the solar model alone used.
 
-## The electrostatic-field model
+## The electrostatics model
 
-`/electrostatic-field` (catalogue number 09, still `experimental` in the registry) is the
+`/electrostatics` (catalogue number 09, still `experimental` in the registry) is the
 platform's first model that pairs a spatial field instrument with a deterministic stepped
 particle, and its assumptions are deliberately narrow.
 
@@ -139,10 +139,11 @@ model converts it into whole macro steps, and a tick owing more than 64 of them 
 behind-realtime rather than enlarging a step or discarding physics time. Simulation time therefore
 only ever advances by steps that actually ran.
 
-`/electrostatic-field` opens **guided-first**: without a share parameter it starts Activity A, where
-evidence is withheld until the learner commits a prediction. Gating is a presentation decision
-only — `models/electrostatic-learning.ts` chooses what is visible, never what a value is, and every
-number still comes from `lib/science/electrostatics`. Any present `s` parameter opens sandbox
+`/electrostatics` opens with an intent choice between a guided task and free exploration. Once a
+guided task begins, evidence is withheld until the learner commits a prediction. Gating is a
+presentation decision only — `models/electrostatic-learning.ts` chooses what is visible, never
+what a value is, and every number still comes from `lib/science/electrostatics`. Any present `s`
+parameter bypasses the choice and opens free-exploration
 semantics instead; schema v1 carries the **physical initial setup only** (sources, probe, test
 particle, domain, singularity, integrator, field scale), never the runtime, the trail or any
 learning state, and an undecodable payload fails closed to a safe preset.
@@ -161,7 +162,8 @@ machine-readable data. It must never import React, Three.js, or `lucide-react` �
 details (icons, card art, preview images) are stored as string keys, and the mapping from a key
 like `"orbit"` to the actual `Orbit` icon component lives in `components/ModelCatalog.tsx`, the
 one layer allowed to combine data with rendering. `ModelCatalog.tsx` renders entirely from
-`publishedLabs()`; there is no second, hard-coded model list anywhere in the app.
+`publishedLabs()` and, only when a server-side preview flag is enabled, a separate
+`experimentalLabs()` section; there is no second, hard-coded model list anywhere in the app.
 
 The registry also distinguishes *which app* implements a lab. `implementation.app` is either:
 
