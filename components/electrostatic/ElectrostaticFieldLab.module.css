@@ -106,6 +106,11 @@
 .viewportTitle h2 { margin: 0; font: 500 17px Georgia, "Noto Serif TC", serif; }
 .viewportTitle p { margin: 2px 0 0; color: #a8bdc6; font-size: 11px; }
 .canvasHost { position: absolute; inset: 0; overflow: hidden; }
+/* Gate 3 follow-up: the shared Layer Drawer defaults to `top:0`, which overlaps this lab's own
+   app bar (and its "視圖圖層" trigger) since the app bar isn't sticky. Docking it below the
+   measured app-bar height keeps the drawer's own header and the trigger visually separate
+   without touching the shared drawer's positioning default for other labs. */
+:global(.layer-drawer).layerDrawerOffset { top: var(--electro-appbar-h, 64px); }
 .canvasLayer { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
 .viewportToolbar { position: absolute; z-index: 8; top: 12px; right: 12px; display: flex; gap: 5px; }
 .viewportToolbar button,
@@ -168,6 +173,10 @@
 .objectHandle:focus { outline: none; }
 .objectHandle:focus-visible .focusRing,
 .objectHandle:focus-visible .focusRingActive { stroke: #ffd66f; stroke-width: 4; stroke-dasharray: none; }
+/* Transient linkage emphasis (Canvas <-> readout row), distinct from selection/focus so it reads
+   as "this is what that row means", not "this is selected". */
+.emphasisRing { fill: none; stroke: transparent; stroke-width: 2.5; pointer-events: none; transition: stroke .1s ease; }
+.emphasisRingActive { fill: none; stroke: #e3ad36; stroke-width: 2.5; pointer-events: none; }
 
 .sidePanel,
 .probePanel,
@@ -265,6 +274,11 @@
 .probeTable th:first-child { text-align: left; }
 .probeTable thead th { color: #5d7783; font-weight: 700; }
 .probeTable tfoot { background: #eaf2f4; font-weight: 800; }
+/* Row -> Canvas linkage: transient emphasis, not a selection state. */
+.probeTable tbody tr { outline: none; }
+.probeTable tbody tr:hover,
+.contributionRowEmphasized { background: #fdf3de; }
+.probeTable tbody tr:focus-visible { box-shadow: inset 0 0 0 2px #e3ad36; }
 .totalReadout { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0 0; }
 .totalReadout div { padding: 8px; border: 1px solid #d4dfe3; border-radius: 6px; background: #fff; }
 .totalReadout dt { color: #536d78; font-size: 11px; }

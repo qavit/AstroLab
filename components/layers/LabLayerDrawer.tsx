@@ -11,11 +11,13 @@ interface LabLayerDrawerProps {
   readonly onClose: () => void;
   /** The model-owned trigger to restore after an Escape or close-button close. */
   readonly returnFocusRef?: RefObject<HTMLElement | null>;
+  /** Positioning/layout escape hatch only (e.g. clearing a model's own app bar); never changes shared semantics. */
+  readonly className?: string;
   readonly children: ReactNode;
 }
 
 /** Shared presentation only: each lab keeps its layer names and state locally. */
-export function LabLayerDrawer({ open, id, title = "視圖圖層", onClose, returnFocusRef, children }: LabLayerDrawerProps) {
+export function LabLayerDrawer({ open, id, title = "視圖圖層", onClose, returnFocusRef, className, children }: LabLayerDrawerProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
   useEffect(() => {
@@ -43,7 +45,7 @@ export function LabLayerDrawer({ open, id, title = "視圖圖層", onClose, retu
   }, [open, onClose]);
 
   return (
-    <aside id={id} className={`layer-drawer ${open ? "open" : ""}`} aria-hidden={!open} aria-label={title} role="dialog" inert={!open}>
+    <aside id={id} className={`layer-drawer ${open ? "open" : ""} ${className ?? ""}`} aria-hidden={!open} aria-label={title} role="dialog" inert={!open}>
       <header>
         <div><Layers3 size={18} aria-hidden="true" /><strong>{title}</strong></div>
         <button ref={closeRef} type="button" onClick={onClose} aria-label="關閉圖層" title="關閉圖層"><X size={17} aria-hidden="true" /></button>

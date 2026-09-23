@@ -39,6 +39,9 @@ interface FieldCanvasProps {
   readonly layersOpen: boolean;
   readonly onLayersOpenChange: (open: boolean) => void;
   readonly layersTriggerRef: RefObject<HTMLButtonElement | null>;
+  /** Transient Canvas<->readout linkage (never selection, never physics). */
+  readonly emphasizedSourceId: string | null;
+  readonly onSourceHover: (id: string | null) => void;
 }
 
 const HIDDEN_GRID = { ok: false, reason: "no-sources" } as const;
@@ -46,11 +49,17 @@ const HIDDEN_GRID = { ok: false, reason: "no-sources" } as const;
 export default function FieldCanvas(props: FieldCanvasProps) {
   const { setup, runtime, policy, selected, onSelect, onMove, onDragStart } = props;
   const { tool, onPlace, onDelete, onExitTool, layersOpen, onLayersOpenChange, layersTriggerRef } = props;
+  const { emphasizedSourceId, onSourceHover } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [hoverTarget, setHoverTarget] = useState<HoverTarget>(null);
+  /** The tooltip target and the readout-linkage emphasis share one pointer/focus source: this. */
+  const handleHover = (target: HoverTarget) => {
+    setHoverTarget(target);
+    onSourceHover(target?.kind === "source" ? target.id : null);
+  };
   const [layers, setLayers] = useState<ElectrostaticLayerState>(INITIAL_ELECTROSTATIC_LAYERS);
   const [view, setView] = useState<CameraView>(INITIAL_CAMERA_VIEW);
   const [tipOpen, setTipOpen] = useState(true);
@@ -219,8 +228,9 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         onPlace={onPlace}
         onDelete={onDelete}
         onExitTool={onExitTool}
-        onHover={setHoverTarget}
+        onHover={handleHover}
         onPan={(delta) => setView((current) => ({ ...current, panX_px: current.panX_px + delta.x, panY_px: current.panY_px + delta.y }))}
+        emphasizedSourceId={emphasizedSourceId}
       />
       {tool !== "select" ? (
         <p className={styles.toolBanner} role="status" data-testid="tool-banner">{TOOL_BANNER[tool]}</p>

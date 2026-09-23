@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { ArrowLeftRight, Compass, Info, Layers3 } from "lucide-react";
 import Controls from "./electrostatic/Controls";
 import QuickPresetsMenu from "./electrostatic/QuickPresetsMenu";
@@ -99,7 +100,9 @@ function isInteractive(target: EventTarget | null): boolean {
 
 export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabProps) {
   const shellRef = useRef<HTMLElement>(null);
+  const appBarRef = useRef<HTMLElement>(null);
   const layersTriggerRef = useRef<HTMLButtonElement>(null);
+  const [appBarHeight, setAppBarHeight] = useState<number | null>(null);
   const initial = useMemo(() => initialStateFromShare(share), [share]);
   // D-05 + D-07: no `s` pauses at an intent choice; any present `s` bypasses it into free exploration.
   const [entryPending, setEntryPending] = useState(() => !initial.sandbox);
@@ -123,6 +126,8 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   const [announcement, setAnnouncement] = useState("");
   const [baseline, setBaseline] = useState<ElectrostaticSetup>(initial.setup);
   const [selected, setSelected] = useState<SelectedObject>(null);
+  /** Transient Canvas<->readout hover/focus linkage only; never selection, physics or history. */
+  const [emphasizedSourceId, setEmphasizedSourceId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(() => initial.error ?? (initial.issues[0]?.message ?? null));
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [modelInfoOpen, setModelInfoOpen] = useState(false);
@@ -135,6 +140,19 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
 
   useEffect(() => {
     shellRef.current?.setAttribute("data-interactive", "true");
+  }, []);
+
+  /** The Layer Drawer docks below the app bar, not over it; measured (not hard-coded per
+   * breakpoint) so it holds at any width without duplicating the app bar's own responsive CSS. */
+  useEffect(() => {
+    const bar = appBarRef.current;
+    if (!bar) return;
+    const update = () => setAppBarHeight(bar.getBoundingClientRect().bottom);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(bar);
+    window.addEventListener("resize", update);
+    return () => { observer.disconnect(); window.removeEventListener("resize", update); };
   }, []);
 
   /** Every lab transition goes through the ref so RAF ticks and edits never see stale state. */
@@ -521,8 +539,9 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       data-source-count={setup.sources.length}
       data-mode={entryPending ? "intent" : learning ? "guided" : "sandbox"}
       data-activity={learning?.activity ?? ""}
+      style={appBarHeight ? ({ "--electro-appbar-h": `${appBarHeight}px` } as CSSProperties) : undefined}
     >
-      <header className={styles.appBar}>
+      <header ref={appBarRef} className={styles.appBar}>
         <div className={styles.appBarLeft}>
           <Link href="/" className="catalog-brand" aria-label="Kakau Lab 模型目錄">
             <Compass size={20} aria-hidden="true" /> <span>Kakau Lab</span>
@@ -597,6 +616,8 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               layersOpen={layersOpen}
               onLayersOpenChange={setLayersOpen}
               layersTriggerRef={layersTriggerRef}
+              emphasizedSourceId={emphasizedSourceId}
+              onSourceHover={setEmphasizedSourceId}
             />
           </section>
 
@@ -654,7 +675,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
             />
             {learning.activity === "C"
               ? <ParticlePanel setup={setup} runtime={runtime} policy={policy} />
-              : <ProbePanel setup={setup} policy={policy} />}
+              : <ProbePanel setup={setup} policy={policy} emphasizedSourceId={emphasizedSourceId} onEmphasizeSource={setEmphasizedSourceId} />}
             </>
           ) : <Controls
             setup={setup}
@@ -672,7 +693,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               <ParticleControls setup={setup} onEdit={editParticle} onToggleSign={toggleParticleSign} />
               <ParticlePanel setup={setup} runtime={runtime} policy={policy} />
             </> : null}
-            {selected?.kind === "probe" ? <ProbePanel setup={setup} policy={policy} /> : null}
+            {selected?.kind === "probe" ? <ProbePanel setup={setup} policy={policy} emphasizedSourceId={emphasizedSourceId} onEmphasizeSource={setEmphasizedSourceId} /> : null}
           </Controls>}
         </aside>
       </div>

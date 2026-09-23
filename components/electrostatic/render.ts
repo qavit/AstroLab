@@ -218,11 +218,27 @@ export function drawStaticField(
   context.restore();
 }
 
+/** Source charge envelope (Gate 4A, unchanged here): magnitude is validated to 1-5 nC. */
+const SOURCE_MIN_NC = 1;
+const SOURCE_MAX_NC = 5;
+
+/**
+ * Magnitude reads as ring weight, never as core radius: the core stays a fixed-size circle or
+ * diamond (its real hit target and on-screen position), so a bigger halo never reads as "this
+ * charge is physically bigger" the way a scaled radius would.
+ */
 function drawSource(context: CanvasRenderingContext2D, source: SourceCharge, camera: CameraTransform, selected: boolean): void {
   const point = worldToScreen({ x: source.x_m, y: source.y_m }, camera);
   const positive = source.q_C > 0;
+  const magnitude_nC = Math.abs(source.q_C) * 1e9;
+  const t = Math.min(1, Math.max(0, (magnitude_nC - SOURCE_MIN_NC) / (SOURCE_MAX_NC - SOURCE_MIN_NC)));
   context.save();
   context.translate(point.x, point.y);
+  context.strokeStyle = positive ? "rgba(246, 200, 95, 0.85)" : "rgba(118, 200, 213, 0.85)";
+  context.lineWidth = 1 + 2.5 * t;
+  context.beginPath();
+  context.arc(0, 0, 16.5 + 1.5 * t, 0, 2 * Math.PI);
+  context.stroke();
   context.fillStyle = positive ? "#f6c85f" : "#76c8d5";
   context.strokeStyle = selected ? "#ffffff" : "#092232";
   context.lineWidth = selected ? 3 : 1.5;
@@ -354,7 +370,9 @@ export function drawParticle(
   if (particle.positive) {
     context.arc(0, 0, 7, 0, 2 * Math.PI);
   } else {
-    context.rect(-7, -7, 14, 14);
+    // Same sign grammar as source charges (circle = positive, diamond = negative); the distinct
+    // orange fill (vs. source gold/teal) still reads as a different role, the test charge.
+    context.moveTo(0, -8); context.lineTo(8, 0); context.lineTo(0, 8); context.lineTo(-8, 0); context.closePath();
   }
   context.fill(); context.stroke();
   context.strokeStyle = "#102631";

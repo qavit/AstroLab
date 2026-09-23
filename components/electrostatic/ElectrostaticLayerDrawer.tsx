@@ -2,6 +2,7 @@
 
 import type { RefObject } from "react";
 import { LabLayerDrawer, LayerGroup, LayerToggle } from "../layers/LabLayerDrawer";
+import styles from "./ElectrostaticFieldLab.module.css";
 
 export interface ElectrostaticLayerState {
   readonly field: boolean;
@@ -30,7 +31,7 @@ export default function ElectrostaticLayerDrawer({ open, layers, available, onCl
     ? <LayerToggle checked={layers[key]} label={label} onChange={() => onToggle(key)} testId={`layer-${key}`} />
     : null;
   return (
-    <LabLayerDrawer open={open} id="electrostatic-layer-drawer" title="視圖圖層" onClose={onClose} returnFocusRef={returnFocusRef}>
+    <LabLayerDrawer open={open} id="electrostatic-layer-drawer" title="視圖圖層" onClose={onClose} returnFocusRef={returnFocusRef} className={styles.layerDrawerOffset}>
       <LayerGroup title="畫布顯示">
         <div className="layer-list">
           {toggle("field", "電場箭頭")}

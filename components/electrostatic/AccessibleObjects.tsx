@@ -46,6 +46,8 @@ interface AccessibleObjectsProps {
   readonly onHover: (target: HoverTarget) => void;
   /** Select-mode empty-space drag pans only the transient camera view. */
   readonly onPan: (delta_px: Vec2) => void;
+  /** Transient presentation only (never selection): the source a readout row is emphasizing. */
+  readonly emphasizedSourceId?: string | null;
 }
 
 function labelSource(sources: readonly SourceCharge[], source: SourceCharge): string {
@@ -71,7 +73,7 @@ function labelParticle(particle: ParticleHandle): string {
 
 export default function AccessibleObjects(props: AccessibleObjectsProps) {
   const { camera, sources, probe, selected, onSelect, onMove, onDragStart, particle, showProbe, showParticle } = props;
-  const { tool, onPlace, onDelete, onExitTool, onHover, onPan } = props;
+  const { tool, onPlace, onDelete, onExitTool, onHover, onPan, emphasizedSourceId = null } = props;
   const backdropGesture = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null);
   const probePoint = worldToScreen(probe, camera);
   const particlePoint = worldToScreen(particle.initial, camera);
@@ -186,6 +188,7 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
         const point = worldToScreen({ x: source.x_m, y: source.y_m }, camera);
         const target = { kind: "source", id: source.id } as const;
         const active = selected?.kind === "source" && selected.id === source.id;
+        const emphasized = emphasizedSourceId === source.id;
         return (
           <g
             key={source.id}
@@ -195,6 +198,7 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
             aria-pressed={active}
             data-canvas-object="true"
             data-testid={`source-handle-${source.id}`}
+            data-emphasized={emphasized ? "true" : "false"}
             className={styles.objectHandle}
             transform={`translate(${point.x} ${point.y})`}
             onPointerDown={pointerDown(target)}
@@ -207,6 +211,7 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
           >
             <circle className={styles.hitTarget} r="23" />
             <circle className={active ? styles.focusRingActive : styles.focusRing} r="18" />
+            <circle className={emphasized ? styles.emphasisRingActive : styles.emphasisRing} r="21" />
           </g>
         );
       })}

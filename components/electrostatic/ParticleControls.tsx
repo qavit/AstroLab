@@ -20,7 +20,7 @@ export default function ParticleControls({ setup, onEdit, onToggleSign }: Partic
       <legend>初始條件</legend>
       <p className={styles.helperText}>改變初始條件會回到 t = 0；移動測量點不會重設運動。</p>
       <button type="button" onClick={onToggleSign} data-testid="toggle-particle-sign">
-        <span className={positive ? styles.sourceCircle : styles.sourceDiamond}>{positive ? "+" : "−"}</span>
+        <span className={positive ? styles.sourceCircle : styles.sourceDiamond} aria-hidden="true">{positive ? "＋" : "−"}</span>
         改成{positive ? "負" : "正"}測試電荷
       </button>
       <details className={styles.precisionDisclosure}>
