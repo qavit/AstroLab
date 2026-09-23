@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Info } from "lucide-react";
+import { Compass, Grid3x3, Info, Map } from "lucide-react";
 import Controls from "./electrostatic/Controls";
 import QuickPresetsMenu from "./electrostatic/QuickPresetsMenu";
 import FieldCanvas from "./electrostatic/FieldCanvas";
@@ -451,16 +451,19 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       data-mode={entryPending ? "intent" : learning ? "guided" : "sandbox"}
       data-activity={learning?.activity ?? ""}
     >
-      <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>實驗中 · MODEL 09</p>
-          <h1>靜電學</h1>
-          <p className={styles.subtitle}>從點電荷與電場開始，探索看不見的電作用。</p>
+      <header className={styles.appBar}>
+        <div className={styles.appBarLeft}>
+          <Link href="/" className={styles.brandLink} aria-label="Kakau Lab 模型目錄">
+            <Compass size={14} aria-hidden="true" />Kakau Lab
+          </Link>
+          <span className={styles.appBarDivider} aria-hidden="true">/</span>
+          <h1 className={styles.appBarTitle}>靜電學</h1>
+          <span className={styles.statusChip} title="MODEL 09">實驗中</span>
         </div>
         <div className={styles.headerActions}>
           {!entryPending && (learning
-            ? <button type="button" className={styles.catalogLink} onClick={() => exploreSandbox(false)} data-testid="direct-explore">自由探索</button>
-            : <button type="button" className={styles.catalogLink} onClick={() => enterActivity("A")} data-testid="enter-guided">探索任務</button>)}
+            ? <button type="button" className={styles.catalogLink} onClick={() => exploreSandbox(false)} data-testid="direct-explore"><Map size={16} aria-hidden="true" />自由探索</button>
+            : <button type="button" className={styles.catalogLink} onClick={() => enterActivity("A")} data-testid="enter-guided"><Map size={16} aria-hidden="true" />探索任務</button>)}
           {!entryPending && !learning ? <QuickPresetsMenu setup={setup} onPreset={applyPreset} /> : null}
           {!entryPending ? (
             <button
@@ -474,7 +477,9 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               <Info size={16} aria-hidden="true" />模型說明
             </button>
           ) : null}
-          <Link href="/" className={styles.catalogLink}>返回模型目錄</Link>
+          <Link href="/" className={styles.catalogLink}>
+            <Grid3x3 size={16} aria-hidden="true" />模型目錄
+          </Link>
         </div>
       </header>
 

@@ -6,13 +6,34 @@
   color: #143247;
 }
 
-.header {
+/* Compact Desmos-style app bar: product identity is a single row, never competing with the
+   workspace for vertical space. Target ~52-64px total including its border. */
+.appBar {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding-bottom: 14px;
+  gap: 16px;
+  padding: 10px 0;
   border-bottom: 1px solid #c7d5dc;
+}
+.appBarLeft { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.brandLink { display: inline-flex; align-items: center; gap: 6px; color: #416f89; font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.brandLink:hover { color: #123b56; }
+.brandLink:focus-visible { outline: 3px solid #e3ad36; outline-offset: 3px; }
+.appBarDivider { color: #b9cad2; font-size: 14px; }
+.appBarTitle { margin: 0; color: #143247; font: 500 21px/1.2 Georgia, "Noto Serif TC", serif; white-space: nowrap; }
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #fff3e0;
+  color: #8a5a1e;
+  font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: default;
 }
 
 .eyebrow,
@@ -23,9 +44,7 @@
   letter-spacing: .14em;
 }
 
-.header h1 { margin: 0; font: 500 clamp(28px, 3vw, 42px)/1.08 Georgia, "Noto Serif TC", serif; }
-.subtitle { margin: 7px 0 0; color: #607986; font-size: 14px; }
-.catalogLink { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border: 1px solid #b9cad2; border-radius: 7px; color: #214d65; text-decoration: none; background: rgba(250, 253, 254, .82); }
+.catalogLink { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 13px; border: 1px solid #b9cad2; border-radius: 7px; color: #214d65; text-decoration: none; background: rgba(250, 253, 254, .82); font-size: 13px; }
 .catalogLink:focus-visible { outline: 3px solid #e3ad36; outline-offset: 3px; }
 
 .statusOverlay {
@@ -264,7 +283,7 @@
    percentage — so it rarely binds on an ordinary 1440x900 desktop. */
 @media (min-width: 1024px) {
   .viewportCard {
-    max-height: calc(100vh - 210px);
+    max-height: calc(100vh - 175px);
   }
 }
 
@@ -285,8 +304,16 @@
   .sidePanel { display: flex; flex-direction: column; }
   .canvasColumn { margin-bottom: 10px; }
   .labShell { padding: 10px; }
-  .header { align-items: flex-start; }
-  .subtitle { max-width: 27rem; }
+  /* One-line compact app bar even at phone widths: brand collapses to its icon and the header
+     actions collapse to icon-only (Solar/Projectile's existing narrow-header convention), rather
+     than wrapping the bar to a second or third line. */
+  .appBar { flex-wrap: nowrap; gap: 6px; }
+  .appBarDivider { display: none; }
+  .brandLink { gap: 0; padding: 6px 4px; font-size: 0; }
+  .appBarTitle { font-size: 16px; }
+  .statusChip { padding: 3px 6px; font-size: 9px; }
+  .headerActions { flex-wrap: nowrap; gap: 3px; }
+  .headerActions .catalogLink { gap: 0; min-height: 36px; padding: 0 8px; font-size: 0; }
   .workspace { gap: 10px; margin-top: 10px; }
   .viewportCard { min-height: 360px; }
   .controls { grid-template-columns: 1fr; }
@@ -305,10 +332,7 @@
 
 @media (max-width: 480px) {
   .labShell { padding: 0 0 14px; }
-  .header { padding: 12px; }
-  .header h1 { font-size: 28px; }
-  .header .subtitle { font-size: 12px; }
-  .catalogLink { padding: 0 9px; font-size: 12px; }
+  .appBar { padding: 10px 12px; }
   .notice,
   .shareStatus { margin: 8px 8px 0; }
   .viewportCard { width: 100%; min-height: 330px; aspect-ratio: auto; border-left: 0; border-right: 0; border-radius: 0; }
