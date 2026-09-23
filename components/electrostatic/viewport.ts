@@ -57,15 +57,21 @@ export function cameraForView(domain: Domain, size: ViewportSize, view: CameraVi
   const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number.isFinite(view.zoom) ? view.zoom : 1));
   const panX = Number.isFinite(view.panX_px) ? view.panX_px : 0;
   const panY = Number.isFinite(view.panY_px) ? view.panY_px : 0;
+  const scale = fit.scale_px_per_m * zoom;
+  const originX = fit.originX_px + panX;
+  const originY = fit.originY_px + panY;
   return {
     ...fit,
-    scale_px_per_m: fit.scale_px_per_m * zoom,
-    originX_px: fit.originX_px + panX,
-    originY_px: fit.originY_px + panY,
-    worldLeft_px: fit.worldLeft_px + panX,
-    worldTop_px: fit.worldTop_px + panY,
-    worldWidth_px: fit.worldWidth_px * zoom,
-    worldHeight_px: fit.worldHeight_px * zoom,
+    scale_px_per_m: scale,
+    originX_px: originX,
+    originY_px: originY,
+    // The world frame must be derived from this exact transform. Reusing the
+    // unzoomed fit-frame here made the border stay behind while the field
+    // samples moved, which looked like a displaced field after zooming out.
+    worldLeft_px: originX + domain.xmin * scale,
+    worldTop_px: originY - domain.ymax * scale,
+    worldWidth_px: (domain.xmax - domain.xmin) * scale,
+    worldHeight_px: (domain.ymax - domain.ymin) * scale,
   };
 }
 

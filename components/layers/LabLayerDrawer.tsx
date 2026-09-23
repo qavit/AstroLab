@@ -6,13 +6,14 @@ import type { ReactNode } from "react";
 
 interface LabLayerDrawerProps {
   readonly open: boolean;
+  readonly id?: string;
   readonly title?: string;
   readonly onClose: () => void;
   readonly children: ReactNode;
 }
 
 /** Shared presentation only: each lab keeps its layer names and state locally. */
-export function LabLayerDrawer({ open, title = "視圖圖層", onClose, children }: LabLayerDrawerProps) {
+export function LabLayerDrawer({ open, id, title = "視圖圖層", onClose, children }: LabLayerDrawerProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -25,7 +26,7 @@ export function LabLayerDrawer({ open, title = "視圖圖層", onClose, children
   }, [open, onClose]);
 
   return (
-    <aside className={`layer-drawer ${open ? "open" : ""}`} aria-hidden={!open} aria-label={title} role="dialog" aria-modal="true">
+    <aside id={id} className={`layer-drawer ${open ? "open" : ""}`} aria-hidden={!open} aria-label={title} role="dialog" aria-modal="true">
       <header>
         <div><Layers3 size={18} aria-hidden="true" /><strong>{title}</strong></div>
         <button ref={closeRef} type="button" onClick={onClose} aria-label="關閉圖層" title="關閉圖層"><X size={17} aria-hidden="true" /></button>

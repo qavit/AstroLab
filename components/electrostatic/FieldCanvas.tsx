@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { HelpCircle, House, Layers3, ZoomIn, ZoomOut, X } from "lucide-react";
+import { HelpCircle, House, ZoomIn, ZoomOut, X } from "lucide-react";
 import { normalizedStrength, sampleFieldGrid } from "../../lib/science/electrostatics/sampling.ts";
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
 import { probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
@@ -34,19 +34,21 @@ interface FieldCanvasProps {
   readonly onPlace: (point: Vec2) => void;
   readonly onDelete: (target: DraggableObject) => void;
   readonly onExitTool: () => void;
+  /** Header-owned workspace control; display state remains local to this model. */
+  readonly layersOpen: boolean;
+  readonly onLayersOpenChange: (open: boolean) => void;
 }
 
 const HIDDEN_GRID = { ok: false, reason: "no-sources" } as const;
 
 export default function FieldCanvas(props: FieldCanvasProps) {
   const { setup, runtime, policy, selected, onSelect, onMove, onDragStart } = props;
-  const { tool, onPlace, onDelete, onExitTool } = props;
+  const { tool, onPlace, onDelete, onExitTool, layersOpen, onLayersOpenChange } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [hoverTarget, setHoverTarget] = useState<HoverTarget>(null);
-  const [layersOpen, setLayersOpen] = useState(false);
   const [layers, setLayers] = useState<ElectrostaticLayerState>(INITIAL_ELECTROSTATIC_LAYERS);
   const [view, setView] = useState<CameraView>(INITIAL_CAMERA_VIEW);
   const [tipOpen, setTipOpen] = useState(true);
@@ -195,7 +197,6 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       <canvas ref={staticCanvasRef} className={styles.canvasLayer} aria-hidden="true" />
       <canvas ref={dynamicCanvasRef} className={styles.canvasLayer} aria-hidden="true" />
       <div className={styles.viewportToolbar} role="group" aria-label="畫布視圖">
-        <button type="button" onClick={() => setLayersOpen(true)} aria-label="圖層" title="圖層" data-testid="layers-toggle"><Layers3 size={18} aria-hidden="true" /></button>
         <button type="button" onClick={() => setView((current) => zoomView(current, 1 / 1.25))} aria-label="縮小" title="縮小" data-testid="zoom-out"><ZoomOut size={18} aria-hidden="true" /></button>
         <button type="button" onClick={() => setView((current) => zoomView(current, 1.25))} aria-label="放大" title="放大" data-testid="zoom-in"><ZoomIn size={18} aria-hidden="true" /></button>
         <button type="button" onClick={() => setView(INITIAL_CAMERA_VIEW)} aria-label="回到完整視圖" title="回到完整視圖" data-testid="view-home"><House size={18} aria-hidden="true" /></button>
@@ -241,7 +242,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         open={layersOpen}
         layers={layers}
         available={{ field: policy.globalField, probe: policy.probe, particle: policy.particle, trail: policy.trajectory, contributions: policy.probeContributions }}
-        onClose={() => setLayersOpen(false)}
+        onClose={() => onLayersOpenChange(false)}
         onToggle={(key) => setLayers((current) => ({ ...current, [key]: !current[key] }))}
       />
     </div>

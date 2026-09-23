@@ -292,7 +292,12 @@
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .headerActions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
-.headerActions button { cursor: pointer; font: inherit; }
+/* Buttons and the preset summary use different native elements. Give the whole action row one
+   explicit type treatment so their labels cannot inherit divergent browser control fonts. */
+.headerActions .catalogLink { font: 500 13px/1.2 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.headerActions button { cursor: pointer; }
+/* Keep the active trigger above the right-side drawer so a second click is a true close affordance. */
+.activeHeaderAction { position: relative; z-index: 71; border-color: #246b82; background: #dceef2; box-shadow: inset 0 0 0 1px #246b82; }
 .guidedPanel { padding: 16px; }
 .guidedPanel button,
 .guidedPanel input { min-height: 44px; }

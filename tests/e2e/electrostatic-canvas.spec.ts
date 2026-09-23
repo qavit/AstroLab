@@ -60,6 +60,9 @@ test("layers are display-only, gated, and viewport Home preserves the physical s
   const sourceName = await source.getAttribute("aria-label");
   await page.getByTestId("layers-toggle").click();
   await expect(page.getByRole("dialog", { name: "視圖圖層" })).toBeVisible();
+  await page.getByTestId("layers-toggle").click();
+  await expect(page.getByRole("dialog", { name: "視圖圖層" })).toHaveAttribute("aria-hidden", "true");
+  await page.getByTestId("layers-toggle").click();
   await page.getByTestId("layer-field").uncheck();
   await expect(viewport).toHaveAttribute("data-field-visible", "false");
   await expect(source).toHaveAttribute("aria-label", sourceName ?? "");

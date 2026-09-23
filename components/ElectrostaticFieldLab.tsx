@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, Compass, Info } from "lucide-react";
+import { ArrowLeftRight, Compass, Info, Layers3 } from "lucide-react";
 import Controls from "./electrostatic/Controls";
 import QuickPresetsMenu from "./electrostatic/QuickPresetsMenu";
 import FieldCanvas from "./electrostatic/FieldCanvas";
@@ -125,6 +125,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   const [notice, setNotice] = useState<string | null>(() => initial.error ?? (initial.issues[0]?.message ?? null));
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [modelInfoOpen, setModelInfoOpen] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(false);
   const [tool, setTool] = useState<ToolMode>("select");
   const toolRef = useRef<ToolMode>(tool);
   useEffect(() => {
@@ -537,6 +538,18 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
           {!entryPending ? (
             <button
               type="button"
+              className={`${styles.catalogLink} ${layersOpen ? styles.activeHeaderAction : ""}`}
+              onClick={() => setLayersOpen((open) => !open)}
+              aria-expanded={layersOpen}
+              aria-controls="electrostatic-layer-drawer"
+              data-testid="layers-toggle"
+            >
+              <Layers3 size={16} aria-hidden="true" />視圖圖層
+            </button>
+          ) : null}
+          {!entryPending ? (
+            <button
+              type="button"
               className={styles.catalogLink}
               onClick={() => setModelInfoOpen(true)}
               aria-haspopup="dialog"
@@ -579,6 +592,8 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               onPlace={placeSourceAt}
               onDelete={deleteTarget}
               onExitTool={() => setTool("select")}
+              layersOpen={layersOpen}
+              onLayersOpenChange={setLayersOpen}
             />
           </section>
 

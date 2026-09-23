@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { classifyField, normalizedStrength, sampleFieldGrid } from "../lib/science/electrostatics/sampling.ts";
 import { probeReadout, ELECTROSTATIC_PRESETS, initialRuntime, applySetupEdit } from "../models/electrostatic.ts";
-import { fitCamera, screenToWorld, worldToScreen } from "../components/electrostatic/viewport.ts";
+import { cameraForView, fitCamera, screenToWorld, worldToScreen } from "../components/electrostatic/viewport.ts";
 import { createShareUrl, initialStateFromShare, retainFieldSceneReferences } from "../components/electrostatic/share.ts";
 import { encodeSetup } from "../models/electrostatic-serialization.ts";
 
@@ -17,6 +17,17 @@ test("viewport coordinate transform round-trips across the 4×3 m world", () => 
       assert.ok(Math.abs(roundTrip.y - point.y) < 1e-12);
     }
   }
+});
+
+test("zoomed camera frame follows the same transform as field samples", () => {
+  const domain = ELECTROSTATIC_PRESETS["single-positive"].domain;
+  const camera = cameraForView(domain, { width: 960, height: 720 }, { zoom: 0.6, panX_px: 17, panY_px: -11 });
+  const lowerLeft = worldToScreen({ x: domain.xmin, y: domain.ymin }, camera);
+  const upperRight = worldToScreen({ x: domain.xmax, y: domain.ymax }, camera);
+  assert.equal(camera.worldLeft_px, lowerLeft.x);
+  assert.equal(camera.worldTop_px + camera.worldHeight_px, lowerLeft.y);
+  assert.equal(camera.worldLeft_px + camera.worldWidth_px, upperRight.x);
+  assert.equal(camera.worldTop_px, upperRight.y);
 });
 
 test("source drag coordinates commit through the canonical model validator", () => {

@@ -28,7 +28,7 @@ export default function ElectrostaticLayerDrawer({ open, layers, available, onCl
     ? <LayerToggle checked={layers[key]} label={label} onChange={() => onToggle(key)} testId={`layer-${key}`} />
     : null;
   return (
-    <LabLayerDrawer open={open} title="視圖圖層" onClose={onClose}>
+    <LabLayerDrawer open={open} id="electrostatic-layer-drawer" title="視圖圖層" onClose={onClose}>
       <LayerGroup title="畫布顯示">
         <div className="layer-list">
           {toggle("field", "電場箭頭")}
