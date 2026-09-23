@@ -62,10 +62,9 @@
 .viewportCard {
   position: relative;
   min-width: 0;
-  /* Height follows the column width by default; the desktop breakpoint below flips this
-     to height-driven sizing (align-self: center) so the 4:3 world fits the viewport height
-     without cropping or stretching the ratio. */
-  align-self: stretch;
+  /* Width-driven by default (fills the flex column, height follows via aspect-ratio) so the
+     Canvas is the dominant element rather than a capped fraction of the viewport. The desktop
+     breakpoint below adds only a generous max-height safety valve for short viewports. */
   aspect-ratio: 4 / 3;
   overflow: hidden;
   border: 1px solid #092333;
@@ -224,19 +223,20 @@
 .choice input { min-height: 0; width: 18px; height: 18px; }
 .revealList { margin: 0; padding-left: 20px; line-height: 1.7; }
 
-.timeControls { display: grid; grid-template-columns: auto minmax(220px, 1fr); align-items: center; gap: 10px 18px; padding: 11px 14px; border: 1px solid #aebfc6; border-radius: 10px; background: #ffffff; box-shadow: 0 7px 18px rgba(16,48,66,.07); }
+/* Compact single dock (Projectile's `.projectile-transport` grammar): ~34px controls, one row
+   that wraps rather than a permanent second row for the scrub bar or the help sentence. */
+.timeControls { padding: 9px 12px; border: 1px solid #aebfc6; border-radius: 10px; background: #ffffff; box-shadow: 0 7px 18px rgba(16,48,66,.07); }
 .iconButton { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-.transportRow { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.transportRow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .transportRow button,
-.transportRow select { min-height: 42px; }
-.transportRow label { display: flex; align-items: center; gap: 5px; color: #536f7b; font-size: 12px; }
-.timelineRow { display: grid; grid-template-columns: 56px minmax(100px, 1fr) 56px; align-items: center; gap: 7px; font: 12px ui-monospace, monospace; color: #526f7b; }
-.timelineRow span:last-child { text-align: right; }
-.timelineRow input { width: 100%; }
-.timeControls .keyboardHelp { grid-column: 1 / -1; margin-top: 0; }
-.modelNotes { margin-top: 12px; border: 1px solid #c7d5dc; border-radius: 9px; background: rgba(249,252,252,.92); }
-.modelNotes > summary { cursor: pointer; padding: 13px 16px; color: #27566d; font-weight: 700; }
-.modelNotesGrid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(360px, 1fr); gap: 16px; padding: 0 16px 16px; }
+.transportRow select { min-height: 34px; padding: 0 11px; border-radius: 7px; font-size: 12px; }
+.transportRow button:focus-visible,
+.transportRow select:focus-visible { outline: 3px solid #d9a735; outline-offset: 2px; }
+.transportRow button:disabled { cursor: not-allowed; opacity: .48; }
+.speedSelect { width: auto; min-width: 56px; flex: 0 0 auto; }
+.timelineLabel { color: #526f7b; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+.timelineInput { flex: 1 1 110px; min-width: 90px; }
+.modelNotesGrid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(360px, 1fr); gap: 16px; }
 .modelNotesGrid h2 { margin: 8px 0; font: 500 20px Georgia, "Noto Serif TC", serif; }
 .modelNotesGrid p { color: #536f7b; font-size: 13px; line-height: 1.65; }
 
@@ -257,15 +257,14 @@
   box-shadow: 0 16px 36px rgba(16, 48, 66, .18);
 }
 
-/* Desktop two-column workspace: size the Canvas by available viewport height (not column
-   width) so header + Canvas + learner transport fit above the fold without page scroll.
-   The 4:3 ratio is preserved exactly (aspect-ratio), never cropped or stretched. */
+/* Desktop two-column workspace: the Canvas is width-driven (fills the 1.55fr column, height
+   follows via aspect-ratio) so it stays the dominant element rather than a capped fraction of
+   the viewport. This max-height is only a safety valve for short viewports — derived from the
+   shell's actual chrome (compact topbar + compact dock + shell padding), not an arbitrary
+   percentage — so it rarely binds on an ordinary 1440x900 desktop. */
 @media (min-width: 1024px) {
   .viewportCard {
-    align-self: center;
-    width: auto;
-    max-width: 100%;
-    height: min(54vh, 540px);
+    max-height: calc(100vh - 210px);
   }
 }
 
@@ -301,8 +300,7 @@
   .mobileTabs button[aria-pressed="true"] { border-color: #246b82; background: #dceef2; }
   .labShell { padding-bottom: 80px; }
   .modelNotesGrid { grid-template-columns: 1fr; }
-  .timeControls { grid-template-columns: 1fr; margin: 10px 8px 0; }
-  .timeControls .keyboardHelp { grid-column: auto; }
+  .timelineInput { flex-basis: 100%; }
 }
 
 @media (max-width: 480px) {

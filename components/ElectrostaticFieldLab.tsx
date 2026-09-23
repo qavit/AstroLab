@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Info } from "lucide-react";
 import Controls from "./electrostatic/Controls";
 import QuickPresetsMenu from "./electrostatic/QuickPresetsMenu";
 import FieldCanvas from "./electrostatic/FieldCanvas";
-import FieldLegend from "./electrostatic/FieldLegend";
+import ModelInfoOverlay from "./electrostatic/ModelInfoOverlay";
 import ParticleControls from "./electrostatic/ParticleControls";
 import ParticlePanel from "./electrostatic/ParticlePanel";
 import TimeControls from "./electrostatic/TimeControls";
@@ -15,7 +16,7 @@ import type { DraggableObject } from "./electrostatic/AccessibleObjects";
 import type { SelectedObject } from "./electrostatic/render";
 import { createShareUrl, initialStateFromShare, retainFieldSceneReferences, type ShareRouteInput } from "./electrostatic/share";
 import styles from "./electrostatic/ElectrostaticFieldLab.module.css";
-import { MathProvider, Tex } from "./math/MathJax";
+import { MathProvider } from "./math/MathJax";
 import type { Vec2 } from "../lib/science/electrostatics/types.ts";
 import {
   advancePlayback,
@@ -125,6 +126,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   const [selected, setSelected] = useState<SelectedObject>(null);
   const [notice, setNotice] = useState<string | null>(() => initial.error ?? (initial.issues[0]?.message ?? null));
   const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [modelInfoOpen, setModelInfoOpen] = useState(false);
 
   useEffect(() => {
     shellRef.current?.setAttribute("data-interactive", "true");
@@ -460,6 +462,18 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
             ? <button type="button" className={styles.catalogLink} onClick={() => exploreSandbox(false)} data-testid="direct-explore">自由探索</button>
             : <button type="button" className={styles.catalogLink} onClick={() => enterActivity("A")} data-testid="enter-guided">探索任務</button>)}
           {!entryPending && !learning ? <QuickPresetsMenu setup={setup} onPreset={applyPreset} /> : null}
+          {!entryPending ? (
+            <button
+              type="button"
+              className={styles.catalogLink}
+              onClick={() => setModelInfoOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={modelInfoOpen}
+              data-testid="model-info-toggle"
+            >
+              <Info size={16} aria-hidden="true" />模型說明
+            </button>
+          ) : null}
           <Link href="/" className={styles.catalogLink}>返回模型目錄</Link>
         </div>
       </header>
@@ -573,13 +587,8 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
 
       <p className={styles.srOnly} role="status" aria-live="polite" data-testid="clock-announcer">{clockMessage ?? announcement}</p>
 
-      {!entryPending ? <details className={styles.modelNotes}>
-        <summary>這個模型畫的是什麼？</summary>
-        <div className={styles.modelNotesGrid}>
-          <div><h2>點電荷模型</h2><p>每顆源電荷固定不動；畫面顯示它們在平面上造成的三維反平方電場。測試電荷不會改變來源。</p><p><Tex>{"\\vec E = \\sum_i \\vec E_i"}</Tex>，箭頭相加後得到合電場。灰色核心內不使用點電荷近似。</p></div>
-          <FieldLegend />
-        </div>
-      </details> : null}
+      {modelInfoOpen ? <ModelInfoOverlay onClose={() => setModelInfoOpen(false)} /> : null}
+
       <footer className={styles.footer}>
         <span>schema v1 · {learning ? "探索任務不會寫入網址" : "分享只保存起始物理設定"}</span>
         <span>點電荷模型只在每顆電荷的灰色核心之外使用</span>

@@ -127,7 +127,7 @@ test("server-renders a schema-v1 share URL with free-exploration semantics", asy
   assert.match(html, /data-mode="sandbox"/);
   assert.match(html, /data-testid="context-inspector"/);
   assert.match(html, /自由探索/);
-  assert.match(html, /怎麼看箭頭/);
+  assert.match(html, /data-testid="model-info-toggle"/);
   assert.match(html, /schema v1/);
   assert.match(html, /時間控制/);
   assert.match(html, /重新開始/);
