@@ -58,6 +58,9 @@ export default function ProbePanel({ setup, policy = SANDBOX_POLICY, emphasizedS
               are the same layer of detail, so they no longer compete as separate summaries. */}
           <details className={styles.readoutDetails}>
             <summary>看電場是怎麼由各來源相加而成</summary>
+            {readout.contributions.length > 1 ? (
+              <p className={styles.helperText}>畫布上的向量以同一比例縮放，方便比較相加關係；實際大小請以 N/C 讀值為準。</p>
+            ) : null}
             <div className={styles.tableWrap}>
               <table className={styles.probeTable}>
                 <caption>各源電荷對測量點的電場貢獻</caption>

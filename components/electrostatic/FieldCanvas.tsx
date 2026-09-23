@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { HelpCircle, House, ZoomIn, ZoomOut, X } from "lucide-react";
-import { normalizedStrength, sampleFieldGrid } from "../../lib/science/electrostatics/sampling.ts";
+import { sampleFieldGrid } from "../../lib/science/electrostatics/sampling.ts";
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
 import { probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import type { EvidencePolicy } from "../../models/electrostatic-learning.ts";
@@ -11,12 +11,13 @@ import AccessibleObjects, { type DraggableObject, type HoverTarget } from "./Acc
 import { formatCharge, sourceDisplayName } from "./labels.ts";
 import { TOOL_BANNER, type ToolMode } from "./tools.ts";
 import ElectrostaticLayerDrawer, { INITIAL_ELECTROSTATIC_LAYERS, type ElectrostaticLayerState } from "./ElectrostaticLayerDrawer";
+import { buildVectorConstruction } from "./vectorConstruction.ts";
 import {
   drawDynamicField,
   drawStaticField,
   prepareCanvas,
   type ParticleGlyph,
-  type ProbeVectorGlyph,
+  type ProbeVectorScene,
   type SelectedObject,
 } from "./render.ts";
 import { cameraForView, INITIAL_CAMERA_VIEW, worldToScreen, zoomView, type CameraView } from "./viewport.ts";
@@ -45,6 +46,8 @@ interface FieldCanvasProps {
 }
 
 const HIDDEN_GRID = { ok: false, reason: "no-sources" } as const;
+/** Bounded screen envelope the probe's vector-addition evidence fits inside, at one shared scale. */
+const PROBE_VECTOR_MAX_RADIUS_PX = 46;
 
 export default function FieldCanvas(props: FieldCanvasProps) {
   const { setup, runtime, policy, selected, onSelect, onMove, onDragStart } = props;
@@ -131,25 +134,29 @@ export default function FieldCanvas(props: FieldCanvasProps) {
   const probe = useMemo(() => probeReadout(setup), [setup]);
   const { probeTotal } = policy;
   const probeZero = showProbe && probeTotal && probe.valid && probe.isZero;
-  const probeVectors: readonly ProbeVectorGlyph[] = useMemo(() => {
-    if (!showProbe || !showContributions || !probe.valid) return [];
-    const contributions: ProbeVectorGlyph[] = probe.contributions.map((item) => ({
+  const probeScene: ProbeVectorScene = useMemo(() => {
+    const empty: ProbeVectorScene = { contributions: [], chain: [], resultant: null };
+    if (!showProbe || !showContributions || !probe.valid) return empty;
+    // Physics y is up, screen y is down: flip once here so every vector below is already
+    // screen-oriented and drawn with no further sign handling.
+    const components = probe.contributions.map((item) => ({ x: item.Ex_N_per_C, y: -item.Ey_N_per_C }));
+    const construction = buildVectorConstruction(components, PROBE_VECTOR_MAX_RADIUS_PX);
+    const anyEmphasized = emphasizedSourceId !== null && probe.contributions.some((item) => item.sourceId === emphasizedSourceId);
+    const contributions = probe.contributions.map((item, index) => ({
       sourceId: item.sourceId,
-      ux: item.Ex_N_per_C / item.magnitude_N_per_C,
-      uy: item.Ey_N_per_C / item.magnitude_N_per_C,
-      strength: normalizedStrength(item.magnitude_N_per_C, setup.fieldStyle),
-      kind: "contribution" as const,
+      displacement: construction.contributions[index],
+      emphasized: item.sourceId === emphasizedSourceId,
+      quiet: anyEmphasized && item.sourceId !== emphasizedSourceId,
     }));
-    if (!probeTotal || probe.isZero) return contributions;
-    contributions.push({
-      sourceId: null,
-      ux: probe.Ex_N_per_C / probe.magnitude_N_per_C,
-      uy: probe.Ey_N_per_C / probe.magnitude_N_per_C,
-      strength: normalizedStrength(probe.magnitude_N_per_C, setup.fieldStyle),
-      kind: "total" as const,
-    });
-    return contributions;
-  }, [probe, setup.fieldStyle, showProbe, showContributions, probeTotal]);
+    // The resultant (and the chain that leads to it) stays gated with it: a chain drawn before
+    // the resultant is revealed would visually give away where the resultant lands.
+    const showResultant = probeTotal && !probe.isZero;
+    return {
+      contributions,
+      chain: showResultant ? construction.chain : [],
+      resultant: showResultant ? construction.resultant : null,
+    };
+  }, [probe, showProbe, showContributions, probeTotal, emphasizedSourceId]);
 
   useEffect(() => {
     const canvas = staticCanvasRef.current;
@@ -179,13 +186,13 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         camera,
         setup.sources,
         { x: setup.probe.x_m, y: setup.probe.y_m },
-        probeVectors,
+        probeScene,
         selected,
         showParticle ? particleGlyph : null,
         { showProbe, probeZero },
       );
     }
-  }, [showProbe, probeZero, showParticle, camera, particleGlyph, probeVectors, selected, setup.probe.x_m, setup.probe.y_m, setup.sources, size]);
+  }, [showProbe, probeZero, showParticle, camera, particleGlyph, probeScene, selected, setup.probe.x_m, setup.probe.y_m, setup.sources, size]);
 
   return (
     <div
@@ -199,7 +206,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       data-field-visible={showField ? "true" : "false"}
       data-camera-zoom={view.zoom.toFixed(3)}
       data-camera-pan={`${view.panX_px.toFixed(1)},${view.panY_px.toFixed(1)}`}
-      data-probe-vectors={probeVectors.length}
+      data-probe-vectors={probeScene.contributions.length + (probeScene.resultant ? 1 : 0)}
       data-particle-screen={(() => {
         const p = worldToScreen({ x: runtime.particle.x_m, y: runtime.particle.y_m }, camera);
         return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;

@@ -2,13 +2,28 @@ import type { FieldGrid, GlyphClass } from "../../lib/science/electrostatics/sam
 import type { SourceCharge, Vec2 } from "../../lib/science/electrostatics/types.ts";
 import type { CameraTransform } from "./viewport.ts";
 import { worldToScreen } from "./viewport.ts";
+import type { VectorSegment } from "./vectorConstruction.ts";
 
-export interface ProbeVectorGlyph {
+/** One already-scaled contribution arrow (screen px, relative to the probe point). */
+export interface ProbeVectorItem {
   readonly sourceId: string | null;
-  readonly ux: number;
-  readonly uy: number;
-  readonly strength: number;
-  readonly kind: "contribution" | "total";
+  readonly displacement: Vec2;
+  readonly emphasized: boolean;
+  /** Another contribution is emphasized; this one recedes rather than competing with it. */
+  readonly quiet: boolean;
+}
+
+/**
+ * Everything needed to draw the vector-addition evidence at the probe point, already built
+ * through one shared linear scale (see vectorConstruction.ts) — the renderer only draws what
+ * it is given, it never re-scales or re-normalizes anything here.
+ */
+export interface ProbeVectorScene {
+  readonly contributions: readonly ProbeVectorItem[];
+  /** Head-to-tail construction segments; empty when there is nothing to construct from. */
+  readonly chain: readonly VectorSegment[];
+  /** null when the resultant isn't shown yet (gated) or is (numerically) zero. */
+  readonly resultant: Vec2 | null;
 }
 
 export type SelectedObject =
@@ -101,6 +116,48 @@ function drawArrow(
     context.lineTo(x2 - nx * 4, y2 - ny * 4);
     context.stroke();
   }
+  context.restore();
+}
+
+/**
+ * A true tail-to-head arrow between two screen points (unlike `drawArrow`, which centers on
+ * `origin`). Used for the probe's vector-addition evidence, where each arrow's actual start and
+ * end point is the thing being demonstrated.
+ */
+function drawArrowBetween(
+  context: CanvasRenderingContext2D,
+  from: Vec2,
+  to: Vec2,
+  colour: string,
+  options: { outline?: boolean; width?: number; headScale?: number } = {},
+): void {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 0.75) return;
+  const ux = dx / length;
+  const uy = dy / length;
+  const head = Math.max(3, Math.min(7, length * (options.headScale ?? 0.24)));
+  const nx = -uy;
+  const ny = ux;
+  context.save();
+  context.strokeStyle = colour;
+  context.fillStyle = colour;
+  context.lineWidth = options.width ?? 1.6;
+  context.lineCap = "round";
+  context.setLineDash(options.outline ? [4, 3] : []);
+  context.beginPath();
+  context.moveTo(from.x, from.y);
+  context.lineTo(to.x, to.y);
+  context.stroke();
+  context.setLineDash([]);
+  context.beginPath();
+  context.moveTo(to.x, to.y);
+  context.lineTo(to.x - ux * head + nx * head * 0.58, to.y - uy * head + ny * head * 0.58);
+  context.lineTo(to.x - ux * head - nx * head * 0.58, to.y - uy * head - ny * head * 0.58);
+  context.closePath();
+  if (options.outline) context.stroke();
+  else context.fill();
   context.restore();
 }
 
@@ -262,7 +319,7 @@ export function drawDynamicField(
   camera: CameraTransform,
   sources: readonly SourceCharge[],
   probe: Vec2,
-  probeVectors: readonly ProbeVectorGlyph[],
+  probeScene: ProbeVectorScene,
   selected: SelectedObject,
   particle: ParticleGlyph | null = null,
   options: DynamicLayerOptions = { showProbe: true, probeZero: false },
@@ -276,18 +333,19 @@ export function drawDynamicField(
     return;
   }
   const probePoint = worldToScreen(probe, camera);
-  if (probeVectors.length > 0) drawProbeHalo(context, probePoint, probeVectors);
-  for (const vector of probeVectors) {
-    const length = vector.kind === "total" ? 28 + 40 * vector.strength : 18 + 22 * vector.strength;
-    drawArrow(
-      context,
-      probePoint,
-      vector.ux,
-      -vector.uy,
-      length,
-      vector.kind === "total" ? "#ffffff" : "rgba(196, 226, 235, 0.95)",
-      { outline: vector.kind === "contribution", width: vector.kind === "total" ? 2.8 : 1.7 },
-    );
+  const add = (delta: Vec2): Vec2 => ({ x: probePoint.x + delta.x, y: probePoint.y + delta.y });
+  if (probeScene.contributions.length > 0 || probeScene.resultant) drawProbeHalo(context, probePoint, probeScene);
+  // Construction first, underneath the real vectors: visually secondary, dashed and translucent.
+  for (const segment of probeScene.chain) {
+    drawArrowBetween(context, add(segment.from), add(segment.to), "rgba(196, 226, 235, 0.4)", { outline: true, width: 1.3, headScale: 0.3 });
+  }
+  for (const item of probeScene.contributions) {
+    const colour = item.emphasized ? "#ffe6a8" : item.quiet ? "rgba(196, 226, 235, 0.4)" : "rgba(196, 226, 235, 0.95)";
+    drawArrowBetween(context, probePoint, add(item.displacement), colour, { width: item.emphasized ? 2.6 : 1.9 });
+  }
+  if (probeScene.resultant) {
+    // Always its own colour/weight so it never reads as "the emphasized source's vector".
+    drawArrowBetween(context, probePoint, add(probeScene.resultant), "#ffffff", { width: 3 });
   }
   context.save();
   context.translate(probePoint.x, probePoint.y);
@@ -303,12 +361,11 @@ export function drawDynamicField(
  * Screen-space contrast patch so probe evidence reads above the background field glyphs.
  * Presentation only: it changes no sampled value, no probe readout and no geometry.
  */
-function drawProbeHalo(context: CanvasRenderingContext2D, centre: Vec2, vectors: readonly ProbeVectorGlyph[]): void {
+function drawProbeHalo(context: CanvasRenderingContext2D, centre: Vec2, scene: ProbeVectorScene): void {
+  const reach = (v: Vec2) => Math.hypot(v.x, v.y);
   let radius = 34;
-  for (const vector of vectors) {
-    const length = vector.kind === "total" ? 28 + 40 * vector.strength : 18 + 22 * vector.strength;
-    radius = Math.max(radius, length / 2 + 14);
-  }
+  for (const item of scene.contributions) radius = Math.max(radius, reach(item.displacement) + 14);
+  if (scene.resultant) radius = Math.max(radius, reach(scene.resultant) + 14);
   const gradient = context.createRadialGradient(centre.x, centre.y, radius * 0.45, centre.x, centre.y, radius);
   gradient.addColorStop(0, "rgba(4, 16, 24, 0.86)");
   gradient.addColorStop(1, "rgba(4, 16, 24, 0)");

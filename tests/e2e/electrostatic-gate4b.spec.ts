@@ -107,7 +107,7 @@ test("only one advanced disclosure covers per-source contributions and resultant
   await details.locator("summary").click();
   await expect(details).toContainText("大小");
   await expect(details.locator("table")).toBeVisible();
-  await expect(details.locator("p")).toBeVisible();
+  await expect(details.locator("p").last()).toBeVisible();
 });
 
 test("zero field still reports undefined direction, excluded-core invalid state still works", async ({ page }) => {
