@@ -269,12 +269,19 @@
 .helpPopoverWrap > summary { list-style: none; cursor: pointer; }
 .helpPopoverWrap > summary::-webkit-details-marker { display: none; }
 .helpPopoverWrap > summary:focus-visible { outline: 3px solid #d9a735; outline-offset: 2px; }
+/* Fixed and JS-positioned (see TimeControls.tsx) rather than anchored with `right:0` relative
+   to the trigger's own box: the transport row wraps at narrow widths, so the trigger's on-screen
+   position isn't predictable from CSS alone, and a static anchor sent the popover off-screen
+   whenever the icon landed mid-row. z-index sits above the fixed mobile tab bar (30) so an open
+   popover is never covered by it. */
 .helpPopover {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 8px);
-  right: 0;
-  width: min(260px, calc(100vw - 32px));
+  position: fixed;
+  z-index: 45;
+  top: 0;
+  left: 0;
+  width: min(260px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   padding: 10px 12px;
   border: 1px solid #c4d3d9;
   border-radius: 8px;

@@ -1,9 +1,12 @@
 "use client";
 
+import { useState, type SyntheticEvent } from "react";
 import { HelpCircle, Pause, Play, RotateCcw } from "lucide-react";
 import type { ElectrostaticRuntime } from "../../models/electrostatic.ts";
 import { LEARNER_SEEK_STEPS } from "../../models/electrostatic-history.ts";
 import styles from "./ElectrostaticFieldLab.module.css";
+
+const HELP_POPOVER_WIDTH = 260;
 
 interface TimeControlsProps {
   readonly runtime: ElectrostaticRuntime;
@@ -33,6 +36,28 @@ export default function TimeControls(props: TimeControlsProps) {
   const running = runtime.status === "running";
   const blocked = runtime.status === "stopped" || runtime.error !== null;
   const current = runtime.macroSteps;
+  const [helpPos, setHelpPos] = useState<{ top: number; left: number } | null>(null);
+
+  /**
+   * The transport row wraps at narrow widths, so the help trigger's on-screen position isn't
+   * fixed relative to any CSS anchor — a static `right:0` popover ended up jumping off-screen
+   * whenever the icon landed mid-row instead of at the row's trailing edge. Measuring the
+   * trigger's actual rect on open and placing the (position:fixed) popover from that keeps it
+   * anchored to the icon regardless of where the row wrapped it to.
+   */
+  const onHelpToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
+    if (!event.currentTarget.open) {
+      setHelpPos(null);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const left = Math.min(
+      Math.max(8, rect.right - HELP_POPOVER_WIDTH),
+      window.innerWidth - HELP_POPOVER_WIDTH - 8,
+    );
+    setHelpPos({ top: rect.bottom + 8, left });
+  };
+
   return (
     <section className={styles.timeControls} aria-label="時間控制" aria-describedby={HELP_ID} data-testid="time-controls" data-clock-status={runtime.status}>
       <div className={styles.transportRow}>
@@ -77,11 +102,17 @@ export default function TimeControls(props: TimeControlsProps) {
         />
         <span className={styles.timelineLabel}>{timeOf(props.maxSimulatedSteps).toFixed(2)}s</span>
 
-        <details className={styles.helpPopoverWrap}>
+        <details className={styles.helpPopoverWrap} onToggle={onHelpToggle}>
           <summary className={styles.iconButton} aria-label="鍵盤操作說明" data-testid="transport-help">
             <HelpCircle size={16} aria-hidden="true" />
           </summary>
-          <div className={styles.helpPopover} role="note">{HELP_TEXT}</div>
+          <div
+            className={styles.helpPopover}
+            role="note"
+            style={helpPos ? { top: helpPos.top, left: helpPos.left, right: "auto" } : undefined}
+          >
+            {HELP_TEXT}
+          </div>
         </details>
       </div>
       <p id={HELP_ID} className={styles.srOnly}>{HELP_TEXT}</p>
