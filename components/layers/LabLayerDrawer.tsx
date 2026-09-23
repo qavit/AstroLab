@@ -2,31 +2,48 @@
 
 import { useEffect, useRef } from "react";
 import { Layers3, X } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 
 interface LabLayerDrawerProps {
   readonly open: boolean;
   readonly id?: string;
   readonly title?: string;
   readonly onClose: () => void;
+  /** The model-owned trigger to restore after an Escape or close-button close. */
+  readonly returnFocusRef?: RefObject<HTMLElement | null>;
   readonly children: ReactNode;
 }
 
 /** Shared presentation only: each lab keeps its layer names and state locally. */
-export function LabLayerDrawer({ open, id, title = "視圖圖層", onClose, children }: LabLayerDrawerProps) {
+export function LabLayerDrawer({ open, id, title = "視圖圖層", onClose, returnFocusRef, children }: LabLayerDrawerProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true;
+      closeRef.current?.focus();
+      return;
+    }
+    if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      returnFocusRef?.current?.focus();
+    }
+  }, [open, returnFocusRef]);
+
   useEffect(() => {
     if (!open) return;
-    closeRef.current?.focus();
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
     };
     window.addEventListener("keydown", escape);
     return () => window.removeEventListener("keydown", escape);
   }, [open, onClose]);
 
   return (
-    <aside id={id} className={`layer-drawer ${open ? "open" : ""}`} aria-hidden={!open} aria-label={title} role="dialog" aria-modal="true">
+    <aside id={id} className={`layer-drawer ${open ? "open" : ""}`} aria-hidden={!open} aria-label={title} role="dialog" inert={!open}>
       <header>
         <div><Layers3 size={18} aria-hidden="true" /><strong>{title}</strong></div>
         <button ref={closeRef} type="button" onClick={onClose} aria-label="關閉圖層" title="關閉圖層"><X size={17} aria-hidden="true" /></button>

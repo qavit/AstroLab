@@ -31,6 +31,7 @@ export default function SolarLab() {
   const localRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SolarSceneApi | null>(null);
   const directoryRef = useRef<DirectoryHandle | null>(null);
+  const layersTriggerRef = useRef<HTMLButtonElement>(null);
   const previousTraceTime = useRef<number | null>(null);
 
   const [state, setState] = useState<SolarLabState>(initialSolarState);
@@ -157,7 +158,7 @@ export default function SolarLab() {
         </div>
         <div className="header-actions">
           <button className={appearance.directManipulation ? "active" : ""} onClick={() => patchAppearance({ directManipulation: !appearance.directManipulation })}><MousePointer2 size={15} />直接操控</button>
-          <button className={showLayers ? "active" : ""} onClick={() => setShowLayers((value) => !value)}><Layers3 size={15} />圖層</button>
+          <button ref={layersTriggerRef} className={showLayers ? "active" : ""} onClick={() => setShowLayers((value) => !value)} aria-expanded={showLayers} aria-controls="solar-layer-drawer"><Layers3 size={15} />圖層</button>
           <button className={showControls ? "active" : ""} onClick={() => setShowControls((value) => !value)}><Settings2 size={15} />控制台</button>
           <button onClick={() => sceneRef.current?.reset()} aria-label="重設視角"><RotateCcw size={15} />重設</button>
           <Link className="model-index-link" href="/">模型目錄</Link>
@@ -197,6 +198,7 @@ export default function SolarLab() {
         onClose={() => setShowLayers(false)}
         onToggleLayer={toggleLayer}
         onAppearanceChange={patchAppearance}
+        returnFocusRef={layersTriggerRef}
       />
 
       <ControlDeck

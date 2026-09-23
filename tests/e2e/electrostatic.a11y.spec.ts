@@ -54,6 +54,20 @@ test("@a11y model-info panel opens and closes with Escape, no serious or critica
   await expect(dialog).toBeHidden();
 });
 
+test("@a11y open shared Layers drawer is non-modal and has no serious or critical axe violations", async ({ page }) => {
+  await page.goto("/electrostatics");
+  await page.getByTestId("choose-sandbox").click();
+  const trigger = page.getByTestId("layers-toggle");
+  await trigger.click();
+  const drawer = page.getByRole("dialog", { name: "視圖圖層" });
+  await expect(drawer).toHaveAttribute("aria-hidden", "false");
+  await expect(drawer).not.toHaveAttribute("aria-modal", "true");
+
+  const results = await new AxeBuilder({ page }).analyze();
+  const blocking = results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
+  expect(blocking, blocking.map((violation) => `${violation.id}: ${violation.help}`).join("\n")).toEqual([]);
+});
+
 test("status notices never move the Canvas: overlay appears without shifting layout", async ({ page }) => {
   await page.goto("/electrostatics");
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");

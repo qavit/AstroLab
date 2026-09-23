@@ -99,6 +99,7 @@ function isInteractive(target: EventTarget | null): boolean {
 
 export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabProps) {
   const shellRef = useRef<HTMLElement>(null);
+  const layersTriggerRef = useRef<HTMLButtonElement>(null);
   const initial = useMemo(() => initialStateFromShare(share), [share]);
   // D-05 + D-07: no `s` pauses at an intent choice; any present `s` bypasses it into free exploration.
   const [entryPending, setEntryPending] = useState(() => !initial.sandbox);
@@ -539,6 +540,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
             <button
               type="button"
               className={`${styles.catalogLink} ${layersOpen ? styles.activeHeaderAction : ""}`}
+              ref={layersTriggerRef}
               onClick={() => setLayersOpen((open) => !open)}
               aria-expanded={layersOpen}
               aria-controls="electrostatic-layer-drawer"
@@ -594,6 +596,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               onExitTool={() => setTool("select")}
               layersOpen={layersOpen}
               onLayersOpenChange={setLayersOpen}
+              layersTriggerRef={layersTriggerRef}
             />
           </section>
 

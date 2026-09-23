@@ -76,6 +76,31 @@ test("layers are display-only, gated, and viewport Home preserves the physical s
   await expect(source).toHaveAttribute("aria-label", sourceName ?? "");
 });
 
+test("shared Layers drawer returns focus and keeps its closed controls out of Tab order", async ({ page }) => {
+  await openFree(page);
+  const trigger = page.getByTestId("layers-toggle");
+  const drawer = page.getByRole("dialog", { name: "視圖圖層" });
+  const close = drawer.getByRole("button", { name: "關閉圖層" });
+
+  await trigger.focus();
+  await trigger.press("Enter");
+  await expect(drawer).toHaveAttribute("aria-hidden", "false");
+  await expect(drawer).not.toHaveAttribute("aria-modal", "true");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveAttribute("aria-hidden", "true");
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).not.toBeFocused();
+
+  await trigger.focus();
+  await trigger.press("Enter");
+  await expect(close).toBeFocused();
+  await close.click();
+  await expect(drawer).toHaveAttribute("aria-hidden", "true");
+  await expect(trigger).toBeFocused();
+});
+
 test("guided prediction cannot expose gated evidence through Layers", async ({ page }) => {
   await page.goto("/electrostatics");
   await page.getByTestId("choose-guided").click();

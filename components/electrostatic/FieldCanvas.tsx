@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { HelpCircle, House, ZoomIn, ZoomOut, X } from "lucide-react";
 import { normalizedStrength, sampleFieldGrid } from "../../lib/science/electrostatics/sampling.ts";
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
@@ -37,13 +38,14 @@ interface FieldCanvasProps {
   /** Header-owned workspace control; display state remains local to this model. */
   readonly layersOpen: boolean;
   readonly onLayersOpenChange: (open: boolean) => void;
+  readonly layersTriggerRef: RefObject<HTMLButtonElement | null>;
 }
 
 const HIDDEN_GRID = { ok: false, reason: "no-sources" } as const;
 
 export default function FieldCanvas(props: FieldCanvasProps) {
   const { setup, runtime, policy, selected, onSelect, onMove, onDragStart } = props;
-  const { tool, onPlace, onDelete, onExitTool, layersOpen, onLayersOpenChange } = props;
+  const { tool, onPlace, onDelete, onExitTool, layersOpen, onLayersOpenChange, layersTriggerRef } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -244,6 +246,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         available={{ field: policy.globalField, probe: policy.probe, particle: policy.particle, trail: policy.trajectory, contributions: policy.probeContributions }}
         onClose={() => onLayersOpenChange(false)}
         onToggle={(key) => setLayers((current) => ({ ...current, [key]: !current[key] }))}
+        returnFocusRef={layersTriggerRef}
       />
     </div>
   );

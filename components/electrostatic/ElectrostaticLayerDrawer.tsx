@@ -1,5 +1,6 @@
 "use client";
 
+import type { RefObject } from "react";
 import { LabLayerDrawer, LayerGroup, LayerToggle } from "../layers/LabLayerDrawer";
 
 export interface ElectrostaticLayerState {
@@ -20,15 +21,16 @@ interface Props {
   readonly available: Partial<Record<keyof ElectrostaticLayerState, boolean>>;
   readonly onClose: () => void;
   readonly onToggle: (key: keyof ElectrostaticLayerState) => void;
+  readonly returnFocusRef: RefObject<HTMLButtonElement | null>;
 }
 
 /** Presentation consumes the shared drawer; evidence availability remains model-owned. */
-export default function ElectrostaticLayerDrawer({ open, layers, available, onClose, onToggle }: Props) {
+export default function ElectrostaticLayerDrawer({ open, layers, available, onClose, onToggle, returnFocusRef }: Props) {
   const toggle = (key: keyof ElectrostaticLayerState, label: string) => available[key]
     ? <LayerToggle checked={layers[key]} label={label} onChange={() => onToggle(key)} testId={`layer-${key}`} />
     : null;
   return (
-    <LabLayerDrawer open={open} id="electrostatic-layer-drawer" title="視圖圖層" onClose={onClose}>
+    <LabLayerDrawer open={open} id="electrostatic-layer-drawer" title="視圖圖層" onClose={onClose} returnFocusRef={returnFocusRef}>
       <LayerGroup title="畫布顯示">
         <div className="layer-list">
           {toggle("field", "電場箭頭")}

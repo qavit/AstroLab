@@ -1,5 +1,6 @@
 "use client";
 
+import type { RefObject } from "react";
 import type { AppearanceState, LayerState } from "@/models/solar";
 import { LabLayerDrawer, LayerGroup, LayerToggle } from "@/components/layers/LabLayerDrawer";
 
@@ -10,9 +11,10 @@ type Props = {
   onClose: () => void;
   onToggleLayer: (key: keyof LayerState) => void;
   onAppearanceChange: (patch: Partial<AppearanceState>) => void;
+  returnFocusRef: RefObject<HTMLButtonElement | null>;
 };
 
-export default function LayerDrawer({ open, layers, appearance, onClose, onToggleLayer, onAppearanceChange }: Props) {
+export default function LayerDrawer({ open, layers, appearance, onClose, onToggleLayer, onAppearanceChange, returnFocusRef }: Props) {
   const check = (key: keyof LayerState, label: string) => <LayerToggle checked={layers[key]} label={label} onChange={() => onToggleLayer(key)} />;
   const coordinateRow = (label: string, lines: keyof LayerState, labels: keyof LayerState) => (
     <div className="coordinate-row">
@@ -34,7 +36,7 @@ export default function LayerDrawer({ open, layers, appearance, onClose, onToggl
   );
 
   return (
-    <LabLayerDrawer open={open} onClose={onClose}>
+    <LabLayerDrawer open={open} id="solar-layer-drawer" title="視圖圖層" onClose={onClose} returnFocusRef={returnFocusRef}>
         <LayerGroup title="天球與赤道坐標"><div className="layer-list coordinate-controls">
           {check("celestialSphere", "天球外框")}
           {coordinateRow("赤經", "rightAscensionLines", "rightAscensionLabels")}
