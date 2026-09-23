@@ -10,7 +10,12 @@ export interface VectorConstruction {
   readonly scale_px_per_NperC: number;
   /** Screen-space displacement of each contribution, in input order, drawn from the probe point. */
   readonly contributions: readonly Vec2[];
-  /** Head-to-tail construction segments; empty when there is nothing to construct from (<=1 contribution). */
+  /**
+   * Parallelogram construction segments (the two "opposite sides" translated to each
+   * contribution's tip, both meeting at the resultant's tip) — only for exactly two
+   * contributions. Empty for one contribution (nothing to construct) and for three or more
+   * (v0.1 shows individual contributions + resultant only, with no arbitrary chain ordering).
+   */
   readonly chain: readonly VectorSegment[];
   /** Screen-space displacement of the resultant (sum of `contributions`), drawn from the probe point. */
   readonly resultant: Vec2;
@@ -45,37 +50,35 @@ function magnitude(v: Vec2): number {
 }
 
 /**
- * Builds a vector-addition construction (individual contributions, a head-to-tail chain, and
- * the resultant) from physical field components, all displayed through one shared linear scale.
+ * Builds a vector-addition construction (individual contributions, an optional parallelogram
+ * construction, and the resultant) from physical field components, all displayed through one
+ * shared linear scale.
  *
  * `display(E_total) = sum(display(E_i))` holds by construction: every displacement here is the
  * same `scale` times the physical component it represents, so relative magnitude and the
  * addition geometry are both preserved — nothing is normalized or clipped per vector. `scale` is
- * chosen only to fit the whole construction (every contribution and every point the head-to-tail
- * chain visits) inside `maxRadius_px`.
+ * chosen only to fit the whole construction (every contribution and the resultant) inside
+ * `maxRadius_px`.
  */
 export function buildVectorConstruction(components: readonly Vec2[], maxRadius_px: number): VectorConstruction {
   const total = components.reduce(add, { x: 0, y: 0 });
-  const cumulative: Vec2[] = [];
-  let running: Vec2 = { x: 0, y: 0 };
-  for (const component of components) {
-    running = add(running, component);
-    cumulative.push(running);
-  }
-  const maxExtent = Math.max(0, ...components.map(magnitude), ...cumulative.map(magnitude));
+  const maxExtent = Math.max(0, ...components.map(magnitude), magnitude(total));
   const scale = maxExtent > 0 ? maxRadius_px / maxExtent : 0;
   const scaled = (v: Vec2): Vec2 => ({ x: v.x * scale, y: v.y * scale });
-  const origin: Vec2 = { x: 0, y: 0 };
-  const chain: VectorSegment[] = components.length > 1
-    ? components.map((_, index) => ({
-        from: scaled(index === 0 ? origin : cumulative[index - 1]),
-        to: scaled(cumulative[index]),
-      }))
+  const scaledComponents = components.map(scaled);
+  const scaledTotal = scaled(total);
+  // Parallelogram: both real contribution vectors start at the probe; the two dashed sides are
+  // each contribution translated to the other's tip, both landing on the resultant's tip.
+  const chain: VectorSegment[] = components.length === 2
+    ? [
+        { from: scaledComponents[0], to: scaledTotal },
+        { from: scaledComponents[1], to: scaledTotal },
+      ]
     : [];
   return {
     scale_px_per_NperC: scale,
-    contributions: components.map(scaled),
+    contributions: scaledComponents,
     chain,
-    resultant: scaled(total),
+    resultant: scaledTotal,
   };
 }

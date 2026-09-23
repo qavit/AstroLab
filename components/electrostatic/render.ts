@@ -20,7 +20,7 @@ export interface ProbeVectorItem {
  */
 export interface ProbeVectorScene {
   readonly contributions: readonly ProbeVectorItem[];
-  /** Head-to-tail construction segments; empty when there is nothing to construct from. */
+  /** Parallelogram construction segments; only for exactly two contributions (see vectorConstruction.ts). */
   readonly chain: readonly VectorSegment[];
   /** null when the resultant isn't shown yet (gated) or is (numerically) zero. */
   readonly resultant: Vec2 | null;
@@ -123,13 +123,16 @@ function drawArrow(
  * A true tail-to-head arrow between two screen points (unlike `drawArrow`, which centers on
  * `origin`). Used for the probe's vector-addition evidence, where each arrow's actual start and
  * end point is the thing being demonstrated.
+ *
+ * `casing`: contrast against the background field arrows is arrow-local (a wider dark casing
+ * drawn first, the real colour on top of it), not a large dimmed circular patch behind everything.
  */
 function drawArrowBetween(
   context: CanvasRenderingContext2D,
   from: Vec2,
   to: Vec2,
   colour: string,
-  options: { outline?: boolean; width?: number; headScale?: number } = {},
+  options: { outline?: boolean; width?: number; headScale?: number; casing?: boolean } = {},
 ): void {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -137,28 +140,38 @@ function drawArrowBetween(
   if (length < 0.75) return;
   const ux = dx / length;
   const uy = dy / length;
-  const head = Math.max(3, Math.min(7, length * (options.headScale ?? 0.24)));
   const nx = -uy;
   const ny = ux;
-  context.save();
-  context.strokeStyle = colour;
-  context.fillStyle = colour;
-  context.lineWidth = options.width ?? 1.6;
-  context.lineCap = "round";
-  context.setLineDash(options.outline ? [4, 3] : []);
-  context.beginPath();
-  context.moveTo(from.x, from.y);
-  context.lineTo(to.x, to.y);
-  context.stroke();
-  context.setLineDash([]);
-  context.beginPath();
-  context.moveTo(to.x, to.y);
-  context.lineTo(to.x - ux * head + nx * head * 0.58, to.y - uy * head + ny * head * 0.58);
-  context.lineTo(to.x - ux * head - nx * head * 0.58, to.y - uy * head - ny * head * 0.58);
-  context.closePath();
-  if (options.outline) context.stroke();
-  else context.fill();
-  context.restore();
+  const baseWidth = options.width ?? 1.6;
+  const baseHeadScale = options.headScale ?? 0.24;
+  const passes = options.casing
+    ? [
+        { colour: "rgba(4, 13, 20, 0.88)", width: baseWidth + 2.6, headScale: baseHeadScale * 1.2 },
+        { colour, width: baseWidth, headScale: baseHeadScale },
+      ]
+    : [{ colour, width: baseWidth, headScale: baseHeadScale }];
+  for (const pass of passes) {
+    const head = Math.max(3, Math.min(8, length * pass.headScale));
+    context.save();
+    context.strokeStyle = pass.colour;
+    context.fillStyle = pass.colour;
+    context.lineWidth = pass.width;
+    context.lineCap = "round";
+    context.setLineDash(options.outline ? [4, 3] : []);
+    context.beginPath();
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
+    context.stroke();
+    context.setLineDash([]);
+    context.beginPath();
+    context.moveTo(to.x, to.y);
+    context.lineTo(to.x - ux * head + nx * head * 0.58, to.y - uy * head + ny * head * 0.58);
+    context.lineTo(to.x - ux * head - nx * head * 0.58, to.y - uy * head - ny * head * 0.58);
+    context.closePath();
+    if (options.outline) context.stroke();
+    else context.fill();
+    context.restore();
+  }
 }
 
 function drawZero(context: CanvasRenderingContext2D, point: Vec2): void {
@@ -334,18 +347,17 @@ export function drawDynamicField(
   }
   const probePoint = worldToScreen(probe, camera);
   const add = (delta: Vec2): Vec2 => ({ x: probePoint.x + delta.x, y: probePoint.y + delta.y });
-  if (probeScene.contributions.length > 0 || probeScene.resultant) drawProbeHalo(context, probePoint, probeScene);
   // Construction first, underneath the real vectors: visually secondary, dashed and translucent.
   for (const segment of probeScene.chain) {
     drawArrowBetween(context, add(segment.from), add(segment.to), "rgba(196, 226, 235, 0.4)", { outline: true, width: 1.3, headScale: 0.3 });
   }
   for (const item of probeScene.contributions) {
     const colour = item.emphasized ? "#ffe6a8" : item.quiet ? "rgba(196, 226, 235, 0.4)" : "rgba(196, 226, 235, 0.95)";
-    drawArrowBetween(context, probePoint, add(item.displacement), colour, { width: item.emphasized ? 2.6 : 1.9 });
+    drawArrowBetween(context, probePoint, add(item.displacement), colour, { width: item.emphasized ? 2.6 : 1.9, casing: true });
   }
   if (probeScene.resultant) {
     // Always its own colour/weight so it never reads as "the emphasized source's vector".
-    drawArrowBetween(context, probePoint, add(probeScene.resultant), "#ffffff", { width: 3 });
+    drawArrowBetween(context, probePoint, add(probeScene.resultant), "#ffffff", { width: 3, casing: true });
   }
   context.save();
   context.translate(probePoint.x, probePoint.y);
@@ -355,26 +367,6 @@ export function drawDynamicField(
   context.beginPath(); context.arc(0, 0, 8, 0, 2 * Math.PI); context.fill(); context.stroke();
   context.beginPath(); context.moveTo(-12, 0); context.lineTo(12, 0); context.moveTo(0, -12); context.lineTo(0, 12); context.stroke();
   context.restore();  if (particle) drawParticle(context, camera, particle, selected?.kind === "particle");
-}
-
-/**
- * Screen-space contrast patch so probe evidence reads above the background field glyphs.
- * Presentation only: it changes no sampled value, no probe readout and no geometry.
- */
-function drawProbeHalo(context: CanvasRenderingContext2D, centre: Vec2, scene: ProbeVectorScene): void {
-  const reach = (v: Vec2) => Math.hypot(v.x, v.y);
-  let radius = 34;
-  for (const item of scene.contributions) radius = Math.max(radius, reach(item.displacement) + 14);
-  if (scene.resultant) radius = Math.max(radius, reach(scene.resultant) + 14);
-  const gradient = context.createRadialGradient(centre.x, centre.y, radius * 0.45, centre.x, centre.y, radius);
-  gradient.addColorStop(0, "rgba(4, 16, 24, 0.86)");
-  gradient.addColorStop(1, "rgba(4, 16, 24, 0)");
-  context.save();
-  context.fillStyle = gradient;
-  context.beginPath();
-  context.arc(centre.x, centre.y, radius, 0, 2 * Math.PI);
-  context.fill();
-  context.restore();
 }
 
 function drawTrail(context: CanvasRenderingContext2D, camera: CameraTransform, particle: ParticleGlyph): void {

@@ -31,32 +31,35 @@ test("the largest extent (a contribution or a chain point) fits exactly at maxRa
   assert.ok(Math.abs(Math.max(...extents) - 40) < 1e-6);
 });
 
-test("head-to-tail chain starts at the origin and ends at the resultant", () => {
-  const components = [{ x: 8, y: 0 }, { x: 0, y: -6 }, { x: -2, y: 2 }];
-  const construction = buildVectorConstruction(components, 50);
-  assert.equal(construction.chain.length, 3);
-  assert.deepEqual(construction.chain[0].from, { x: 0, y: 0 });
-  const last = construction.chain[construction.chain.length - 1];
-  assert.ok(Math.abs(last.to.x - construction.resultant.x) < 1e-9);
-  assert.ok(Math.abs(last.to.y - construction.resultant.y) < 1e-9);
-  // each link's tail is the previous link's head
-  for (let i = 1; i < construction.chain.length; i += 1) {
-    assert.ok(Math.abs(construction.chain[i].from.x - construction.chain[i - 1].to.x) < 1e-9);
-    assert.ok(Math.abs(construction.chain[i].from.y - construction.chain[i - 1].to.y) < 1e-9);
-  }
-});
-
 test("no construction is built for a single contribution", () => {
   const construction = buildVectorConstruction([{ x: 7, y: -3 }], 40);
   assert.equal(construction.chain.length, 0);
 });
 
-test("a zero resultant closes the chain back near the origin, without fabricating a nonzero arrow", () => {
+test("no always-on construction for three or more contributions (v0.1: contributions + resultant only)", () => {
+  const construction = buildVectorConstruction([{ x: 8, y: 0 }, { x: 0, y: -6 }, { x: -2, y: 2 }], 50);
+  assert.equal(construction.chain.length, 0);
+});
+
+test("exactly two contributions draw a parallelogram: both dashed sides land on the resultant's tip", () => {
+  const components = [{ x: 8, y: 0 }, { x: 0, y: -6 }];
+  const construction = buildVectorConstruction(components, 50);
+  assert.equal(construction.chain.length, 2);
+  // Each side starts at its own contribution's tip (the real vector, from the probe)...
+  assert.deepEqual(construction.chain[0].from, construction.contributions[0]);
+  assert.deepEqual(construction.chain[1].from, construction.contributions[1]);
+  // ...and both land on the resultant's tip (the diagonal), forming the parallelogram's far corner.
+  for (const side of construction.chain) {
+    assert.ok(Math.abs(side.to.x - construction.resultant.x) < 1e-9);
+    assert.ok(Math.abs(side.to.y - construction.resultant.y) < 1e-9);
+  }
+});
+
+test("a zero resultant closes the parallelogram back near the origin, without fabricating a nonzero arrow", () => {
   const components = [{ x: 5, y: 5 }, { x: -5, y: -5 }];
   const construction = buildVectorConstruction(components, 40);
   assert.ok(magnitude(construction.resultant) < 1e-9);
-  const last = construction.chain[construction.chain.length - 1];
-  assert.ok(magnitude(last.to) < 1e-9);
+  for (const side of construction.chain) assert.ok(magnitude(side.to) < 1e-9);
 });
 
 test("degenerate all-zero input never divides by zero", () => {
