@@ -38,7 +38,7 @@ export default function ProbePanel({ setup, policy = SANDBOX_POLICY }: ProbePane
       <p className={styles.probePosition} data-testid="probe-position">x = {setup.probe.x_m.toFixed(3)} m　y = {setup.probe.y_m.toFixed(3)} m</p>
       {!readout.valid ? (
         <div className={styles.invalidReadout} role="status" data-testid="probe-invalid">
-          <strong>這個位置太靠近來源電荷，點電荷模型無法給出讀值。</strong>
+          <strong>這個位置太靠近源電荷，點電荷模型無法給出讀值。</strong>
           <span>測量點仍留在原位；把它移出灰色區域即可繼續測量。</span>
         </div>
       ) : (
@@ -49,12 +49,12 @@ export default function ProbePanel({ setup, policy = SANDBOX_POLICY }: ProbePane
               <strong data-testid="total-magnitude">{formatValue(readout.magnitude_N_per_C, "N/C")}</strong>
               <small data-testid="total-direction">{readout.direction_rad === null ? "合電場為零，因此沒有方向" : `方向 ${(readout.direction_rad * 180 / Math.PI).toFixed(1)}°`}</small>
             </div>
-          ) : <p className={styles.helperText}>先比較每顆來源電荷造成的電場；下一步才會顯示合電場。</p>}
+          ) : <p className={styles.helperText}>先比較每顆源電荷造成的電場；下一步才會顯示合電場。</p>}
           <details className={styles.readoutDetails}>
             <summary>看每顆電荷的影響</summary>
             <div className={styles.tableWrap}>
               <table className={styles.probeTable}>
-                <caption>各來源電荷對測量點的電場貢獻</caption>
+                <caption>各源電荷對測量點的電場貢獻</caption>
                 <thead><tr><th scope="col">來源</th><th scope="col">電量</th>{showComponents ? <><th scope="col">Eₓ</th><th scope="col">Eᵧ</th></> : null}<th scope="col">大小</th></tr></thead>
                 <tbody>
                   {readout.contributions.map((item) => {

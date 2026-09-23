@@ -54,7 +54,7 @@ export default function ParticlePanel({ setup, runtime, policy = SANDBOX_POLICY 
         </table>
       </div>
       {!anyEvidence ? <p className={styles.helperText} data-testid="particle-gated">先送出你的預測，再核對電場、力與加速度。</p> : null}
-      {anyEvidence && !readout.valid ? <div className={styles.invalidReadout} data-testid="particle-readout-invalid"><strong>這裡無法計算運動</strong><span>測試電荷太靠近來源電荷；回到有效位置後再開始。</span></div> : null}
+      {anyEvidence && !readout.valid ? <div className={styles.invalidReadout} data-testid="particle-readout-invalid"><strong>這裡無法計算運動</strong><span>測試電荷太靠近源電荷；回到有效位置後再開始。</span></div> : null}
       {anyEvidence && readout.valid ? (
         <details className={styles.readoutDetails}>
           <summary>為什麼三個方向可能不同？</summary>

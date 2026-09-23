@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { RotateCcw } from "lucide-react";
 import {
   accelerationCompass,
   changeOf,
@@ -291,7 +292,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
       const s2 = setup.sources.find((source) => source.id === "s2");
       body = (
         <div className={styles.guidedForm}>
-          <p className={styles.guidedPrompt}>把右側電荷的大小改變，再移動測量點尋找新的零場點。這一步先不移動來源電荷。</p>
+          <p className={styles.guidedPrompt}>把右側電荷的大小改變，再移動測量點尋找新的零場點。這一步先不移動源電荷。</p>
           {s2 ? (
             <label>右側電荷大小（nC）
               <input
@@ -332,7 +333,9 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
       <h2 id="guided-task-heading" ref={headingRef} tabIndex={-1} className={styles.guidedHeading}>{taskTitle(learning)}</h2>
       {body}
       <div className={styles.inlineActions}>
-        <button type="button" onClick={props.onRestart} data-testid="restart-activity">重新開始此活動</button>
+        <button type="button" onClick={props.onRestart} data-testid="restart-activity" className={styles.iconButton}>
+          <RotateCcw size={16} aria-hidden="true" />重新開始
+        </button>
         <button type="button" onClick={props.onShare} data-testid="share-setup">分享物理設定</button>
       </div>
     </section>

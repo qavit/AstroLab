@@ -79,7 +79,7 @@ interface LabState {
 
 function stopAnnouncement(runtime: ElectrostaticRuntime): string | null {
   if (runtime.stop?.reason === "entered-source-core") {
-    return `測試電荷在 ${runtime.stop.t_s.toFixed(3)} 秒時太靠近來源電荷，因此停在模型仍有效的邊界。請按「重新開始」再試一次。`;
+    return `測試電荷在 ${runtime.stop.t_s.toFixed(3)} 秒時太靠近源電荷，因此停在模型仍有效的邊界。請按「重新開始」再試一次。`;
   }
   if (runtime.stop?.reason === "left-domain") {
     return `測試電荷在 ${runtime.stop.t_s.toFixed(3)} 秒時離開觀察範圍，已停在邊界。請按「重新開始」再試一次。`;
@@ -462,8 +462,11 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
         </div>
       </header>
 
-      {notice ? <div className={styles.notice} role="status" data-testid="setup-notice">{notice}</div> : null}
-      {shareStatus ? <div className={styles.shareStatus} role="status" data-testid="share-status">{shareStatus}</div> : null}
+      <div className={styles.statusOverlay} aria-live="polite">
+        {notice ? <div className={styles.notice} role="status" data-testid="setup-notice">{notice}</div> : null}
+        {shareStatus ? <div className={styles.shareStatus} role="status" data-testid="share-status">{shareStatus}</div> : null}
+        {clockMessage ? <div className={styles.notice} data-testid="clock-notice">{clockMessage}</div> : null}
+      </div>
 
       {!entryPending ? <nav className={styles.mobileTabs} aria-label="學習面板">
         <button type="button" aria-pressed={learning !== null} onClick={() => learning ? undefined : setSelected(null)}>任務</button>
@@ -472,21 +475,35 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       </nav> : null}
 
       <div className={styles.workspace}>
-        <section className={styles.viewportCard} aria-labelledby="field-viewport-title" aria-describedby="field-semantic-summary">
-          <div className={styles.viewportTitle}>
-            <span>01</span>
-            <div><h2 id="field-viewport-title">電場</h2><p>箭頭指出方向，明暗與長度表示強弱</p></div>
-          </div>
-          <FieldCanvas
-            setup={setup}
-            runtime={runtime}
-            policy={policy}
-            selected={selected}
-            onSelect={setSelected}
-            onMove={moveObject}
-            onDragStart={pauseForDrag}
-          />
-        </section>
+        <div className={styles.canvasColumn}>
+          <section className={styles.viewportCard} aria-labelledby="field-viewport-title" aria-describedby="field-semantic-summary">
+            <div className={styles.viewportTitle}>
+              <span>01</span>
+              <div><h2 id="field-viewport-title">電場</h2><p>箭頭指出方向，明暗與長度表示強弱</p></div>
+            </div>
+            <FieldCanvas
+              setup={setup}
+              runtime={runtime}
+              policy={policy}
+              selected={selected}
+              onSelect={setSelected}
+              onMove={moveObject}
+              onDragStart={pauseForDrag}
+            />
+          </section>
+
+          {!entryPending && policy.timeControls
+            ? <TimeControls
+                runtime={runtime}
+                maxSimulatedSteps={maxSimulatedSteps}
+                speed={playbackSpeed}
+                onSpeed={setPlaybackSpeed}
+                onTogglePlay={togglePlay}
+                onSeek={seekTo}
+                onResetRuntime={resetRuntime}
+              />
+            : null}
+        </div>
 
         <aside className={styles.sidePanel} aria-label={entryPending ? "選擇探索方式" : learning ? "探索任務" : "自由探索工具"}>
           {entryPending ? (
@@ -553,25 +570,12 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
         </aside>
       </div>
 
-      {clockMessage ? <div className={styles.notice} data-testid="clock-notice">{clockMessage}</div> : null}
       <p className={styles.srOnly} role="status" aria-live="polite" data-testid="clock-announcer">{clockMessage ?? announcement}</p>
-
-      {!entryPending && policy.timeControls
-        ? <TimeControls
-            runtime={runtime}
-            maxSimulatedSteps={maxSimulatedSteps}
-            speed={playbackSpeed}
-            onSpeed={setPlaybackSpeed}
-            onTogglePlay={togglePlay}
-            onSeek={seekTo}
-            onResetRuntime={resetRuntime}
-          />
-        : null}
 
       {!entryPending ? <details className={styles.modelNotes}>
         <summary>這個模型畫的是什麼？</summary>
         <div className={styles.modelNotesGrid}>
-          <div><h2>點電荷模型</h2><p>每顆來源電荷固定不動；畫面顯示它們在平面上造成的三維反平方電場。測試電荷不會改變來源。</p><p><Tex>{"\\vec E = \\sum_i \\vec E_i"}</Tex>，箭頭相加後得到合電場。灰色核心內不使用點電荷近似。</p></div>
+          <div><h2>點電荷模型</h2><p>每顆源電荷固定不動；畫面顯示它們在平面上造成的三維反平方電場。測試電荷不會改變來源。</p><p><Tex>{"\\vec E = \\sum_i \\vec E_i"}</Tex>，箭頭相加後得到合電場。灰色核心內不使用點電荷近似。</p></div>
           <FieldLegend />
         </div>
       </details> : null}

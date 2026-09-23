@@ -195,13 +195,13 @@ export function validateSetup(candidate: unknown): ValidationResult {
     issues.error("$.sources", "not-array", "sources 必須是陣列");
   } else {
     if (rawSources.length < ENVELOPE.sourceCount.min || rawSources.length > ENVELOPE.sourceCount.max) {
-      issues.error("$.sources", "source-count", "來源電荷必須是 1–4 顆");
+      issues.error("$.sources", "source-count", "源電荷必須是 1–4 顆");
     }
     const seen = new Set<string>();
     rawSources.forEach((raw, index) => {
       const path = `$.sources[${index}]`;
       if (!isPlainObject(raw)) {
-        issues.error(path, "not-object", "來源電荷必須是物件");
+        issues.error(path, "not-object", "源電荷必須是物件");
         return;
       }
       checkKeys(raw, ["id", "x_m", "y_m", "q_C"], path, issues);
@@ -217,7 +217,7 @@ export function validateSetup(candidate: unknown): ValidationResult {
       const y = readNumber(raw, "y_m", path, issues);
       const q = readNumber(raw, "q_C", path, issues);
       if (Number.isFinite(x) && Number.isFinite(y) && !inDomain(x, y, ENVELOPE.domain)) {
-        issues.error(path, "outside-domain", "來源電荷必須在 world domain 內");
+        issues.error(path, "outside-domain", "源電荷必須在 world domain 內");
       }
       if (Number.isFinite(q) && !within(Math.abs(q), ENVELOPE.sourceChargeMagnitude_C.min, ENVELOPE.sourceChargeMagnitude_C.max)) {
         issues.error(`${path}.q_C`, "source-charge-range", "來源電量大小必須是 1–5 nC");

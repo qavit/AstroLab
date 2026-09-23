@@ -90,7 +90,7 @@ test("measurement point exposes compact MathJax readout and natural zero/invalid
   await page.getByTestId("probe-handle").click();
   await replaceNumber(page, "probe-x", "0");
   await replaceNumber(page, "probe-y", "0");
-  await expect(page.getByTestId("probe-invalid")).toContainText("太靠近來源電荷");
+  await expect(page.getByTestId("probe-invalid")).toContainText("太靠近源電荷");
 });
 
 test("sharing always produces the canonical route and reloads the physical setup", async ({ page }) => {

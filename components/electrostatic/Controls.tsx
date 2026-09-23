@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Plus, RotateCcw, Share2, Trash2 } from "lucide-react";
 import type { ElectrostaticSetup, PresetId } from "../../models/electrostatic.ts";
 import type { SelectedObject } from "./render.ts";
 import CommittedNumberField from "./CommittedNumberField";
@@ -30,7 +31,7 @@ const PRESETS: readonly { id: PresetId; label: string; hint: string }[] = [
 function sourceName(setup: ElectrostaticSetup, id: string): string {
   const index = setup.sources.findIndex((source) => source.id === id);
   const source = setup.sources[index];
-  if (!source) return "來源電荷";
+  if (!source) return "源電荷";
   return `${source.q_C > 0 ? "正" : "負"}電荷 ${index + 1}`;
 }
 
@@ -51,25 +52,24 @@ export default function Controls(props: ControlsProps) {
       </div>
 
       {!props.selected ? (
-        <>
-          <p className={styles.inspectorLead}>直接點選畫布上的電荷、測量點或測試電荷，就能在這裡調整它。</p>
-          <fieldset className={styles.controlGroup}>
-            <legend>快速配置</legend>
-            <div className={styles.presetGrid}>
-              {PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  className={props.setup.presetId === preset.id ? styles.activeButton : undefined}
-                  aria-pressed={props.setup.presetId === preset.id}
-                  data-testid={`preset-${preset.id}`}
-                  onClick={() => props.onPreset(preset.id)}
-                ><strong>{preset.label}</strong><small>{preset.hint}</small></button>
-              ))}
-            </div>
-          </fieldset>
-        </>
+        <p className={styles.inspectorLead}>直接點選畫布上的電荷、測量點或測試電荷，就能在這裡調整它。</p>
       ) : null}
+
+      <details className={styles.controlGroup} open={!props.selected} data-testid="quick-presets">
+        <summary>快速配置</summary>
+        <div className={styles.presetGrid}>
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              className={props.setup.presetId === preset.id ? styles.activeButton : undefined}
+              aria-pressed={props.setup.presetId === preset.id}
+              data-testid={`preset-${preset.id}`}
+              onClick={() => props.onPreset(preset.id)}
+            ><strong>{preset.label}</strong><small>{preset.hint}</small></button>
+          ))}
+        </div>
+      </details>
 
       {selectedSource ? (
         <fieldset className={styles.controlGroup} data-testid="selected-source-controls">
@@ -82,7 +82,9 @@ export default function Controls(props: ControlsProps) {
             <CommittedNumberField label="水平位置 x（m）" value={selectedSource.x_m} step="0.01" min="-2" max="2" testId="source-x" onCommit={(value) => props.onSourcePosition("x", value)} />
             <CommittedNumberField label="垂直位置 y（m）" value={selectedSource.y_m} step="0.01" min="-1.5" max="1.5" testId="source-y" onCommit={(value) => props.onSourcePosition("y", value)} />
           </div>
-          <button type="button" className={styles.dangerButton} onClick={props.onRemoveSource} disabled={props.setup.sources.length <= 1} data-testid="remove-source">移除這顆電荷</button>
+          <button type="button" className={`${styles.dangerButton} ${styles.iconButton}`} onClick={props.onRemoveSource} disabled={props.setup.sources.length <= 1} data-testid="remove-source">
+            <Trash2 size={16} aria-hidden="true" />移除這顆電荷
+          </button>
         </fieldset>
       ) : null}
 
@@ -99,9 +101,15 @@ export default function Controls(props: ControlsProps) {
       {props.children}
 
       <div className={styles.inspectorActions}>
-        <button type="button" onClick={props.onAddSource} disabled={props.setup.sources.length >= 4} data-testid="add-source">＋ 新增來源電荷</button>
-        <button type="button" onClick={props.onReset} data-testid="reset-setup">回到這次的起始設定</button>
-        <button type="button" className={styles.shareButton} onClick={props.onShare} data-testid="share-setup">分享設定</button>
+        <button type="button" className={styles.iconButton} onClick={props.onAddSource} disabled={props.setup.sources.length >= 4} data-testid="add-source">
+          <Plus size={16} aria-hidden="true" />新增源電荷
+        </button>
+        <button type="button" className={styles.iconButton} onClick={props.onReset} data-testid="reset-setup">
+          <RotateCcw size={16} aria-hidden="true" />重置
+        </button>
+        <button type="button" className={`${styles.shareButton} ${styles.iconButton}`} onClick={props.onShare} data-testid="share-setup">
+          <Share2 size={16} aria-hidden="true" />分享設定
+        </button>
       </div>
       <p id="electrostatic-keyboard-help" className={styles.keyboardHelp}>
         鍵盤也能完成相同操作：Tab 移到畫布物件，Enter／Space 選取；方向鍵移動 0.01 m，Shift＋方向鍵移動 0.10 m；Escape 清除選取。

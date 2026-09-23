@@ -1,5 +1,6 @@
 "use client";
 
+import { Pause, Play, RotateCcw } from "lucide-react";
 import type { ElectrostaticRuntime } from "../../models/electrostatic.ts";
 import { LEARNER_SEEK_STEPS } from "../../models/electrostatic-history.ts";
 import styles from "./ElectrostaticFieldLab.module.css";
@@ -25,10 +26,22 @@ export default function TimeControls(props: TimeControlsProps) {
   return (
     <section className={styles.timeControls} aria-label="時間控制" data-testid="time-controls" data-clock-status={runtime.status}>
       <div className={styles.transportRow}>
-        <button type="button" onClick={props.onTogglePlay} disabled={blocked} aria-pressed={running} className={running ? styles.activeButton : undefined} data-testid="play-toggle">{running ? "暫停" : "播放"}</button>
+        <button
+          type="button"
+          onClick={props.onTogglePlay}
+          disabled={blocked}
+          aria-pressed={running}
+          className={`${styles.iconButton} ${running ? styles.activeButton : ""}`}
+          data-testid="play-toggle"
+        >
+          {running ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+          {running ? "暫停" : "播放"}
+        </button>
         <button type="button" onClick={() => props.onSeek(Math.max(0, current - LEARNER_SEEK_STEPS))} disabled={running || current === 0} data-testid="seek-back">−0.1 s</button>
         <button type="button" onClick={() => props.onSeek(current + LEARNER_SEEK_STEPS)} disabled={running || current + LEARNER_SEEK_STEPS > props.maxSimulatedSteps} data-testid="seek-forward">＋0.1 s</button>
-        <button type="button" onClick={props.onResetRuntime} data-testid="reset-runtime">重新開始</button>
+        <button type="button" className={styles.iconButton} onClick={props.onResetRuntime} data-testid="reset-runtime">
+          <RotateCcw size={16} aria-hidden="true" />重新開始
+        </button>
         <label>速度
           <select value={props.speed} onChange={(event) => props.onSpeed(Number(event.target.value))} data-testid="playback-speed">
             {SPEEDS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}

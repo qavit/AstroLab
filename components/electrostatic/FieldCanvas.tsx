@@ -152,7 +152,7 @@ export default function FieldCanvas({ setup, runtime, policy, selected, onSelect
         particle={{ initial: { x: setup.testParticle.x_m, y: setup.testParticle.y_m }, q_C: setup.testParticle.q_C, mass_kg: setup.testParticle.mass_kg }}
       />
       <p className={styles.srOnly} id="field-semantic-summary">
-        電場方向與大小由箭頭呈現。來源電荷、測量點與測試電荷都能直接點選、拖曳或用鍵盤移動；完整數值可在右側讀值中查看。
+        電場方向與大小由箭頭呈現。源電荷、測量點與測試電荷都能直接點選、拖曳或用鍵盤移動；完整數值可在右側讀值中查看。
       </p>
     </div>
   );

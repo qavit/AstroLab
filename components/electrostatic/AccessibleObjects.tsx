@@ -35,7 +35,7 @@ interface AccessibleObjectsProps {
 
 function labelSource(source: SourceCharge): string {
   const sign = source.q_C > 0 ? "正" : "負";
-  return `${sign}來源電荷，${Math.abs(source.q_C / 1e-9).toPrecision(3)} nC，水平位置 ${source.x_m.toFixed(2)} m，垂直位置 ${source.y_m.toFixed(2)} m`;
+  return `${sign}源電荷，${Math.abs(source.q_C / 1e-9).toPrecision(3)} nC，水平位置 ${source.x_m.toFixed(2)} m，垂直位置 ${source.y_m.toFixed(2)} m`;
 }
 
 const PROBE = { kind: "probe" } as const;
@@ -90,7 +90,7 @@ export default function AccessibleObjects({ camera, sources, probe, selected, on
       ref={svgRef}
       className={styles.objectOverlay}
       viewBox={`0 0 ${camera.width} ${camera.height}`}
-      aria-label="可操作的來源電荷、測量點與測試電荷"
+      aria-label="可操作的源電荷、測量點與測試電荷"
       aria-describedby="electrostatic-keyboard-help"
     >
       {sources.map((source) => {
