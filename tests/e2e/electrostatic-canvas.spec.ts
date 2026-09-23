@@ -53,6 +53,35 @@ test("empty Canvas click clears selection without changing physical state", asyn
   await expect(source).toHaveAttribute("aria-label", physicalName ?? "");
 });
 
+test("layers are display-only, gated, and viewport Home preserves the physical setup", async ({ page }) => {
+  await openFree(page);
+  const viewport = page.getByTestId("field-viewport");
+  const source = page.getByTestId("source-handle-s1");
+  const sourceName = await source.getAttribute("aria-label");
+  await page.getByTestId("layers-toggle").click();
+  await expect(page.getByRole("dialog", { name: "視圖圖層" })).toBeVisible();
+  await page.getByTestId("layer-field").uncheck();
+  await expect(viewport).toHaveAttribute("data-field-visible", "false");
+  await expect(source).toHaveAttribute("aria-label", sourceName ?? "");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "視圖圖層" })).toHaveAttribute("aria-hidden", "true");
+
+  await page.getByTestId("zoom-in").click();
+  await expect(viewport).toHaveAttribute("data-camera-zoom", "1.250");
+  await page.getByTestId("view-home").click();
+  await expect(viewport).toHaveAttribute("data-camera-zoom", "1.000");
+  await expect(source).toHaveAttribute("aria-label", sourceName ?? "");
+});
+
+test("guided prediction cannot expose gated evidence through Layers", async ({ page }) => {
+  await page.goto("/electrostatics");
+  await page.getByTestId("choose-guided").click();
+  await page.getByTestId("layers-toggle").click();
+  await expect(page.getByTestId("layer-field")).toHaveCount(0);
+  await expect(page.getByTestId("layer-contributions")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+});
+
 test("persistent pointer tools add and delete several sources, respecting their boundaries", async ({ page }) => {
   await openFree(page);
   const first = { x: 1, y: 0.8 };

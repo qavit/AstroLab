@@ -60,7 +60,7 @@ h1 { margin:0; font-family:Georgia,"Noto Serif TC",serif; font-size:clamp(25px,2
 .layer-drawer { position:fixed; z-index:70; top:0; right:0; bottom:0; width:min(360px,92vw); background:#f7fafb; border-left:1px solid #bfcfd7; box-shadow:-18px 0 55px rgba(7,31,47,.2); transform:translateX(102%); transition:transform .22s ease; }
 .layer-drawer.open { transform:translateX(0); }
 .layer-drawer>header,.export-modal>header { display:flex; align-items:center; justify-content:space-between; padding:15px 16px; border-bottom:1px solid var(--line); }
-.layer-drawer>header>div,.export-modal>header>div { display:flex; align-items:center; gap:8px; }.layer-drawer>header button,.export-modal>header button { padding:6px; }
+.layer-drawer>header>div,.export-modal>header>div { display:flex; align-items:center; gap:8px; }.layer-drawer>header button { display:grid; place-items:center; width:44px; min-width:44px; min-height:44px; padding:0; }.export-modal>header button { padding:6px; }
 .drawer-scroll { height:calc(100% - 60px); overflow:auto; padding:10px 14px 28px; }
 .drawer-scroll details { border-bottom:1px solid #d7e1e5; padding:5px 0; }.drawer-scroll summary { cursor:pointer; color:#31566e; font-size:14px; font-weight:700; padding:9px 2px; }
 .layer-list { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:3px 0 12px; }

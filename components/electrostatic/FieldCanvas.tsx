@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { HelpCircle, House, Layers3, ZoomIn, ZoomOut, X } from "lucide-react";
 import { normalizedStrength, sampleFieldGrid } from "../../lib/science/electrostatics/sampling.ts";
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
 import { probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
@@ -8,6 +9,7 @@ import type { EvidencePolicy } from "../../models/electrostatic-learning.ts";
 import AccessibleObjects, { type DraggableObject, type HoverTarget } from "./AccessibleObjects";
 import { formatCharge, sourceDisplayName } from "./labels.ts";
 import { TOOL_BANNER, type ToolMode } from "./tools.ts";
+import ElectrostaticLayerDrawer, { INITIAL_ELECTROSTATIC_LAYERS, type ElectrostaticLayerState } from "./ElectrostaticLayerDrawer";
 import {
   drawDynamicField,
   drawStaticField,
@@ -16,7 +18,7 @@ import {
   type ProbeVectorGlyph,
   type SelectedObject,
 } from "./render.ts";
-import { fitCamera, worldToScreen } from "./viewport.ts";
+import { cameraForView, INITIAL_CAMERA_VIEW, worldToScreen, zoomView, type CameraView } from "./viewport.ts";
 import styles from "./ElectrostaticFieldLab.module.css";
 
 interface FieldCanvasProps {
@@ -44,6 +46,10 @@ export default function FieldCanvas(props: FieldCanvasProps) {
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [hoverTarget, setHoverTarget] = useState<HoverTarget>(null);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [layers, setLayers] = useState<ElectrostaticLayerState>(INITIAL_ELECTROSTATIC_LAYERS);
+  const [view, setView] = useState<CameraView>(INITIAL_CAMERA_VIEW);
+  const [tipOpen, setTipOpen] = useState(true);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -59,7 +65,16 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     return () => observer.disconnect();
   }, []);
 
-  const camera = useMemo(() => fitCamera(setup.domain, size), [setup.domain, size]);
+  const camera = useMemo(() => cameraForView(setup.domain, size, view), [setup.domain, size, view]);
+  const showField = policy.globalField && layers.field;
+  const showProbe = policy.probe && layers.probe;
+  const showParticle = policy.particle && layers.particle;
+  const showTrail = policy.trajectory && layers.trail;
+  const showContributions = policy.probeContributions && layers.contributions;
+
+  useEffect(() => {
+    if ((selected?.kind === "probe" && !showProbe) || (selected?.kind === "particle" && !showParticle)) onSelect(null);
+  }, [onSelect, selected, showParticle, showProbe]);
   const hover = useMemo(() => {
     if (hoverTarget?.kind === "source") {
       const source = setup.sources.find((item) => item.id === hoverTarget.id);
@@ -90,7 +105,6 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     return null;
   }, [camera, hoverTarget, setup.probe.x_m, setup.probe.y_m, setup.sources, setup.testParticle.x_m, setup.testParticle.y_m]);
   const dimensions = size.width < 600 ? { cols: 24, rows: 18 } : { cols: 40, rows: 30 };
-  const showField = policy.globalField;
   const grid = useMemo(() => (!showField ? HIDDEN_GRID :
     sampleFieldGrid(
       setup.sources,
@@ -102,10 +116,10 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     )
   ), [showField, setup.sources, setup.domain, setup.singularity, setup.fieldStyle, dimensions.cols, dimensions.rows]);
   const probe = useMemo(() => probeReadout(setup), [setup]);
-  const { probe: showProbe, probeContributions, probeTotal } = policy;
+  const { probeTotal } = policy;
   const probeZero = showProbe && probeTotal && probe.valid && probe.isZero;
   const probeVectors: readonly ProbeVectorGlyph[] = useMemo(() => {
-    if (!showProbe || !probeContributions || !probe.valid) return [];
+    if (!showProbe || !showContributions || !probe.valid) return [];
     const contributions: ProbeVectorGlyph[] = probe.contributions.map((item) => ({
       sourceId: item.sourceId,
       ux: item.Ex_N_per_C / item.magnitude_N_per_C,
@@ -122,7 +136,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       kind: "total" as const,
     });
     return contributions;
-  }, [probe, setup.fieldStyle, showProbe, probeContributions, probeTotal]);
+  }, [probe, setup.fieldStyle, showProbe, showContributions, probeTotal]);
 
   useEffect(() => {
     const canvas = staticCanvasRef.current;
@@ -139,8 +153,8 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     stopped: runtime.status === "stopped",
     trail: runtime.trail.points,
     trailCount: runtime.trail.count,
-    showTrail: policy.trajectory,
-  }), [setup.testParticle, runtime.particle, runtime.status, runtime.trail, policy.trajectory]);
+    showTrail,
+  }), [setup.testParticle, runtime.particle, runtime.status, runtime.trail, showTrail]);
 
   useEffect(() => {
     const canvas = dynamicCanvasRef.current;
@@ -154,11 +168,11 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         { x: setup.probe.x_m, y: setup.probe.y_m },
         probeVectors,
         selected,
-        policy.particle ? particleGlyph : null,
+        showParticle ? particleGlyph : null,
         { showProbe, probeZero },
       );
     }
-  }, [showProbe, probeZero, policy.particle, camera, particleGlyph, probeVectors, selected, setup.probe.x_m, setup.probe.y_m, setup.sources, size]);
+  }, [showProbe, probeZero, showParticle, camera, particleGlyph, probeVectors, selected, setup.probe.x_m, setup.probe.y_m, setup.sources, size]);
 
   return (
     <div
@@ -168,8 +182,10 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       data-tool={tool}
       data-grid={`${dimensions.cols}x${dimensions.rows}`}
       data-sample-count={grid.ok ? grid.samples.length : 0}
-      data-trail-count={policy.trajectory ? runtime.trail.count : 0}
+      data-trail-count={showTrail ? runtime.trail.count : 0}
       data-field-visible={showField ? "true" : "false"}
+      data-camera-zoom={view.zoom.toFixed(3)}
+      data-camera-pan={`${view.panX_px.toFixed(1)},${view.panY_px.toFixed(1)}`}
       data-probe-vectors={probeVectors.length}
       data-particle-screen={(() => {
         const p = worldToScreen({ x: runtime.particle.x_m, y: runtime.particle.y_m }, camera);
@@ -178,6 +194,13 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     >
       <canvas ref={staticCanvasRef} className={styles.canvasLayer} aria-hidden="true" />
       <canvas ref={dynamicCanvasRef} className={styles.canvasLayer} aria-hidden="true" />
+      <div className={styles.viewportToolbar} role="group" aria-label="畫布視圖">
+        <button type="button" onClick={() => setLayersOpen(true)} aria-label="圖層" title="圖層" data-testid="layers-toggle"><Layers3 size={18} aria-hidden="true" /></button>
+        <button type="button" onClick={() => setView((current) => zoomView(current, 1 / 1.25))} aria-label="縮小" title="縮小" data-testid="zoom-out"><ZoomOut size={18} aria-hidden="true" /></button>
+        <button type="button" onClick={() => setView((current) => zoomView(current, 1.25))} aria-label="放大" title="放大" data-testid="zoom-in"><ZoomIn size={18} aria-hidden="true" /></button>
+        <button type="button" onClick={() => setView(INITIAL_CAMERA_VIEW)} aria-label="回到完整視圖" title="回到完整視圖" data-testid="view-home"><House size={18} aria-hidden="true" /></button>
+      </div>
+      {tipOpen ? <div className={styles.canvasTip} data-testid="canvas-tip"><span>箭頭指出電場方向，明暗與長度表示強弱。</span><button type="button" onClick={() => setTipOpen(false)} aria-label="關閉畫布說明" title="關閉"><X size={15} aria-hidden="true" /></button></div> : <button type="button" className={styles.canvasHelp} onClick={() => setTipOpen(true)} aria-label="開啟畫布說明" title="畫布說明" data-testid="canvas-help"><HelpCircle size={18} aria-hidden="true" /></button>}
       <AccessibleObjects
         camera={camera}
         sources={setup.sources}
@@ -187,13 +210,14 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         onMove={onMove}
         onDragStart={onDragStart}
         showProbe={showProbe}
-        showParticle={policy.particle}
+        showParticle={showParticle}
         particle={{ initial: { x: setup.testParticle.x_m, y: setup.testParticle.y_m }, q_C: setup.testParticle.q_C, mass_kg: setup.testParticle.mass_kg }}
         tool={tool}
         onPlace={onPlace}
         onDelete={onDelete}
         onExitTool={onExitTool}
         onHover={setHoverTarget}
+        onPan={(delta) => setView((current) => ({ ...current, panX_px: current.panX_px + delta.x, panY_px: current.panY_px + delta.y }))}
       />
       {tool !== "select" ? (
         <p className={styles.toolBanner} role="status" data-testid="tool-banner">{TOOL_BANNER[tool]}</p>
@@ -213,6 +237,13 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       <p className={styles.srOnly} id="field-semantic-summary">
         電場方向與大小由箭頭呈現。源電荷、測量點與測試電荷都能直接點選、拖曳或用鍵盤移動；完整數值可在右側讀值中查看。
       </p>
+      <ElectrostaticLayerDrawer
+        open={layersOpen}
+        layers={layers}
+        available={{ field: policy.globalField, probe: policy.probe, particle: policy.particle, trail: policy.trajectory, contributions: policy.probeContributions }}
+        onClose={() => setLayersOpen(false)}
+        onToggle={(key) => setLayers((current) => ({ ...current, [key]: !current[key] }))}
+      />
     </div>
   );
 }

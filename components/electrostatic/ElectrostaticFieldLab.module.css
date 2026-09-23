@@ -107,6 +107,18 @@
 .viewportTitle p { margin: 2px 0 0; color: #a8bdc6; font-size: 11px; }
 .canvasHost { position: absolute; inset: 0; overflow: hidden; }
 .canvasLayer { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
+.viewportToolbar { position: absolute; z-index: 8; top: 12px; right: 12px; display: flex; gap: 5px; }
+.viewportToolbar button,
+.canvasHelp,
+.canvasTip button { display: grid; place-items: center; width: 44px; min-width: 44px; min-height: 44px; padding: 0; border: 1px solid rgba(203,224,232,.55); border-radius: 7px; background: rgba(8,31,46,.9); color: #eef5f6; }
+.viewportToolbar button:hover,
+.canvasHelp:hover,
+.canvasTip button:hover { border-color: #ffd66f; background: #123d56; }
+.viewportToolbar button:focus-visible,
+.canvasHelp:focus-visible,
+.canvasTip button:focus-visible { outline: 3px solid #ffd66f; outline-offset: 2px; }
+.canvasTip { position: absolute; z-index: 8; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 8px; max-width: min(380px, calc(100% - 24px)); padding: 7px 7px 7px 11px; border: 1px solid rgba(203,224,232,.45); border-radius: 8px; background: rgba(8,31,46,.92); color: #e7f1f4; font-size: 12px; line-height: 1.45; }
+.canvasHelp { position: absolute; z-index: 8; right: 12px; bottom: 12px; }
 .objectOverlay { position: absolute; z-index: 4; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .objectHandle { touch-action: none; cursor: grab; }
 .objectHandle:active { cursor: grabbing; }
@@ -439,6 +451,8 @@
   .sourcePositionRow { grid-template-columns: 1fr; }
   .totalReadout { grid-template-columns: 1fr; }
   .statusStrip { grid-template-columns: 1fr; }
+  .viewportToolbar { top: 8px; right: 8px; gap: 3px; }
+  .viewportToolbar button { width: 44px; min-width: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

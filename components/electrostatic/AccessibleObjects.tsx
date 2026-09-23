@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import type { SourceCharge, Vec2 } from "../../lib/science/electrostatics/types.ts";
 import type { CameraTransform } from "./viewport.ts";
@@ -43,6 +44,8 @@ interface AccessibleObjectsProps {
   readonly onDelete: (target: DraggableObject) => void;
   readonly onExitTool: () => void;
   readonly onHover: (target: HoverTarget) => void;
+  /** Select-mode empty-space drag pans only the transient camera view. */
+  readonly onPan: (delta_px: Vec2) => void;
 }
 
 function labelSource(sources: readonly SourceCharge[], source: SourceCharge): string {
@@ -68,7 +71,8 @@ function labelParticle(particle: ParticleHandle): string {
 
 export default function AccessibleObjects(props: AccessibleObjectsProps) {
   const { camera, sources, probe, selected, onSelect, onMove, onDragStart, particle, showProbe, showParticle } = props;
-  const { tool, onPlace, onDelete, onExitTool, onHover } = props;
+  const { tool, onPlace, onDelete, onExitTool, onHover, onPan } = props;
+  const backdropGesture = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null);
   const probePoint = worldToScreen(probe, camera);
   const particlePoint = worldToScreen(particle.initial, camera);
 
@@ -77,7 +81,7 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
    * meaning in exactly one place: place a source, delete one, or select/begin a drag.
    * `target` is null for the backdrop.
    */
-  const pointerDown = (target: DraggableObject | null) => (event: PointerEvent<SVGElement>) => {
+  const pointerDown = (target: DraggableObject) => (event: PointerEvent<SVGElement>) => {
     event.preventDefault();
     if (tool === "add-source") {
       const point = worldAt(event.currentTarget.ownerSVGElement, event.clientX, event.clientY, camera);
@@ -89,13 +93,41 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
       // Empty Canvas is intentionally inert in persistent delete mode.
       return;
     }
-    if (!target) {
-      onSelect(null);
-      return;
-    }
     event.currentTarget.setPointerCapture(event.pointerId);
     onSelect(target);
     onDragStart(target);
+  };
+
+  const backdropPointerDown = (event: PointerEvent<SVGRectElement>) => {
+    event.preventDefault();
+    if (tool === "add-source") {
+      const point = worldAt(event.currentTarget.ownerSVGElement, event.clientX, event.clientY, camera);
+      if (point) onPlace(point);
+      return;
+    }
+    if (tool === "delete-source") return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    backdropGesture.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+  };
+
+  const backdropMove = (event: PointerEvent<SVGRectElement>) => {
+    const gesture = backdropGesture.current;
+    if (!gesture || gesture.pointerId !== event.pointerId || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+      gesture.moved = true;
+      onPan({ x: dx, y: dy });
+      gesture.x = event.clientX;
+      gesture.y = event.clientY;
+    }
+  };
+
+  const backdropUp = (event: PointerEvent<SVGRectElement>) => {
+    const gesture = backdropGesture.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (!gesture.moved) onSelect(null);
+    backdropGesture.current = null;
   };
 
   const pointerMove = (target: DraggableObject, event: PointerEvent<SVGGElement>) => {
@@ -145,7 +177,10 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
         width={camera.width}
         height={camera.height}
         data-testid="canvas-backdrop"
-        onPointerDown={pointerDown(null)}
+        onPointerDown={backdropPointerDown}
+        onPointerMove={backdropMove}
+        onPointerUp={backdropUp}
+        onPointerCancel={() => { backdropGesture.current = null; }}
       />
       {sources.map((source) => {
         const point = worldToScreen({ x: source.x_m, y: source.y_m }, camera);

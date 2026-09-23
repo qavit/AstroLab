@@ -17,6 +17,17 @@ export interface CameraTransform {
   readonly worldHeight_px: number;
 }
 
+/** Transient view-only camera state. It never enters setup, runtime, or share payloads. */
+export interface CameraView {
+  readonly zoom: number;
+  readonly panX_px: number;
+  readonly panY_px: number;
+}
+
+export const INITIAL_CAMERA_VIEW: CameraView = { zoom: 1, panX_px: 0, panY_px: 0 };
+const MIN_ZOOM = 0.6;
+const MAX_ZOOM = 4;
+
 /** Fit the complete physical domain without changing it; spare pixels become letterbox space. */
 export function fitCamera(domain: Domain, size: ViewportSize, padding_px = 12): CameraTransform {
   const usableWidth = Math.max(1, size.width - 2 * padding_px);
@@ -39,6 +50,27 @@ export function fitCamera(domain: Domain, size: ViewportSize, padding_px = 12): 
     worldWidth_px: worldWidth,
     worldHeight_px: worldHeight,
   };
+}
+
+export function cameraForView(domain: Domain, size: ViewportSize, view: CameraView): CameraTransform {
+  const fit = fitCamera(domain, size);
+  const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number.isFinite(view.zoom) ? view.zoom : 1));
+  const panX = Number.isFinite(view.panX_px) ? view.panX_px : 0;
+  const panY = Number.isFinite(view.panY_px) ? view.panY_px : 0;
+  return {
+    ...fit,
+    scale_px_per_m: fit.scale_px_per_m * zoom,
+    originX_px: fit.originX_px + panX,
+    originY_px: fit.originY_px + panY,
+    worldLeft_px: fit.worldLeft_px + panX,
+    worldTop_px: fit.worldTop_px + panY,
+    worldWidth_px: fit.worldWidth_px * zoom,
+    worldHeight_px: fit.worldHeight_px * zoom,
+  };
+}
+
+export function zoomView(view: CameraView, factor: number): CameraView {
+  return { ...view, zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.zoom * factor)) };
 }
 
 export function worldToScreen(point: Vec2, camera: CameraTransform): Vec2 {

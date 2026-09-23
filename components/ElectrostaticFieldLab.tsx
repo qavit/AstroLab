@@ -565,8 +565,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
         <div className={styles.canvasColumn}>
           <section className={styles.viewportCard} aria-labelledby="field-viewport-title" aria-describedby="field-semantic-summary">
             <div className={styles.viewportTitle}>
-              <span>01</span>
-              <div><h2 id="field-viewport-title">電場</h2><p>箭頭指出方向，明暗與長度表示強弱</p></div>
+              <div><h2 id="field-viewport-title">電場</h2></div>
             </div>
             <FieldCanvas
               setup={setup}
