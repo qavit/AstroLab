@@ -288,7 +288,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
           }}
           aria-hidden="true"
         >
-          <Tex>{label.text}</Tex>
+          <Tex dynamic>{label.text}</Tex>
         </span>
       ))}
       <div className={styles.viewportToolbar} role="group" aria-label="畫布視圖">

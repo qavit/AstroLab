@@ -293,12 +293,12 @@ export function evidencePolicy(state: LearningState | null): EvidencePolicy {
   if (state.activity === "A") {
     if (state.step === "observe" || state.step === "transfer-observe") {
       return {
-        ...HIDDEN, probeMovable: true, probeContributions: true, probeTotal: state.reveal >= 2,
+        ...HIDDEN, probeContributions: true, probeTotal: state.reveal >= 2,
         probeComponents: state.reveal >= 3, globalField: state.reveal >= 3,
       };
     }
     if (state.step === "explain" || state.step === "complete") {
-      return { ...HIDDEN, probeMovable: true, probeContributions: true, probeTotal: true, probeComponents: true, globalField: true };
+      return { ...HIDDEN, probeContributions: true, probeTotal: true, probeComponents: true, globalField: true };
     }
     return HIDDEN;
   }
@@ -315,7 +315,7 @@ export function evidencePolicy(state: LearningState | null): EvidencePolicy {
       };
     }
     if (state.step === "complete") {
-      return { ...HIDDEN, probeMovable: true, probeContributions: true, probeTotal: true, probeComponents: true, globalField: true };
+      return { ...HIDDEN, probeContributions: true, probeTotal: true, probeComponents: true, globalField: true };
     }
     return HIDDEN;
   }

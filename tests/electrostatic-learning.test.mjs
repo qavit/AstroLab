@@ -46,6 +46,38 @@ test("sandbox policy reveals every instrument", () => {
   for (const value of Object.values(SANDBOX_POLICY)) assert.ok(value === true || value === null);
 });
 
+test("guided movement is fixed except for Task B's manipulate-stage probe", () => {
+  const aStates = [
+    { activity: "A", step: "predict" },
+    { activity: "A", step: "observe", prediction: { direction: "S", reason: "components" }, reveal: 1 },
+    { activity: "A", step: "observe", prediction: { direction: "S", reason: "components" }, reveal: 2 },
+    { activity: "A", step: "observe", prediction: { direction: "S", reason: "components" }, reveal: 3 },
+    { activity: "A", step: "explain", prediction: { direction: "S", reason: "components" } },
+    { activity: "A", step: "transfer-predict", prediction: { direction: "S", reason: "components" }, explanation: { x: "cancel", y: "add", revise: "kept" } },
+    { activity: "A", step: "transfer-observe", prediction: { direction: "S", reason: "components" }, explanation: { x: "cancel", y: "add", revise: "kept" }, transferPrediction: { direction: "E", reason: "sign" }, reveal: 3 },
+    { activity: "A", step: "complete", prediction: { direction: "S", reason: "components" }, transferPrediction: { direction: "E", reason: "sign" } },
+  ];
+  for (const state of aStates) assert.equal(evidencePolicy(state).probeMovable, false, `A ${state.step}`);
+
+  const bStates = [
+    [{ activity: "B", step: "predict" }, false],
+    [{ activity: "B", step: "observe", prediction: "zero", reveal: 1 }, false],
+    [{ activity: "B", step: "manipulate", prediction: "zero" }, true],
+    [{ activity: "B", step: "transfer-predict", prediction: "zero", explanation: "toward-smaller" }, false],
+    [{ activity: "B", step: "transfer-observe", prediction: "zero", explanation: "toward-smaller", transferPrediction: "zero", reveal: 2 }, false],
+    [{ activity: "B", step: "complete", prediction: "zero", transferPrediction: "zero" }, false],
+  ];
+  for (const [state, movable] of bStates) assert.equal(evidencePolicy(state).probeMovable, movable, `B ${state.step}`);
+
+  for (const stage of ["c1", "c2", "c3", "c4"]) {
+    assert.equal(evidencePolicy({ activity: "C", step: "predict", stage, predictions: {} }).setupControls, false, `${stage} predict`);
+    assert.equal(evidencePolicy({ activity: "C", step: "observe", stage, predictions: {} }).setupControls, false, `${stage} observe`);
+  }
+  assert.equal(evidencePolicy({ activity: "C", step: "complete", predictions: {} }).setupControls, false);
+  assert.equal(evidencePolicy(null).probeMovable, true);
+  assert.equal(evidencePolicy(null).setupControls, true);
+});
+
 // ---- Activity A --------------------------------------------------------------------
 
 test("A: initial state is uncommitted with the target evidence hidden", () => {
