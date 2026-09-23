@@ -146,6 +146,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     const contributions = probe.contributions.map((item, index) => ({
       sourceId: item.sourceId,
       displacement: construction.contributions[index],
+      positive: (setup.sources.find((source) => source.id === item.sourceId)?.q_C ?? 0) > 0,
       emphasized: item.sourceId === emphasizedSourceId,
       quiet: anyEmphasized && item.sourceId !== emphasizedSourceId,
     }));
@@ -157,7 +158,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       chain: showResultant ? construction.chain : [],
       resultant: showResultant ? construction.resultant : null,
     };
-  }, [probe, showProbe, showContributions, probeTotal, emphasizedSourceId, size.width, size.height]);
+  }, [probe, showProbe, showContributions, probeTotal, emphasizedSourceId, size.width, size.height, setup.sources]);
 
   useEffect(() => {
     const canvas = staticCanvasRef.current;

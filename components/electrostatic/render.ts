@@ -8,6 +8,8 @@ import type { VectorSegment } from "./vectorConstruction.ts";
 export interface ProbeVectorItem {
   readonly sourceId: string | null;
   readonly displacement: Vec2;
+  /** Same sign convention as the source glyph (gold = positive, teal = negative). */
+  readonly positive: boolean;
   readonly emphasized: boolean;
   /** Another contribution is emphasized; this one recedes rather than competing with it. */
   readonly quiet: boolean;
@@ -291,6 +293,9 @@ export function drawStaticField(
 /** Source charge envelope (Gate 4A, unchanged here): magnitude is validated to 1-5 nC. */
 const SOURCE_MIN_NC = 1;
 const SOURCE_MAX_NC = 5;
+/** Sign colour convention shared by the source glyph and its field-contribution vector. */
+const POSITIVE_COLOUR = "#f6c85f";
+const NEGATIVE_COLOUR = "#76c8d5";
 
 /**
  * Magnitude reads as ring weight, never as core radius: the core stays a fixed-size circle or
@@ -309,7 +314,7 @@ function drawSource(context: CanvasRenderingContext2D, source: SourceCharge, cam
   context.beginPath();
   context.arc(0, 0, 16.5 + 1.5 * t, 0, 2 * Math.PI);
   context.stroke();
-  context.fillStyle = positive ? "#f6c85f" : "#76c8d5";
+  context.fillStyle = positive ? POSITIVE_COLOUR : NEGATIVE_COLOUR;
   context.strokeStyle = selected ? "#ffffff" : "#092232";
   context.lineWidth = selected ? 3 : 1.5;
   context.beginPath();
@@ -325,6 +330,14 @@ function drawSource(context: CanvasRenderingContext2D, source: SourceCharge, cam
   if (positive) { context.moveTo(0, -5); context.lineTo(0, 5); }
   context.stroke();
   context.restore();
+}
+
+/** Contribution vectors read by the same sign colour as their source, not one generic hue. */
+function contributionColour(item: ProbeVectorItem): string {
+  const [r, g, b] = item.positive ? [246, 200, 95] : [118, 200, 213];
+  if (item.emphasized) return item.positive ? "#ffedbf" : "#c9edf2";
+  const alpha = item.quiet ? 0.35 : 0.95;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export function drawDynamicField(
@@ -352,7 +365,7 @@ export function drawDynamicField(
     drawArrowBetween(context, add(segment.from), add(segment.to), "rgba(196, 226, 235, 0.4)", { outline: true, width: 1.3, headScale: 0.3 });
   }
   for (const item of probeScene.contributions) {
-    const colour = item.emphasized ? "#ffe6a8" : item.quiet ? "rgba(196, 226, 235, 0.4)" : "rgba(196, 226, 235, 0.95)";
+    const colour = contributionColour(item);
     drawArrowBetween(context, probePoint, add(item.displacement), colour, { width: item.emphasized ? 2.6 : 1.9, casing: true });
   }
   if (probeScene.resultant) {
