@@ -61,6 +61,9 @@ const HIDDEN_GRID = { ok: false, reason: "no-sources" } as const;
  * shared physical vector scale, since a guess never carries a magnitude claim. */
 const PREDICTION_ARROW_LENGTH_PX = 40;
 
+const MOVABLE_HINT = "可拖曳，或選取後用方向鍵移動";
+const FIXED_HINT = "此任務中位置固定";
+
 export default function FieldCanvas(props: FieldCanvasProps) {
   const { setup, runtime, policy, selected, onSelect, onMove, onDragStart } = props;
   const { tool, onPlace, onDelete, onExitTool, layersOpen, onLayersOpenChange, layersTriggerRef } = props;
@@ -118,7 +121,11 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         target: `source:${source.id}`,
         point: worldToScreen({ x: source.x_m, y: source.y_m }, camera),
         title: sourceDisplayName(setup.sources, source.id),
-        detail: formatCharge(source.q_C),
+        detail: [
+          formatCharge(source.q_C),
+          policy.sourcesMovable ? MOVABLE_HINT
+            : policy.sourceMagnitudeId === source.id ? "位置固定；可在右側調整電量" : FIXED_HINT,
+        ],
       };
     }
     if (hoverTarget?.kind === "probe") {
@@ -126,7 +133,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         target: "probe",
         point: worldToScreen({ x: setup.probe.x_m, y: setup.probe.y_m }, camera),
         title: "測量點",
-        detail: policy.probeMovable ? "可拖曳，或選取後用方向鍵移動" : "此任務中位置固定",
+        detail: [policy.probeMovable ? MOVABLE_HINT : FIXED_HINT],
       };
     }
     if (hoverTarget?.kind === "particle") {
@@ -134,11 +141,11 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         target: "particle",
         point: worldToScreen({ x: setup.testParticle.x_m, y: setup.testParticle.y_m }, camera),
         title: "測試電荷起點",
-        detail: policy.setupControls ? "可拖曳，或選取後用方向鍵移動" : "此任務中位置固定",
+        detail: [policy.setupControls ? MOVABLE_HINT : FIXED_HINT],
       };
     }
     return null;
-  }, [camera, hoverTarget, policy.probeMovable, policy.setupControls, setup.probe.x_m, setup.probe.y_m, setup.sources, setup.testParticle.x_m, setup.testParticle.y_m]);
+  }, [camera, hoverTarget, policy.probeMovable, policy.setupControls, policy.sourcesMovable, policy.sourceMagnitudeId, setup.probe.x_m, setup.probe.y_m, setup.sources, setup.testParticle.x_m, setup.testParticle.y_m]);
   const dimensions = size.width < 600 ? { cols: 24, rows: 18 } : { cols: 40, rows: 30 };
   const grid = useMemo(() => (!showField ? HIDDEN_GRID :
     sampleFieldGrid(
@@ -350,7 +357,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
           style={{ left: hover.point.x, top: hover.point.y }}
           aria-hidden="true"
         >
-          <strong>{hover.title}</strong><span>{hover.detail}</span>
+          <strong>{hover.title}</strong>{hover.detail.map((line) => <span key={line}>{line}</span>)}
         </div>
       ) : null}
       {/* One-shot attention cue: remounted (key = attentionCue.key) whenever new evidence appears,

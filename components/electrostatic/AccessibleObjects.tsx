@@ -57,7 +57,7 @@ interface AccessibleObjectsProps {
 }
 
 function labelSource(sources: readonly SourceCharge[], source: SourceCharge, movable: boolean): string {
-  return `${sourceDisplayName(sources, source.id)}，${formatCharge(source.q_C)}，水平位置 ${source.x_m.toFixed(2)} m，垂直位置 ${source.y_m.toFixed(2)} m；${movable ? "可選取或拖曳" : "此任務中位置固定"}`;
+  return `${sourceDisplayName(sources, source.id)}，${formatCharge(source.q_C)}，水平位置 ${source.x_m.toFixed(2)} m，垂直位置 ${source.y_m.toFixed(2)} m；${movable ? PROBE_HINT : FIXED_HINT}`;
 }
 
 const PROBE = { kind: "probe" } as const;
@@ -218,6 +218,7 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
             data-testid={`source-handle-${source.id}`}
             data-emphasized={emphasized ? "true" : "false"}
             className={styles.objectHandle}
+            data-movable={sourcesMovable ? "true" : "false"}
             transform={`translate(${point.x} ${point.y})`}
             onPointerDown={pointerDown(target, sourcesMovable)}
             onPointerMove={(event) => pointerMove(target, sourcesMovable, event)}
@@ -244,6 +245,7 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
           data-canvas-object="true"
           data-testid="probe-handle"
           className={styles.objectHandle}
+            data-movable={probeMovable ? "true" : "false"}
           transform={`translate(${probePoint.x} ${probePoint.y})`}
           onPointerDown={pointerDown(PROBE, probeMovable)}
           onPointerMove={(event) => pointerMove(PROBE, probeMovable, event)}
@@ -268,6 +270,7 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
           data-canvas-object="true"
           data-testid="particle-handle"
           className={styles.objectHandle}
+            data-movable={particleMovable ? "true" : "false"}
           transform={`translate(${particlePoint.x} ${particlePoint.y})`}
           onPointerDown={pointerDown(PARTICLE, particleMovable)}
           onPointerMove={(event) => pointerMove(PARTICLE, particleMovable, event)}

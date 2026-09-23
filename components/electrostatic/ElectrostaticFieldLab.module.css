@@ -130,6 +130,7 @@
 .objectOverlay { position: absolute; z-index: 4; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .objectHandle { touch-action: none; cursor: grab; }
 .objectHandle:active { cursor: grabbing; }
+.objectHandle[data-movable="false"], .objectHandle[data-movable="false"]:active { cursor: pointer; }
 .hitTarget { fill: transparent; pointer-events: all; }
 /* Empty canvas is a real target: clicking it clears the selection, or places in add mode. */
 .canvasBackdrop { fill: transparent; pointer-events: all; cursor: grab; }

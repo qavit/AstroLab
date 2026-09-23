@@ -171,6 +171,8 @@ test("keyboard tool shortcuts, Escape, exact Arrow movement, and focus affordanc
   await source.focus();
   await expect(page.getByTestId("object-tooltip")).toContainText("正電荷 1");
   await expect(page.getByTestId("object-tooltip")).toContainText("+3.0 nC");
+  await expect(page.getByTestId("object-tooltip")).toContainText("可拖曳，或選取後用方向鍵移動");
+  await expect(source).toHaveCSS("cursor", "grab");
   const focusStroke = await source.locator("circle").nth(1).evaluate((element) => getComputedStyle(element).stroke);
   expect(focusStroke).toBe("rgb(255, 214, 111)");
 

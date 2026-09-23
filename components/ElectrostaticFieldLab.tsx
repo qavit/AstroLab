@@ -563,7 +563,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
           </Link>
           <span className={styles.appBarDivider} aria-hidden="true">/</span>
           <h1 className={styles.appBarTitle}>靜電學</h1>
-          <span className={styles.statusChip} title="MODEL 09">實驗中</span>
+          <span className={styles.statusChip} title="MODEL 09" aria-label="Beta 版">Beta</span>
         </div>
         <div className={styles.headerActions}>
           {!entryPending && !learning ? <QuickPresetsMenu setup={setup} onPreset={applyPreset} /> : null}
@@ -718,7 +718,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       {modelInfoOpen ? <ModelInfoOverlay onClose={() => setModelInfoOpen(false)} /> : null}
 
       <footer className={styles.footer}>
-        <span>schema v1 · {learning ? "探索任務不會寫入網址" : "分享只保存起始物理設定"}</span>
+        {learning ? null : <span>schema v1 · 分享只保存起始物理設定</span>}
         <span>點電荷模型只在每顆電荷的灰色核心之外使用</span>
       </footer>
     </main></MathProvider>

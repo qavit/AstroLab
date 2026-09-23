@@ -77,6 +77,12 @@ test("task two has a visible natural title without leaking the zero-field answer
   await expect(taskBProgress.nth(1)).toHaveAccessibleName("改變電量，第 2 個情境，共 3 個");
   await expect(taskBProgress.nth(2)).toHaveAccessibleName("四電荷情境，第 3 個情境，共 3 個");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/此任務中位置固定/);
+  await expect(page.getByTestId("electrostatic-lab")).not.toContainText("schema v1");
+  await expect(page.locator("header").getByText("Beta", { exact: true })).toBeVisible();
+  await page.getByTestId("source-handle-s1").hover();
+  await expect(page.getByTestId("object-tooltip")).toContainText("此任務中位置固定");
+  await expect(page.getByTestId("source-handle-s1")).toHaveAttribute("data-movable", "false");
+  await expect(page.getByTestId("source-handle-s1")).toHaveCSS("cursor", "pointer");
   const before = await page.getByTestId("guided-panel").innerText();
   expect(before.split("你的方向預測")[0]).not.toContain("零場");
   await commitDirection(page, "zero");
@@ -87,6 +93,9 @@ test("task two has a visible natural title without leaking the zero-field answer
   await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "2");
   await expect(taskBProgress.nth(1)).toHaveAttribute("aria-current", "step");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/可拖曳/);
+  await page.getByTestId("source-handle-s2").hover();
+  await expect(page.getByTestId("object-tooltip")).toContainText("位置固定；可在右側調整電量");
+  await expect(page.getByTestId("source-handle-s2")).toHaveCSS("cursor", "pointer");
   await expect(page.getByTestId("guided-s2-magnitude")).toHaveAccessibleName("右側電荷大小（nC）");
   await expect(page.getByTestId("guided-s2-magnitude")).toHaveCSS("border-top-width", "2px");
   await expect(page.getByTestId("guided-s2-unit")).toHaveText("nC");
