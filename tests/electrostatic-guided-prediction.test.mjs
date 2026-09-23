@@ -6,6 +6,7 @@ import {
   VELOCITY_PREDICTION_COLOUR,
   committedPredictionMarkers,
   layoutPredictionMarkers,
+  predictionLabelPoint,
   predictionDisplacement,
 } from "../components/electrostatic/guidedPrediction.ts";
 
@@ -69,8 +70,17 @@ test("C4 lays out v and a with separate colours, staggered arrows, and non-overl
   );
   assert.deepEqual(glyphs.map((glyph) => glyph.colour), [VELOCITY_PREDICTION_COLOUR, ACCELERATION_PREDICTION_COLOUR]);
   assert.notDeepEqual(glyphs[0].anchor, glyphs[1].anchor, "parallel arrows are staggered at their tails");
-  const labelPoint = (glyph) => ({ x: glyph.anchor.x + glyph.displacement.x + glyph.labelOffset.x, y: glyph.anchor.y + glyph.displacement.y + glyph.labelOffset.y });
-  const vLabel = labelPoint(glyphs[0]);
-  const aLabel = labelPoint(glyphs[1]);
+  const vLabel = predictionLabelPoint(glyphs[0]);
+  const aLabel = predictionLabelPoint(glyphs[1]);
   assert.ok(Math.hypot(vLabel.x - aLabel.x, vLabel.y - aLabel.y) >= 24, "v/a labels retain a readable separation");
+});
+
+test("west-pointing motion labels sit beyond the arrowhead instead of folding onto the arrow", () => {
+  const glyphs = layoutPredictionMarkers(
+    [{ anchor: "particle", compass: "N", label: "v" }, { anchor: "particle", compass: "W", label: "a" }],
+    [{ x: 100, y: 100 }, { x: 100, y: 100 }],
+    40,
+  );
+  const accelerationTipX = glyphs[1].anchor.x + glyphs[1].displacement.x;
+  assert.ok(predictionLabelPoint(glyphs[1]).x < accelerationTipX, "a label is placed past the west-pointing arrow tip");
 });

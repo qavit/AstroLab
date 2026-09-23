@@ -472,26 +472,15 @@ function drawPredictionZero(context: CanvasRenderingContext2D, point: Vec2, colo
   context.restore();
 }
 
-function drawPredictionLabel(context: CanvasRenderingContext2D, point: Vec2, text: string, colour: string, offset: Vec2): void {
-  context.save();
-  context.font = "700 12px ui-sans-serif, system-ui, sans-serif";
-  context.fillStyle = colour;
-  context.textBaseline = "middle";
-  context.fillText(text, point.x + offset.x, point.y + offset.y);
-  context.restore();
-}
-
 /** Draws every learner compass guess: a dashed violet arrow (direction only), or a dedicated
  * dashed ring for "zero" — never a degenerate zero-length arrow, never model evidence styling. */
 export function drawPredictionMarkers(context: CanvasRenderingContext2D, markers: readonly PredictionGlyph[]): void {
   for (const marker of markers) {
     if (marker.displacement === null) {
       drawPredictionZero(context, marker.anchor, marker.colour);
-      if (marker.label) drawPredictionLabel(context, marker.anchor, marker.label, marker.colour, marker.labelOffset);
       continue;
     }
     const to = { x: marker.anchor.x + marker.displacement.x, y: marker.anchor.y + marker.displacement.y };
     drawArrowBetween(context, marker.anchor, to, marker.colour, { outline: true, width: 2.2, headScale: 0.3 });
-    if (marker.label) drawPredictionLabel(context, to, marker.label, marker.colour, marker.labelOffset);
   }
 }

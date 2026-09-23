@@ -55,6 +55,22 @@ function staggeredAnchor(anchor: Vec2, displacement: Vec2 | null, side: -1 | 1):
   return add(anchor, { x: (-displacement.y / length) * side * 5, y: (displacement.x / length) * side * 5 });
 }
 
+function motionLabelOffset(displacement: Vec2 | null, side: -1 | 1): Vec2 {
+  if (displacement === null) return { x: 18, y: side * 13 };
+  const length = Math.hypot(displacement.x, displacement.y);
+  if (length < 1e-9) return { x: 18, y: side * 13 };
+  const tangent = { x: displacement.x / length, y: displacement.y / length };
+  const normal = { x: -tangent.y, y: tangent.x };
+  // Put the symbol beyond the arrowhead, then stagger it across the arrow axis. A fixed +x
+  // offset moved a west-pointing label back onto its own arrow, which is the overlap this avoids.
+  return { x: tangent.x * 14 + normal.x * side * 13, y: tangent.y * 14 + normal.y * side * 13 };
+}
+
+export function predictionLabelPoint(glyph: PredictionGlyphLayout): Vec2 {
+  const end = glyph.displacement === null ? glyph.anchor : add(glyph.anchor, glyph.displacement);
+  return add(end, glyph.labelOffset);
+}
+
 /**
  * Direction-only learner predictions remain distinct from model evidence. When C4 has both v
  * and a, their arrow tails are staggered and their labels get opposite vertical anchors, so even
@@ -75,7 +91,9 @@ export function layoutPredictionMarkers(
       displacement,
       label: marker.label,
       colour: isVelocity ? VELOCITY_PREDICTION_COLOUR : isAcceleration ? ACCELERATION_PREDICTION_COLOUR : DIRECTION_PREDICTION_COLOUR,
-      labelOffset: pairedMotion && isVelocity ? { x: 7, y: -11 } : pairedMotion && isAcceleration ? { x: 7, y: 13 } : { x: 7, y: 0 },
+      labelOffset: isVelocity ? motionLabelOffset(displacement, -1)
+        : isAcceleration ? motionLabelOffset(displacement, 1)
+          : { x: 7, y: 0 },
     };
   });
 }

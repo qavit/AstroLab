@@ -13,7 +13,7 @@ import { formatCharge, sourceDisplayName } from "./labels.ts";
 import { TOOL_BANNER, type ToolMode } from "./tools.ts";
 import ElectrostaticLayerDrawer, { INITIAL_ELECTROSTATIC_LAYERS, type ElectrostaticLayerState } from "./ElectrostaticLayerDrawer";
 import { buildVectorConstruction, probeVectorEnvelopeRadius } from "./vectorConstruction.ts";
-import { layoutPredictionMarkers, type PredictionMarker } from "./guidedPrediction.ts";
+import { layoutPredictionMarkers, predictionLabelPoint, type PredictionMarker } from "./guidedPrediction.ts";
 import type { GuidedCanvasSemantics } from "./guidedCanvasSemantics.ts";
 import {
   drawDynamicField,
@@ -264,8 +264,8 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       data-prediction-labels={predictionMarkers.map((marker) => marker.label ?? "").join(",")}
       data-prediction-colours={predictionGlyphs.map((glyph) => glyph.colour).join(",")}
       data-prediction-label-points={predictionGlyphs.map((glyph) => {
-        const end = glyph.displacement === null ? glyph.anchor : { x: glyph.anchor.x + glyph.displacement.x, y: glyph.anchor.y + glyph.displacement.y };
-        return `${(end.x + glyph.labelOffset.x).toFixed(1)},${(end.y + glyph.labelOffset.y).toFixed(1)}`;
+        const point = predictionLabelPoint(glyph);
+        return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
       }).join(";")}
       data-guided-labels={guidedSemantics.labels.map((label) => `${label.target}:${label.text}`).join(",")}
       data-particle-screen={(() => {
@@ -291,6 +291,22 @@ export default function FieldCanvas(props: FieldCanvasProps) {
           <Tex dynamic>{label.text}</Tex>
         </span>
       ))}
+      {predictionGlyphs.map((glyph, index) => {
+        if (!glyph.label) return null;
+        const point = predictionLabelPoint(glyph);
+        return (
+          <span
+            key={`${glyph.label}:${index}`}
+            className={styles.predictionCanvasLabel}
+            data-testid="prediction-canvas-label"
+            data-vector={glyph.label}
+            style={{ left: point.x, top: point.y, color: glyph.colour }}
+            aria-hidden="true"
+          >
+            <Tex dynamic>{glyph.label}</Tex>
+          </span>
+        );
+      })}
       <div className={styles.viewportToolbar} role="group" aria-label="畫布視圖">
         <button type="button" onClick={() => setView((current) => zoomView(current, 1 / 1.25))} aria-label="縮小" title="縮小" data-testid="zoom-out"><ZoomOut size={18} aria-hidden="true" /></button>
         <button type="button" onClick={() => setView((current) => zoomView(current, 1.25))} aria-label="放大" title="放大" data-testid="zoom-in"><ZoomIn size={18} aria-hidden="true" /></button>

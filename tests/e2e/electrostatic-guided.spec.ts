@@ -157,6 +157,9 @@ test("task three keeps charge and mass labels on Canvas and separates v/a learne
   await page.getByTestId("predict-acceleration-N").check();
   await page.getByTestId("commit-prediction").click();
   await expect(viewport).toHaveAttribute("data-prediction-colours", "#f1b95d,#68c9dc");
+  const vectorLabels = page.getByTestId("prediction-canvas-label");
+  await expect(vectorLabels).toHaveCount(2);
+  await expect(vectorLabels.locator("mjx-container")).toHaveCount(2);
   const points = (await viewport.getAttribute("data-prediction-label-points"))!.split(";").map((point) => point.split(",").map(Number));
   expect(Math.hypot(points[0][0] - points[1][0], points[0][1] - points[1][1])).toBeGreaterThanOrEqual(24);
 });

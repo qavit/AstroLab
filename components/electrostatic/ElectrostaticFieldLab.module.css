@@ -124,6 +124,9 @@
 .guidedCanvasLabel[data-role="mass"] { color: #d8f0f4; }
 .guidedCanvasLabel :global(.formula-inline) { display: inline-block; margin: 0; }
 .guidedCanvasLabel :global(.formula-plain) { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; }
+.predictionCanvasLabel { position: absolute; z-index: 5; pointer-events: none; transform: translate(-50%, -50%); font-size: 20px; font-weight: 700; line-height: 1; text-shadow: 0 1px 3px #071a27, 0 0 7px #071a27; }
+.predictionCanvasLabel :global(.formula-inline) { display: inline-block; margin: 0; }
+.predictionCanvasLabel :global(.formula-plain) { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; }
 .objectOverlay { position: absolute; z-index: 4; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .objectHandle { touch-action: none; cursor: grab; }
 .objectHandle:active { cursor: grabbing; }
