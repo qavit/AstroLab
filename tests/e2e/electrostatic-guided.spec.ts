@@ -17,8 +17,10 @@ test.beforeEach(async ({ page }) => openGuided(page));
 test("guided entry starts task one with evidence gated and no reason tags", async ({ page }) => {
   await expect(page.getByTestId("guided-panel")).toHaveAttribute("data-activity", "A");
   await expect(page.locator("#guided-task-heading")).toHaveText("任務一｜兩個電場會往哪裡？");
-  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "4");
-  await expect(page.getByTestId("task-progress")).toContainText("任務一共有 4 個階段");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "2");
+  await expect(page.getByTestId("task-progress")).toContainText("情境 1 / 2");
+  await expect(page.getByTestId("task-progress")).toContainText("同號雙電荷");
+  await expect(page.getByTestId("task-progress")).toContainText("一正一負");
   await expect(page.getByTestId("probe-panel")).toHaveAttribute("data-probe-state", "gated");
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-field-visible", "false");
   await expect(page.locator('[data-testid^="predict-reason-"]')).toHaveCount(0);
@@ -33,22 +35,23 @@ test("guided entry starts task one with evidence gated and no reason tags", asyn
 
 test("feedback compares the learner prediction with model-derived components", async ({ page }) => {
   await commitDirection(page, "E");
-  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "2");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "1");
   await page.getByTestId("reveal-next").click();
-  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "2");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "1");
   await page.getByTestId("reveal-next").click();
-  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "2");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "1");
   await expect(page.getByTestId("prediction-verdict")).toHaveAttribute("data-match", "false");
   await expect(page.getByTestId("feedback-status")).toContainText("和模型不同");
   await expect(page.getByTestId("prediction-verdict")).toContainText("查看模型說明");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/此任務中位置固定/);
   await page.getByTestId("advance").click();
-  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "3");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "1");
   await page.getByTestId("explain-x-cancel").check();
   await page.getByTestId("explain-y-add").check();
   await page.getByTestId("explain-revise-revised").check();
   await page.getByTestId("submit-explanation").click();
-  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "4");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "2");
+  await expect(page.getByTestId("task-progress")).toContainText("情境 2 / 2");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/此任務中位置固定/);
 
   await page.getByTestId("restart-activity").click();
@@ -62,8 +65,11 @@ test("feedback compares the learner prediction with model-derived components", a
 test("task two has a visible natural title without leaking the zero-field answer", async ({ page }) => {
   await page.getByTestId("activity-B").click();
   await expect(page.locator("#guided-task-heading")).toHaveText("任務二｜對稱會留下什麼？");
-  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "4");
-  await expect(page.getByTestId("task-progress")).toContainText("任務二共有 4 個階段");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "3");
+  await expect(page.getByTestId("task-progress")).toContainText("情境 1 / 3");
+  await expect(page.getByTestId("task-progress")).toContainText("對稱中點");
+  await expect(page.getByTestId("task-progress")).toContainText("改變電量");
+  await expect(page.getByTestId("task-progress")).toContainText("四電荷情境");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/此任務中位置固定/);
   const before = await page.getByTestId("guided-panel").innerText();
   expect(before.split("你的方向預測")[0]).not.toContain("零場");
@@ -72,7 +78,8 @@ test("task two has a visible natural title without leaking the zero-field answer
   await expect(page.getByTestId("total-direction")).toContainText("合電場為零，因此沒有方向");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/此任務中位置固定/);
   await page.getByTestId("advance").click();
-  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "3");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "2");
+  await expect(page.getByTestId("task-progress")).toContainText("情境 2 / 3");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/可拖曳/);
   await expect(page.getByTestId("guided-s2-magnitude")).toHaveAccessibleName("右側電荷大小（nC）");
   await expect(page.getByTestId("guided-s2-magnitude")).toHaveCSS("border-top-width", "2px");
@@ -86,7 +93,8 @@ test("task two has a visible natural title without leaking the zero-field answer
   await expect(page.getByTestId("guided-canvas-label").locator("mjx-container")).toHaveCount(2);
   await page.getByTestId("explain-b-toward-smaller").check();
   await page.getByTestId("submit-explanation").click();
-  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "4");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "3");
+  await expect(page.getByTestId("task-progress")).toContainText("情境 3 / 3");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/此任務中位置固定/);
 });
 
@@ -94,7 +102,7 @@ test("task three reveals E, F and a only after commitment while preserving time 
   await page.getByTestId("activity-C").click();
   await expect(page.locator("#guided-task-heading")).toHaveText("任務三｜從電場到運動（1/4）");
   await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "4");
-  await expect(page.getByTestId("task-progress")).toContainText("任務三共有 4 個階段");
+  await expect(page.getByTestId("task-progress")).toContainText("小題 1 / 4");
   await expect(page.getByTestId("particle-field")).toHaveCount(0);
   await commitDirection(page, "W");
   await expect(page.getByTestId("particle-field")).toBeVisible();
@@ -170,7 +178,7 @@ test("task three keeps charge and mass labels on Canvas and separates v/a learne
 test("@mobile guided task remains usable at 320px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
   await expect(page.getByTestId("guided-panel")).toBeVisible();
-  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "4");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "2");
   await commitDirection(page, "S");
   await expect(page.getByTestId("probe-panel")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);

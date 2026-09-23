@@ -7,8 +7,8 @@ export interface GuidedProgress {
 }
 
 const STAGES: Readonly<Record<ActivityId, readonly string[]>> = {
-  A: ["先預測", "看證據", "解釋原因", "換個情境再試"],
-  B: ["先預測", "看證據", "動手找規律", "換個情境再試"],
+  A: ["同號雙電荷", "一正一負"],
+  B: ["對稱中點", "改變電量", "四電荷情境"],
   C: ["初始加速度", "反轉 q", "質量加倍", "加入初速度"],
 };
 
@@ -21,15 +21,11 @@ export function guidedProgress(state: LearningState): GuidedProgress {
   if (state.activity === "C") {
     current = state.step === "complete" ? 4 : Number(state.stage.slice(1));
   } else if (state.activity === "A") {
-    current = state.step === "predict" ? 1
-      : state.step === "observe" ? 2
-        : state.step === "explain" ? 3
-          : 4;
+    current = state.step === "transfer-predict" || state.step === "transfer-observe" || state.step === "complete" ? 2 : 1;
   } else {
-    current = state.step === "predict" ? 1
-      : state.step === "observe" ? 2
-        : state.step === "manipulate" ? 3
-          : 4;
+    current = state.step === "predict" || state.step === "observe" ? 1
+      : state.step === "manipulate" ? 2
+        : 3;
   }
   const stages = STAGES[state.activity];
   return { current, total: stages.length, stages };

@@ -268,10 +268,12 @@ function stepLabel(state: LearningState): string {
 function TaskProgress({ state }: { readonly state: LearningState }) {
   const { stages, current, total } = guidedProgress(state);
   const taskName = ACTIVITY_TITLE[state.activity].split("｜")[0];
+  const progressKind = state.activity === "C" ? "小題" : "情境";
+  const numerals = ["①", "②", "③", "④"];
   return (
     <nav className={styles.taskProgress} aria-label={`${taskName}進度`} data-testid="task-progress" data-activity={state.activity} data-stage={current} data-count={total}>
-      <p>{taskName}共有 {total} 個階段・目前第 {current} 階段</p>
-      <ol style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}>{stages.map((label, index) => <li key={label} data-current={index + 1 === current ? "true" : "false"} data-complete={index + 1 < current ? "true" : "false"}>{index + 1} {label}</li>)}</ol>
+      <p>{progressKind} {current} / {total}</p>
+      <ol style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}>{stages.map((label, index) => <li key={label} data-current={index + 1 === current ? "true" : "false"} data-complete={index + 1 < current ? "true" : "false"}><span aria-hidden="true">{numerals[index]}</span> {label}</li>)}</ol>
     </nav>
   );
 }
