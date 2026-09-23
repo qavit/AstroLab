@@ -99,6 +99,10 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
       return;
     }
     event.currentTarget.setPointerCapture(event.pointerId);
+    // pointerdown's preventDefault() above (needed so drag doesn't also start a text/image
+    // selection) also suppresses the browser's default focus-on-click, so without this a mouse
+    // selection would leave arrow-key movement dead until the learner tabs to the object instead.
+    event.currentTarget.focus();
     onSelect(target);
     onDragStart(target);
   };
