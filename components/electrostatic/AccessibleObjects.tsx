@@ -39,6 +39,10 @@ interface AccessibleObjectsProps {
   readonly particle: ParticleHandle;
   readonly showProbe: boolean;
   readonly showParticle: boolean;
+  /** A guided policy may keep an object visible while fixing its position. */
+  readonly sourcesMovable: boolean;
+  readonly probeMovable: boolean;
+  readonly particleMovable: boolean;
   readonly tool: ToolMode;
   /** Add mode: a canvas point was chosen for a new source. */
   readonly onPlace: (point: Vec2) => void;
@@ -52,14 +56,15 @@ interface AccessibleObjectsProps {
   readonly emphasizedSourceId?: string | null;
 }
 
-function labelSource(sources: readonly SourceCharge[], source: SourceCharge): string {
-  return `${sourceDisplayName(sources, source.id)}，${formatCharge(source.q_C)}，水平位置 ${source.x_m.toFixed(2)} m，垂直位置 ${source.y_m.toFixed(2)} m；可選取或拖曳`;
+function labelSource(sources: readonly SourceCharge[], source: SourceCharge, movable: boolean): string {
+  return `${sourceDisplayName(sources, source.id)}，${formatCharge(source.q_C)}，水平位置 ${source.x_m.toFixed(2)} m，垂直位置 ${source.y_m.toFixed(2)} m；${movable ? "可選取或拖曳" : "此任務中位置固定"}`;
 }
 
 const PROBE = { kind: "probe" } as const;
 const PARTICLE = { kind: "particle" } as const;
 
 const PROBE_HINT = "可拖曳，或選取後用方向鍵移動";
+const FIXED_HINT = "此任務中位置固定";
 
 /** Pure: takes the resolved element rather than the ref, so it is callable only from handlers. */
 function worldAt(svg: SVGSVGElement | null, clientX: number, clientY: number, camera: CameraTransform): Vec2 | null {
@@ -68,13 +73,13 @@ function worldAt(svg: SVGSVGElement | null, clientX: number, clientY: number, ca
   return screenToWorld({ x: clientX - rect.left, y: clientY - rect.top }, camera);
 }
 
-function labelParticle(particle: ParticleHandle): string {
+function labelParticle(particle: ParticleHandle, movable: boolean): string {
   const sign = particle.q_C > 0 ? "正" : "負";
-  return `${sign}測試電荷初始位置，${Math.abs(particle.q_C * 1e9).toPrecision(3)} nC，${(particle.mass_kg * 1e9).toPrecision(3)} µg，水平位置 ${particle.initial.x.toFixed(2)} m，垂直位置 ${particle.initial.y.toFixed(2)} m；移動會重新開始運動`;
+  return `${sign}測試電荷初始位置，${Math.abs(particle.q_C * 1e9).toPrecision(3)} nC，${(particle.mass_kg * 1e9).toPrecision(3)} µg，水平位置 ${particle.initial.x.toFixed(2)} m，垂直位置 ${particle.initial.y.toFixed(2)} m；${movable ? "可拖曳；移動會重新開始運動" : FIXED_HINT}`;
 }
 
 export default function AccessibleObjects(props: AccessibleObjectsProps) {
-  const { camera, sources, probe, selected, onSelect, onMove, onDragStart, onDragEnd, particle, showProbe, showParticle } = props;
+  const { camera, sources, probe, selected, onSelect, onMove, onDragStart, onDragEnd, particle, showProbe, showParticle, sourcesMovable, probeMovable, particleMovable } = props;
   const { tool, onPlace, onDelete, onExitTool, onHover, onPan, emphasizedSourceId = null } = props;
   const endDrag = () => onDragEnd?.();
   const backdropGesture = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null);
@@ -86,7 +91,7 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
    * meaning in exactly one place: place a source, delete one, or select/begin a drag.
    * `target` is null for the backdrop.
    */
-  const pointerDown = (target: DraggableObject) => (event: PointerEvent<SVGElement>) => {
+  const pointerDown = (target: DraggableObject, movable: boolean) => (event: PointerEvent<SVGElement>) => {
     event.preventDefault();
     if (tool === "add-source") {
       const point = worldAt(event.currentTarget.ownerSVGElement, event.clientX, event.clientY, camera);
@@ -96,6 +101,11 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
     if (tool === "delete-source") {
       if (target) onDelete(target);
       // Empty Canvas is intentionally inert in persistent delete mode.
+      return;
+    }
+    if (!movable) {
+      event.currentTarget.focus();
+      onSelect(target);
       return;
     }
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -139,14 +149,15 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
     backdropGesture.current = null;
   };
 
-  const pointerMove = (target: DraggableObject, event: PointerEvent<SVGGElement>) => {
+  const pointerMove = (target: DraggableObject, movable: boolean, event: PointerEvent<SVGGElement>) => {
     if (tool !== "select") return;
+    if (!movable) return;
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
     const point = worldAt(event.currentTarget.ownerSVGElement, event.clientX, event.clientY, camera);
     if (point) onMove(target, point);
   };
 
-  const keyMove = (target: DraggableObject, current: Vec2) => (event: KeyboardEvent<SVGGElement>) => {
+  const keyMove = (target: DraggableObject, current: Vec2, movable: boolean) => (event: KeyboardEvent<SVGGElement>) => {
     const step = event.shiftKey ? 0.1 : 0.01;
     let next: Vec2 | null = null;
     if (event.key === "ArrowLeft") next = { x: current.x - step, y: current.y };
@@ -157,7 +168,7 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
       /* Keeps the arrow key from scrolling the page while a Canvas object owns focus. */
       event.preventDefault();
       onSelect(target);
-      onMove(target, next);
+      if (movable) onMove(target, next);
     } else if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       if (tool === "delete-source") onDelete(target);
@@ -173,7 +184,7 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
     <svg
       className={styles.objectOverlay}
       viewBox={`0 0 ${camera.width} ${camera.height}`}
-      aria-label="可操作的源電荷、測量點與測試電荷"
+      aria-label="畫布上的源電荷、測量點與測試電荷"
       aria-describedby="electrostatic-keyboard-help"
       data-tool={tool}
     >
@@ -201,18 +212,18 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
             key={source.id}
             role="button"
             tabIndex={0}
-            aria-label={labelSource(sources, source)}
+            aria-label={labelSource(sources, source, sourcesMovable)}
             aria-pressed={active}
             data-canvas-object="true"
             data-testid={`source-handle-${source.id}`}
             data-emphasized={emphasized ? "true" : "false"}
             className={styles.objectHandle}
             transform={`translate(${point.x} ${point.y})`}
-            onPointerDown={pointerDown(target)}
-            onPointerMove={(event) => pointerMove(target, event)}
+            onPointerDown={pointerDown(target, sourcesMovable)}
+            onPointerMove={(event) => pointerMove(target, sourcesMovable, event)}
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
-            onKeyDown={keyMove(target, { x: source.x_m, y: source.y_m })}
+            onKeyDown={keyMove(target, { x: source.x_m, y: source.y_m }, sourcesMovable)}
             onPointerEnter={() => onHover(target)}
             onPointerLeave={() => onHover(null)}
             onFocus={() => onHover(target)}
@@ -228,17 +239,17 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
         <g
           role="button"
           tabIndex={0}
-          aria-label={`測量點，水平位置 ${probe.x.toFixed(2)} m，垂直位置 ${probe.y.toFixed(2)} m；${PROBE_HINT}`}
+          aria-label={`測量點，水平位置 ${probe.x.toFixed(2)} m，垂直位置 ${probe.y.toFixed(2)} m；${probeMovable ? PROBE_HINT : FIXED_HINT}`}
           aria-pressed={selected?.kind === "probe"}
           data-canvas-object="true"
           data-testid="probe-handle"
           className={styles.objectHandle}
           transform={`translate(${probePoint.x} ${probePoint.y})`}
-          onPointerDown={pointerDown(PROBE)}
-          onPointerMove={(event) => pointerMove(PROBE, event)}
+          onPointerDown={pointerDown(PROBE, probeMovable)}
+          onPointerMove={(event) => pointerMove(PROBE, probeMovable, event)}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
-          onKeyDown={keyMove(PROBE, probe)}
+          onKeyDown={keyMove(PROBE, probe, probeMovable)}
           onPointerEnter={() => onHover(PROBE)}
           onPointerLeave={() => onHover(null)}
           onFocus={() => onHover(PROBE)}
@@ -252,17 +263,17 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
         <g
           role="button"
           tabIndex={0}
-          aria-label={labelParticle(particle)}
+          aria-label={labelParticle(particle, particleMovable)}
           aria-pressed={selected?.kind === "particle"}
           data-canvas-object="true"
           data-testid="particle-handle"
           className={styles.objectHandle}
           transform={`translate(${particlePoint.x} ${particlePoint.y})`}
-          onPointerDown={pointerDown(PARTICLE)}
-          onPointerMove={(event) => pointerMove(PARTICLE, event)}
+          onPointerDown={pointerDown(PARTICLE, particleMovable)}
+          onPointerMove={(event) => pointerMove(PARTICLE, particleMovable, event)}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
-          onKeyDown={keyMove(PARTICLE, particle.initial)}
+          onKeyDown={keyMove(PARTICLE, particle.initial, particleMovable)}
           onPointerEnter={() => onHover(PARTICLE)}
           onPointerLeave={() => onHover(null)}
           onFocus={() => onHover(PARTICLE)}

@@ -109,14 +109,14 @@ function withScene(
   };
 }
 
-/** A: two unequal positive sources above the target; x partly cancels, y adds. */
+/** A: equal positive sources mirror across the target's vertical centreline; x cancels and y adds. */
 const A_SETUP = withScene(
-  [{ id: "s1", x_m: -0.6, y_m: 0.45, q_C: 3e-9 }, { id: "s2", x_m: 0.6, y_m: 0.45, q_C: 2e-9 }],
+  [{ id: "s1", x_m: -0.6, y_m: 0.45, q_C: 3e-9 }, { id: "s2", x_m: 0.6, y_m: 0.45, q_C: 3e-9 }],
   { x: 0, y: 0 },
 );
-/** A transfer: the same geometry with s2 reversed. */
+/** A transfer: the same mirrored geometry with the right-hand source reversed. */
 const A_TRANSFER_SETUP = withScene(
-  [{ id: "s1", x_m: -0.6, y_m: 0.45, q_C: 3e-9 }, { id: "s2", x_m: 0.6, y_m: 0.45, q_C: -2e-9 }],
+  [{ id: "s1", x_m: -0.6, y_m: 0.45, q_C: 3e-9 }, { id: "s2", x_m: 0.6, y_m: 0.45, q_C: -3e-9 }],
   { x: 0, y: 0 },
 );
 /** B: equal like pair, probe at the midpoint (the like-pair preset geometry). */

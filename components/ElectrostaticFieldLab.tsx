@@ -685,7 +685,6 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               onSwitch={enterActivity}
               onRestart={() => enterActivity(learning.activity)}
               onExplore={() => exploreSandbox(true)}
-              onShare={shareSetup}
               onSourceMagnitude={setGuidedSourceMagnitude}
               onPreview={setLivePreview}
             />

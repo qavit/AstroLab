@@ -122,7 +122,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         target: "probe",
         point: worldToScreen({ x: setup.probe.x_m, y: setup.probe.y_m }, camera),
         title: "測量點",
-        detail: "可拖曳，或選取後用方向鍵移動",
+        detail: policy.probeMovable ? "可拖曳，或選取後用方向鍵移動" : "此任務中位置固定",
       };
     }
     if (hoverTarget?.kind === "particle") {
@@ -130,11 +130,11 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         target: "particle",
         point: worldToScreen({ x: setup.testParticle.x_m, y: setup.testParticle.y_m }, camera),
         title: "測試電荷起點",
-        detail: "可拖曳，或選取後用方向鍵移動",
+        detail: policy.setupControls ? "可拖曳，或選取後用方向鍵移動" : "此任務中位置固定",
       };
     }
     return null;
-  }, [camera, hoverTarget, setup.probe.x_m, setup.probe.y_m, setup.sources, setup.testParticle.x_m, setup.testParticle.y_m]);
+  }, [camera, hoverTarget, policy.probeMovable, policy.setupControls, setup.probe.x_m, setup.probe.y_m, setup.sources, setup.testParticle.x_m, setup.testParticle.y_m]);
   const dimensions = size.width < 600 ? { cols: 24, rows: 18 } : { cols: 40, rows: 30 };
   const grid = useMemo(() => (!showField ? HIDDEN_GRID :
     sampleFieldGrid(
@@ -270,6 +270,9 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         onDragEnd={() => setDragging(false)}
         showProbe={showProbe}
         showParticle={showParticle}
+        sourcesMovable={policy.sourcesMovable}
+        probeMovable={policy.probeMovable}
+        particleMovable={policy.setupControls}
         particle={{ initial: { x: setup.testParticle.x_m, y: setup.testParticle.y_m }, q_C: setup.testParticle.q_C, mass_kg: setup.testParticle.mass_kg }}
         tool={tool}
         onPlace={onPlace}
@@ -310,7 +313,9 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         />
       ) : null}
       <p className={styles.srOnly} id="field-semantic-summary">
-        電場方向與大小由箭頭呈現。源電荷、測量點與測試電荷都能直接點選、拖曳或用鍵盤移動；完整數值可在右側讀值中查看。
+        電場方向與大小由箭頭呈現。{policy.sourcesMovable || policy.probeMovable || policy.setupControls
+          ? "可操作的物件可直接點選、拖曳或用鍵盤移動；完整數值可在右側讀值中查看。"
+          : "這個任務的物件位置固定；完成預測後可在右側讀值中核對結果。"}
       </p>
       <ElectrostaticLayerDrawer
         open={layersOpen}

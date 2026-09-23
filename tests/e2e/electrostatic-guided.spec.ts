@@ -29,15 +29,15 @@ test("feedback compares the learner prediction with model-derived components", a
   await page.getByTestId("reveal-next").click();
   await page.getByTestId("reveal-next").click();
   await expect(page.getByTestId("prediction-verdict")).toHaveAttribute("data-match", "false");
-  await expect(page.getByTestId("prediction-verdict")).toContainText("再比對一次");
-  await expect(page.getByTestId("prediction-verdict")).toContainText("水平分量部分抵消");
+  await expect(page.getByTestId("feedback-status")).toContainText("和模型不同");
+  await expect(page.getByTestId("prediction-verdict")).toContainText("查看模型說明");
 
   await page.getByTestId("restart-activity").click();
   await commitDirection(page, "S");
   await page.getByTestId("reveal-next").click();
   await page.getByTestId("reveal-next").click();
   await expect(page.getByTestId("prediction-verdict")).toHaveAttribute("data-match", "true");
-  await expect(page.getByTestId("prediction-verdict")).toContainText("一致");
+  await expect(page.getByTestId("feedback-status")).toContainText("答對了");
 });
 
 test("task two has a visible natural title without leaking the zero-field answer", async ({ page }) => {
@@ -52,7 +52,8 @@ test("task two has a visible natural title without leaking the zero-field answer
 
 test("task three reveals E, F and a only after commitment while preserving time gating", async ({ page }) => {
   await page.getByTestId("activity-C").click();
-  await expect(page.locator("#guided-task-heading")).toHaveText("任務三｜從電場到運動");
+  await expect(page.locator("#guided-task-heading")).toHaveText("任務三｜從電場到運動（1/4）");
+  await expect(page.getByTestId("task-c-progress")).toContainText("任務三共有 4 步");
   await expect(page.getByTestId("particle-field")).toHaveCount(0);
   await commitDirection(page, "W");
   await expect(page.getByTestId("particle-field")).toBeVisible();
@@ -62,16 +63,27 @@ test("task three reveals E, F and a only after commitment while preserving time 
   await expect(page.getByTestId("step-once")).toHaveCount(0);
 });
 
-test("guided share carries only physical setup and reloads into free exploration", async ({ page }) => {
-  await page.getByTestId("share-setup").click();
-  const url = new URL(page.url());
-  expect(url.pathname).toBe("/electrostatics");
-  expect([...url.searchParams.keys()]).toEqual(["s"]);
-  const decoded = JSON.parse(Buffer.from(url.searchParams.get("s")!, "base64url").toString("utf8"));
-  expect(JSON.stringify(decoded)).not.toMatch(/learning|activity|prediction|runtime|trail|macroSteps/);
-  await page.reload();
-  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-mode", "sandbox");
-  await expect(page.getByTestId("intent-choice")).toHaveCount(0);
+test("guided mode keeps fixed task state out of the share workflow", async ({ page }) => {
+  await expect(page.getByTestId("share-setup")).toHaveCount(0);
+  await page.getByTestId("direct-explore").click();
+  await expect(page.getByTestId("share-setup")).toBeVisible();
+});
+
+test("task three presents progress, fixed-position readouts, and an explicit evidence link", async ({ page }) => {
+  await page.getByTestId("activity-C").click();
+  await expect(page.getByTestId("task-c-progress")).toHaveAttribute("data-stage", "1");
+  await expect(page.getByTestId("particle-panel-title")).toHaveText("此位置的測試電荷讀值");
+  await expect(page.getByTestId("particle-time")).toHaveCount(0);
+  await expect(page.getByTestId("particle-handle")).toHaveAccessibleName(/此任務中位置固定/);
+  await page.getByTestId("particle-handle").hover();
+  await expect(page.getByTestId("object-tooltip")).toContainText("此任務中位置固定");
+
+  await commitDirection(page, "E");
+  await expect(page.getByTestId("feedback-status")).toContainText("和模型不同");
+  await expect(page.getByTestId("particle-readout-link")).toBeVisible();
+  await expect(page.getByTestId("prediction-verdict")).toContainText("查看模型說明");
+  await expect(page.getByTestId("task-c-progress")).toHaveAttribute("data-stage", "1");
+  await expect(page.getByTestId("particle-panel")).toHaveCSS("padding-left", "16px");
 });
 
 test("@mobile guided task remains usable at 320px", async ({ page }) => {

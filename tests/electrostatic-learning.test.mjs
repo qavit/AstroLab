@@ -77,6 +77,13 @@ test("A: a committed prediction cannot be silently overwritten", () => {
 });
 
 test("A: model answer is S with x cancelling and y adding; transfer flips to E with a fresh prediction", () => {
+  const [left, right] = ACTIVITY_SETUPS.A.sources;
+  assert.equal(left.q_C, right.q_C, "the two canonical sources have equal magnitude");
+  assert.equal(left.x_m, -right.x_m, "the sources mirror across the vertical centreline");
+  assert.equal(left.y_m, right.y_m, "the sources share the same height");
+  const [transferLeft, transferRight] = ACTIVITY_SETUPS["A-transfer"].sources;
+  assert.equal(transferLeft.q_C, -transferRight.q_C, "transfer keeps equal magnitudes while reversing one sign");
+  assert.equal(transferLeft.x_m, -transferRight.x_m, "transfer preserves the mirrored geometry");
   const field = probeReadout(ACTIVITY_SETUPS.A);
   assert.equal(probeCompass(field), "S");
   assert.deepEqual(componentVerdicts(field), { x: "cancel", y: "add" });

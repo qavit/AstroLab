@@ -275,8 +275,9 @@
 .evidenceGrid { display: grid; justify-content: start; grid-template-columns: repeat(auto-fit, minmax(300px, 480px)); gap: 14px; margin-top: 14px; }
 .probePanel,
 .legend { padding: 16px; }
-.readoutPanel { min-width: 0; margin-top: 13px; padding-top: 13px; border-top: 1px solid #cfdbdf; }
+.readoutPanel { min-width: 0; margin-top: 13px; padding: 13px 16px 16px; border-top: 1px solid #cfdbdf; }
 .readoutPanel h3 { margin: 0 0 9px; font: 500 18px Georgia, "Noto Serif TC", serif; }
+.readoutIntro { margin: -2px 0 10px; color: #597582; font-size: 12px; line-height: 1.55; }
 .heroReadout { display: grid; gap: 4px; padding: 13px; border-radius: 8px; background: #eaf3f5; }
 .heroReadout span { color: #4b6875; font-size: 12px; }
 .heroReadout strong { font-size: 23px; font-variant-numeric: tabular-nums; }
@@ -343,6 +344,12 @@
 .activityTabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
 .guidedHeading { margin: 0 0 10px; font: 500 19px Georgia, "Noto Serif TC", serif; }
 .guidedHeading:focus-visible { outline: 3px solid #d9a735; outline-offset: 3px; }
+.taskProgress { display: grid; gap: 7px; margin: -2px 0 14px; padding: 10px; border: 1px solid #c9d9df; border-radius: 8px; background: #f4fafb; }
+.taskProgress p { margin: 0; color: #355d70; font-size: 12px; font-weight: 700; }
+.taskProgress ol { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 0; margin: 0; list-style: none; }
+.taskProgress li { min-width: 0; padding: 5px 4px; border-radius: 5px; color: #5b7480; font-size: 10px; line-height: 1.3; text-align: center; }
+.taskProgress li[data-current="true"] { background: #dceef2; color: #143f58; font-weight: 800; box-shadow: inset 0 0 0 1px #246b82; }
+.taskProgress li[data-complete="true"] { color: #246b82; font-weight: 700; }
 .guidedForm { display: grid; gap: 10px; margin-bottom: 12px; }
 .guidedPrompt { margin: 0; line-height: 1.6; }
 .guidedVerdict { margin: 0; padding: 10px; border-left: 3px solid #246b82; background: #eef6f8; line-height: 1.55; }
@@ -351,6 +358,26 @@
 .choice:has(input:checked) { border-color: #246b82; background: #dceef2; }
 .choice input { min-height: 0; width: 18px; height: 18px; }
 .revealList { margin: 0; padding-left: 20px; line-height: 1.7; }
+.guidedActions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; margin-top: 8px; }
+.readoutLink { display: inline-flex; align-items: center; width: fit-content; min-height: 36px; padding: 6px 9px; border: 1px solid #8bb1c0; border-radius: 7px; color: #174d67; font-size: 13px; font-weight: 700; text-decoration: none; }
+.readoutLink:hover { border-color: #246b82; background: #edf6f8; }
+.readoutLink:focus-visible { outline: 3px solid #d9a735; outline-offset: 2px; }
+.comparisonCard { display: grid; gap: 10px; padding: 11px; border: 1px solid #c7d6dc; border-radius: 8px; background: #fff; }
+.feedbackStatus { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; padding: 8px; border-radius: 6px; }
+.feedbackStatus > svg { margin-top: 1px; }
+.feedbackStatus > div { display: grid; gap: 1px; }
+.feedbackStatus strong { font-size: 14px; }
+.feedbackStatus span { color: #4d6875; font-size: 12px; line-height: 1.45; }
+.feedbackMatch { background: #e6f3ee; color: #1f6257; }
+.feedbackMiss { background: #fff4df; color: #80541d; }
+.comparisonGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 0; }
+.comparisonGrid > div { min-width: 0; padding: 8px; border: 1px solid #d5e0e4; border-radius: 6px; background: #f9fcfc; }
+.comparisonGrid dt { color: #58717d; font-size: 11px; }
+.comparisonGrid dd { margin: 3px 0 0; color: #173d53; font-size: 14px; font-weight: 800; }
+.feedbackExplanation { margin: 0; color: #345b6d; font-size: 13px; line-height: 1.55; }
+.feedbackDetails { color: #365e70; font-size: 13px; line-height: 1.55; }
+.feedbackDetails summary { cursor: pointer; font-weight: 700; }
+.feedbackDetails p { margin: 7px 0 0; }
 
 /* Spatial direction chooser: real radio inputs laid out NW/N/NE, W/·/E, SW/S/SE so the choice
    reads as a direction in space rather than nine rectangular form rows. The input itself is

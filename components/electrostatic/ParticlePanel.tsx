@@ -21,6 +21,7 @@ function vectorRow(name: string, symbol: string, unit: string, x: number, y: num
 export default function ParticlePanel({ setup, runtime, policy = SANDBOX_POLICY }: ParticlePanelProps) {
   const readout = particleReadout(setup, runtime);
   const anyEvidence = policy.particleField || policy.particleForce || policy.particleAcceleration;
+  const motionAvailable = policy.timeControls;
   const { particle } = runtime;
   return (
     <section
@@ -35,12 +36,14 @@ export default function ParticlePanel({ setup, runtime, policy = SANDBOX_POLICY 
       data-macro-steps={runtime.macroSteps}
       data-clock-status={runtime.status}
     >
-      <h3 id="particle-panel-title">測試電荷現在怎麼動</h3>
-      <dl className={styles.statusStrip}>
-        <div><dt>時間</dt><dd data-testid="particle-time">{particle.t_s.toFixed(3)} s</dd></div>
-        <div><dt>位置</dt><dd data-testid="particle-position">({particle.x_m.toFixed(2)}, {particle.y_m.toFixed(2)}) m</dd></div>
-        <div><dt>狀態</dt><dd data-testid="particle-status">{runtime.status === "running" ? "運動中" : runtime.status === "stopped" ? "已停下" : "暫停"}</dd></div>
-      </dl>
+      <h3 id="particle-panel-title" data-testid="particle-panel-title">{motionAvailable ? "測試電荷的運動讀值" : "此位置的測試電荷讀值"}</h3>
+      {motionAvailable ? (
+        <dl className={styles.statusStrip}>
+          <div><dt>時間</dt><dd data-testid="particle-time">{particle.t_s.toFixed(3)} s</dd></div>
+          <div><dt>位置</dt><dd data-testid="particle-position">({particle.x_m.toFixed(2)}, {particle.y_m.toFixed(2)}) m</dd></div>
+          <div><dt>狀態</dt><dd data-testid="particle-status">{runtime.status === "running" ? "運動中" : runtime.status === "stopped" ? "已停下" : "暫停"}</dd></div>
+        </dl>
+      ) : <p className={styles.readoutIntro}>位置固定時的即時物理量；完成後續步驟可觀察運動。</p>}
       <div className={styles.tableWrap}>
         <table className={styles.probeTable}>
           <caption>測試電荷的向量讀值</caption>

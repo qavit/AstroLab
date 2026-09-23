@@ -48,8 +48,8 @@ test("A uses a native spatial chooser, previews only the learner guess, then rev
   await expect(viewport).toHaveAttribute("data-field-visible", "true");
   await expect(page.getByTestId("prediction-verdict")).toContainText("你的答案");
   await expect(page.getByTestId("prediction-verdict")).toContainText("模型結果");
-  await expect(page.getByTestId("prediction-verdict")).toContainText("判定");
-  await expect(page.getByTestId("prediction-verdict")).toContainText("為什麼");
+  await expect(page.getByTestId("feedback-status")).toContainText("和模型不同");
+  await expect(page.getByTestId("prediction-verdict")).toContainText("查看模型說明");
 });
 
 test("reduced motion suppresses only the attention animation, not the revealed evidence", async ({ page }) => {
@@ -119,8 +119,9 @@ test("C anchors predictions at the particle and C4 commits both labelled guesses
   await expect(viewport).toHaveAttribute("data-prediction-count", "2");
   await expect(viewport).toHaveAttribute("data-prediction-anchors", "particle,particle");
   await expect(viewport).toHaveAttribute("data-prediction-labels", "v,a");
-  await expect(page.getByTestId("prediction-verdict")).toContainText("你的答案・v");
-  await expect(page.getByTestId("prediction-verdict")).toContainText("判定・a");
+  await expect(page.getByTestId("feedback-status")).toContainText("答對了");
+  await expect(page.getByTestId("prediction-verdict")).toContainText("v：你的／模型");
+  await expect(page.getByTestId("prediction-verdict")).toContainText("a：你的／模型");
 });
 
 test("@mobile spatial chooser and Canvas remain usable at 320px", async ({ page }) => {

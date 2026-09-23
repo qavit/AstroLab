@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { RotateCcw } from "lucide-react";
+import { CircleAlert, CircleCheck, RotateCcw } from "lucide-react";
 import {
   accelerationCompass,
   changeOf,
@@ -42,6 +42,10 @@ const ACTIVITY_TITLE: Record<ActivityId, string> = {
  * the learner must choose between, so the heading stays neutral until the prediction is committed.
  */
 function taskTitle(state: LearningState): string {
+  if (state.activity === "C") {
+    const stage = state.step === "complete" ? 4 : Number(state.stage.slice(1));
+    return `${ACTIVITY_TITLE.C}（${stage}/4）`;
+  }
   if (state.activity === "B" && (state.step === "predict" || state.step === "transfer-predict")) {
     return "任務二｜對稱會留下什麼？";
   }
@@ -59,7 +63,6 @@ export interface GuidedHandlers {
   readonly onSwitch: (activity: ActivityId) => void;
   readonly onRestart: () => void;
   readonly onExplore: () => void;
-  readonly onShare: () => void;
   readonly onSourceMagnitude: (id: string, magnitude_nC: number) => void;
   /** Live, uncommitted compass guess(es) for the Canvas prediction preview. Never model evidence. */
   readonly onPreview: (markers: readonly PredictionMarker[]) => void;
@@ -178,17 +181,34 @@ function VelocityForm(props: { readonly onCommit: (p: CVelocityPrediction) => vo
   );
 }
 
-/** Compact, scannable comparison: learner answer / model result / judgment / one-sentence why. */
-function Comparison({ answer, model, explanation }: { readonly answer: string; readonly model: string | null; readonly explanation?: string }) {
+function FeedbackStatus(props: { readonly match: boolean; readonly matchMessage: string; readonly mismatchMessage: string }) {
+  return (
+    <div className={`${styles.feedbackStatus} ${props.match ? styles.feedbackMatch : styles.feedbackMiss}`} role="status" data-testid="feedback-status" data-match={props.match ? "true" : "false"}>
+      {props.match ? <CircleCheck size={22} aria-hidden="true" /> : <CircleAlert size={22} aria-hidden="true" />}
+      <div><strong>{props.match ? "答對了" : "和模型不同"}</strong><span>{props.match ? props.matchMessage : props.mismatchMessage}</span></div>
+    </div>
+  );
+}
+
+/** A two-column result makes agreement and disagreement scannable before any explanation. */
+function Comparison(props: { readonly answer: string; readonly model: string | null; readonly explanation?: string; readonly mismatchGuidance?: string }) {
+  const { answer, model, explanation, mismatchGuidance } = props;
   const match = model !== null && answer === model;
   return (
-    <dl className={styles.comparisonCard} data-testid="prediction-verdict" data-match={match ? "true" : "false"}>
+    <section className={styles.comparisonCard} data-testid="prediction-verdict" data-match={match ? "true" : "false"}>
+      <FeedbackStatus match={match} matchMessage="你的選擇和模型一致。" mismatchMessage={mismatchGuidance ?? "先比較你的選擇和模型結果。"} />
+      <dl className={styles.comparisonGrid}>
       <div><dt>你的答案</dt><dd>{answer}</dd></div>
       <div><dt>模型結果</dt><dd>{model ?? "未定義"}</dd></div>
-      <div><dt>判定</dt><dd className={match ? styles.judgmentMatch : styles.judgmentMiss}>{match ? "一致" : "再比對一次"}</dd></div>
-      {explanation ? <div><dt>為什麼</dt><dd>{explanation}</dd></div> : null}
-    </dl>
+      </dl>
+      {explanation && match ? <p className={styles.feedbackExplanation}>關鍵：{explanation}</p> : null}
+      {explanation && !match ? <details className={styles.feedbackDetails}><summary>查看模型說明</summary><p>{explanation}</p></details> : null}
+    </section>
   );
+}
+
+function ParticleReadoutLink() {
+  return <a className={styles.readoutLink} href="#particle-panel-title" data-testid="particle-readout-link">查看下方讀值：E、F、a</a>;
 }
 
 const VERDICT_WORD: Record<ComponentVerdict, string> = { cancel: "部分抵消", add: "同向相加" };
@@ -242,6 +262,19 @@ function stepLabel(state: LearningState): string {
     predict: "先預測", observe: "看結果", explain: "說明原因", manipulate: "動手找規律",
     "transfer-predict": "換個情境再預測", "transfer-observe": "換個情境看結果", complete: "完成",
   }[state.step];
+}
+
+const C_STAGE_LABEL = ["初始加速度", "反轉 q", "質量加倍", "加入初速度"] as const;
+
+function TaskProgress({ state }: { readonly state: LearningState }) {
+  if (state.activity !== "C") return null;
+  const active = state.step === "complete" ? 4 : Number(state.stage.slice(1));
+  return (
+    <nav className={styles.taskProgress} aria-label="任務三進度" data-testid="task-c-progress" data-stage={active}>
+      <p>任務三共有 4 步・目前第 {active} 步</p>
+      <ol>{C_STAGE_LABEL.map((label, index) => <li key={label} data-current={index + 1 === active ? "true" : "false"} data-complete={index + 1 < active ? "true" : "false"}>{index + 1} {label}</li>)}</ol>
+    </nav>
+  );
 }
 
 export default function GuidedActivities(props: GuidedActivitiesProps) {
@@ -391,12 +424,12 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
         ))}
       </nav>
       <h2 id="guided-task-heading" ref={headingRef} tabIndex={-1} className={styles.guidedHeading}>{taskTitle(learning)}</h2>
+      <TaskProgress state={learning} />
       {body}
-      <div className={styles.inlineActions}>
+      <div className={styles.guidedActions}>
         <button type="button" onClick={props.onRestart} data-testid="restart-activity" className={styles.iconButton}>
           <RotateCcw size={16} aria-hidden="true" />重新開始
         </button>
-        <button type="button" onClick={props.onShare} data-testid="share-setup">分享物理設定</button>
       </div>
     </section>
   );
@@ -417,7 +450,7 @@ const CHANGE_EXPLANATION: Record<"c2" | "c3", string> = {
 };
 
 function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string }) {
-  const { learning, setup, runtime, comparisonSetup } = props;
+  const { learning, setup, comparisonSetup } = props;
   if (learning.activity !== "C") return null;
   if (learning.step === "complete") return <CompletePanel onExplore={props.onExplore} />;
   const { stage } = learning;
@@ -454,6 +487,7 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
         answer={COMPASS_LABEL[learning.predictions.c1]}
         model={accel ? COMPASS_LABEL[accel] : null}
         explanation="正測試電荷位於正源電荷左側；該處電場由源電荷向外，因此初始電力與加速度都向左。"
+        mismatchGuidance="先看下方讀值：正測試電荷的電力與加速度會跟電場同方向嗎？"
       />
     );
   } else if ((stage === "c2" || stage === "c3") && comparisonSetup && readout.valid) {
@@ -467,6 +501,11 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
       ] as const;
       verdict = (
         <>
+          <FeedbackStatus
+            match={rows.every((row) => predicted[row.key] === row.change)}
+            matchMessage="你的三個判斷都和模型一致。"
+            mismatchMessage="先比較下方讀值：哪個量不變？哪個量反向？"
+          />
           <table className={styles.probeTable} data-testid="change-verdict">
             <caption>和上一個設定相比（由模型讀值判定）</caption>
             <thead><tr><th scope="col">量</th><th scope="col">你的預測</th><th scope="col">模型</th><th scope="col">判定</th></tr></thead>
@@ -478,13 +517,15 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
                     <th scope="row">{row.label}</th>
                     <td>{CHANGE_LABEL[predicted[row.key]]}</td>
                     <td>{row.change === "other" ? "其他" : CHANGE_LABEL[row.change]}</td>
-                    <td className={match ? styles.judgmentMatch : styles.judgmentMiss}>{match ? "一致" : "再比對一次"}</td>
+                    <td className={match ? styles.judgmentMatch : styles.judgmentMiss}>{match ? "一致" : "不同"}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          <p className={styles.helperText}>{CHANGE_EXPLANATION[stage]}</p>
+          {rows.every((row) => predicted[row.key] === row.change)
+            ? <p className={styles.feedbackExplanation}>關鍵：{CHANGE_EXPLANATION[stage]}</p>
+            : <details className={styles.feedbackDetails}><summary>查看模型說明</summary><p>{CHANGE_EXPLANATION[stage]}</p></details>}
         </>
       );
     }
@@ -494,21 +535,23 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
     const accelerationMatch = learning.predictions.c4.acceleration === accel;
     verdict = (
       <>
-        <dl className={styles.comparisonCard} data-testid="prediction-verdict">
-          <div><dt>你的答案・v</dt><dd>{COMPASS_LABEL[learning.predictions.c4.velocity]}</dd></div>
-          <div><dt>模型・v（初始條件）</dt><dd>{COMPASS_LABEL[velocityModel]}</dd></div>
-          <div><dt>判定・v</dt><dd className={velocityMatch ? styles.judgmentMatch : styles.judgmentMiss}>{velocityMatch ? "一致" : "再比對一次"}</dd></div>
-          <div><dt>你的答案・a</dt><dd>{COMPASS_LABEL[learning.predictions.c4.acceleration]}</dd></div>
-          <div><dt>模型・a</dt><dd>{accel ? COMPASS_LABEL[accel] : "未定義"}</dd></div>
-          <div><dt>判定・a</dt><dd className={accelerationMatch ? styles.judgmentMatch : styles.judgmentMiss}>{accelerationMatch ? "一致" : "再比對一次"}</dd></div>
-        </dl>
-        <p className={styles.helperText}>v 是粒子現在往哪裡走；a 是速度接下來會往哪裡偏，兩者可以不同方向。用「單步」或短暫播放觀察：粒子往上走，軌跡卻逐漸彎向加速度方向。t = {runtime.particle.t_s.toFixed(4)} s</p>
+        <section className={styles.comparisonCard} data-testid="prediction-verdict" data-match={velocityMatch && accelerationMatch ? "true" : "false"}>
+          <FeedbackStatus match={velocityMatch && accelerationMatch} matchMessage="速度和加速度的預測都和模型一致。" mismatchMessage="先比較速度 v 和加速度 a：它們不必指向同一方向。" />
+          <dl className={styles.comparisonGrid}>
+            <div><dt>v：你的／模型</dt><dd>{COMPASS_LABEL[learning.predictions.c4.velocity]} ／ {COMPASS_LABEL[velocityModel]}</dd></div>
+            <div><dt>a：你的／模型</dt><dd>{COMPASS_LABEL[learning.predictions.c4.acceleration]} ／ {accel ? COMPASS_LABEL[accel] : "未定義"}</dd></div>
+          </dl>
+          {velocityMatch && accelerationMatch
+            ? <p className={styles.feedbackExplanation}>關鍵：v 是現在的方向；a 是速度接下來偏轉的方向。用「單步」或短暫播放觀察。</p>
+            : <details className={styles.feedbackDetails}><summary>查看模型說明</summary><p>v 是粒子現在往哪裡走；a 是速度接下來會往哪裡偏，兩者可以不同方向。</p></details>}
+        </section>
       </>
     );
   }
   return (
     <div className={styles.guidedForm}>
-      <p className={styles.guidedPrompt}>下方「測試電荷讀值」列出這個位置的 E、F、a：E 屬於場；F 依賴 q；a 依賴 q/m。</p>
+      <p className={styles.guidedPrompt}>用下方讀值比較 E、F、a：E 由來源與位置決定；F 依賴 q；a 依賴 q/m。</p>
+      <ParticleReadoutLink />
       {verdict}
       <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">
         {stage === "c4" ? "完成任務三" : "下一步"}
