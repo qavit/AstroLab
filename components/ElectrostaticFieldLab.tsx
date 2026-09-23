@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Controls from "./electrostatic/Controls";
+import QuickPresetsMenu from "./electrostatic/QuickPresetsMenu";
 import FieldCanvas from "./electrostatic/FieldCanvas";
 import FieldLegend from "./electrostatic/FieldLegend";
 import ParticleControls from "./electrostatic/ParticleControls";
@@ -458,6 +459,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
           {!entryPending && (learning
             ? <button type="button" className={styles.catalogLink} onClick={() => exploreSandbox(false)} data-testid="direct-explore">自由探索</button>
             : <button type="button" className={styles.catalogLink} onClick={() => enterActivity("A")} data-testid="enter-guided">探索任務</button>)}
+          {!entryPending && !learning ? <QuickPresetsMenu setup={setup} onPreset={applyPreset} /> : null}
           <Link href="/" className={styles.catalogLink}>返回模型目錄</Link>
         </div>
       </header>
@@ -551,7 +553,6 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
           ) : <Controls
             setup={setup}
             selected={selected}
-            onPreset={applyPreset}
             onAddSource={addSource}
             onRemoveSource={removeSource}
             onToggleSign={toggleSign}

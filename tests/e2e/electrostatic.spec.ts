@@ -15,6 +15,14 @@ async function replaceNumber(page: Page, testId: string, value: string) {
   await input.press("Enter");
 }
 
+async function applyPreset(page: Page, presetId: string) {
+  const menu = page.getByTestId("quick-presets-menu");
+  if (!(await menu.evaluate((el) => (el as HTMLDetailsElement).open))) {
+    await menu.locator("summary").click();
+  }
+  await page.getByTestId(`preset-${presetId}`).click();
+}
+
 test("D-05 starts with a visible intent choice and natural task names", async ({ page }) => {
   await page.goto("/electrostatics");
   await expect(page).toHaveTitle("靜電學｜Kakau Lab");
@@ -80,13 +88,13 @@ test("measurement point exposes compact MathJax readout and natural zero/invalid
   await expect(page.getByTestId("probe-panel")).toContainText("看每顆電荷的影響");
 
   await page.keyboard.press("Escape");
-  await page.getByTestId("preset-like-pair").click();
+  await applyPreset(page, "like-pair");
   await page.getByTestId("probe-handle").click();
   await expect(page.getByTestId("probe-panel")).toHaveAttribute("data-probe-state", "zero");
   await expect(page.getByTestId("total-direction")).toContainText("沒有方向");
 
   await page.keyboard.press("Escape");
-  await page.getByTestId("preset-single-positive").click();
+  await applyPreset(page, "single-positive");
   await page.getByTestId("probe-handle").click();
   await replaceNumber(page, "probe-x", "0");
   await replaceNumber(page, "probe-y", "0");

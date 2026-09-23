@@ -57,12 +57,15 @@
   margin-top: 14px;
   align-items: start;
 }
-.canvasColumn { min-width: 0; display: grid; gap: 12px; }
+.canvasColumn { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 
 .viewportCard {
   position: relative;
   min-width: 0;
-  /* Height follows the column width; a min-height here would force a wider card than its column. */
+  /* Height follows the column width by default; the desktop breakpoint below flips this
+     to height-driven sizing (align-self: center) so the 4:3 world fits the viewport height
+     without cropping or stretching the ratio. */
+  align-self: stretch;
   aspect-ratio: 4 / 3;
   overflow: hidden;
   border: 1px solid #092333;
@@ -236,6 +239,35 @@
 .modelNotesGrid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(360px, 1fr); gap: 16px; padding: 0 16px 16px; }
 .modelNotesGrid h2 { margin: 8px 0; font: 500 20px Georgia, "Noto Serif TC", serif; }
 .modelNotesGrid p { color: #536f7b; font-size: 13px; line-height: 1.65; }
+
+.presetPopoverWrap { position: relative; }
+.presetPopoverWrap > summary { list-style: none; cursor: pointer; }
+.presetPopoverWrap > summary::-webkit-details-marker { display: none; }
+.presetPopoverWrap > summary:focus-visible { outline: 3px solid #e3ad36; outline-offset: 3px; }
+.presetPopover {
+  position: absolute;
+  z-index: 35;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(320px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid #c4d3d9;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 16px 36px rgba(16, 48, 66, .18);
+}
+
+/* Desktop two-column workspace: size the Canvas by available viewport height (not column
+   width) so header + Canvas + learner transport fit above the fold without page scroll.
+   The 4:3 ratio is preserved exactly (aspect-ratio), never cropped or stretched. */
+@media (min-width: 1024px) {
+  .viewportCard {
+    align-self: center;
+    width: auto;
+    max-width: 100%;
+    height: min(54vh, 540px);
+  }
+}
 
 @media (max-width: 1023px) {
   .workspace { grid-template-columns: 1fr; }

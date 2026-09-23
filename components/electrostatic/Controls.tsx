@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Plus, RotateCcw, Share2, Trash2 } from "lucide-react";
-import type { ElectrostaticSetup, PresetId } from "../../models/electrostatic.ts";
+import type { ElectrostaticSetup } from "../../models/electrostatic.ts";
 import type { SelectedObject } from "./render.ts";
 import CommittedNumberField from "./CommittedNumberField";
 import styles from "./ElectrostaticFieldLab.module.css";
@@ -10,7 +10,6 @@ import styles from "./ElectrostaticFieldLab.module.css";
 interface ControlsProps {
   readonly setup: ElectrostaticSetup;
   readonly selected: SelectedObject;
-  readonly onPreset: (preset: PresetId) => void;
   readonly onAddSource: () => void;
   readonly onRemoveSource: () => void;
   readonly onToggleSign: () => void;
@@ -21,12 +20,6 @@ interface ControlsProps {
   readonly onShare: () => void;
   readonly children?: ReactNode;
 }
-
-const PRESETS: readonly { id: PresetId; label: string; hint: string }[] = [
-  { id: "single-positive", label: "單一正電荷", hint: "先看一顆電荷如何建立電場" },
-  { id: "like-pair", label: "同號雙電荷", hint: "找出互相抵消的位置" },
-  { id: "dipole", label: "一正一負", hint: "比較兩個方向如何疊加" },
-];
 
 function sourceName(setup: ElectrostaticSetup, id: string): string {
   const index = setup.sources.findIndex((source) => source.id === id);
@@ -52,24 +45,8 @@ export default function Controls(props: ControlsProps) {
       </div>
 
       {!props.selected ? (
-        <p className={styles.inspectorLead}>直接點選畫布上的電荷、測量點或測試電荷，就能在這裡調整它。</p>
+        <p className={styles.inspectorLead}>直接點選畫布上的電荷、測量點或測試電荷，就能在這裡調整它；或用上方的「快速配置」快速套用情境。</p>
       ) : null}
-
-      <details className={styles.controlGroup} open={!props.selected} data-testid="quick-presets">
-        <summary>快速配置</summary>
-        <div className={styles.presetGrid}>
-          {PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              className={props.setup.presetId === preset.id ? styles.activeButton : undefined}
-              aria-pressed={props.setup.presetId === preset.id}
-              data-testid={`preset-${preset.id}`}
-              onClick={() => props.onPreset(preset.id)}
-            ><strong>{preset.label}</strong><small>{preset.hint}</small></button>
-          ))}
-        </div>
-      </details>
 
       {selectedSource ? (
         <fieldset className={styles.controlGroup} data-testid="selected-source-controls">
