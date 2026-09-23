@@ -68,9 +68,10 @@ export type ActivityBState =
 // ---- Activity C｜E、F、a -------------------------------------------------------------
 
 export type Change = "same" | "reverse" | "double" | "half";
+export type TrajectoryTurn = "left" | "straight" | "right";
 
 export interface CFlipPrediction { readonly E: Change; readonly F: Change; readonly a: Change }
-export interface CVelocityPrediction { readonly velocity: Compass; readonly acceleration: Compass }
+export interface CTrajectoryPrediction { readonly trajectory: TrajectoryTurn; readonly acceleration: Compass }
 
 export type CStage = "c1" | "c2" | "c3" | "c4";
 
@@ -78,7 +79,7 @@ export interface CPredictions {
   readonly c1?: Compass;
   readonly c2?: CFlipPrediction;
   readonly c3?: CFlipPrediction;
-  readonly c4?: CVelocityPrediction;
+  readonly c4?: CTrajectoryPrediction;
 }
 
 export type ActivityCState =
@@ -204,7 +205,7 @@ export function commitChange(state: LearningState, prediction: CFlipPrediction):
   return { ...state, step: "observe", predictions: { ...state.predictions, [state.stage]: prediction } };
 }
 
-export function commitVelocity(state: LearningState, prediction: CVelocityPrediction): LearningState {
+export function commitTrajectory(state: LearningState, prediction: CTrajectoryPrediction): LearningState {
   if (state.activity !== "C" || state.step !== "predict" || state.stage !== "c4") return state;
   return { ...state, step: "observe", predictions: { ...state.predictions, c4: prediction } };
 }
@@ -344,6 +345,15 @@ export function probeCompass(field: FieldResult): Compass | null {
 export function accelerationCompass(readout: ParticleReadout): Compass | null {
   if (!readout.valid) return null;
   return compassOf(readout.acceleration_mps2, false);
+}
+
+/** Qualitative initial curvature relative to the current direction of travel. Parallel or
+ * antiparallel acceleration changes speed but does not turn the path at that instant. */
+export function trajectoryTurn(velocity: Vec2, acceleration: Vec2): TrajectoryTurn {
+  const cross = velocity.x * acceleration.y - velocity.y * acceleration.x;
+  const scale = Math.hypot(velocity.x, velocity.y) * Math.hypot(acceleration.x, acceleration.y);
+  if (scale === 0 || Math.abs(cross) <= 1e-12 * scale) return "straight";
+  return cross > 0 ? "left" : "right";
 }
 
 /** Per-axis verdict from the model's own contributions: opposite signs cancel, same signs add. */

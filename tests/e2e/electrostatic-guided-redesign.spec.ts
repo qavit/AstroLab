@@ -87,7 +87,7 @@ test("B keeps zero prediction distinct and uses four-source symmetry feedback in
   await expect(page.getByTestId("prediction-verdict")).not.toContainText("兩顆源電荷的貢獻");
 });
 
-test("C anchors predictions at the particle and C4 commits both labelled guesses", async ({ page }) => {
+test("C anchors predictions at the particle and C4 compares trajectory with initial acceleration", async ({ page }) => {
   const viewport = page.getByTestId("field-viewport");
   await page.getByTestId("activity-C").click();
   await submitDirection(page, "W");
@@ -109,19 +109,20 @@ test("C anchors predictions at the particle and C4 commits both labelled guesses
   await page.getByTestId("commit-prediction").click();
   await page.getByTestId("advance").click();
 
-  await page.getByTestId("predict-velocity-N").check();
+  await expect(page.locator('[name="predict-velocity"]')).toHaveCount(0);
   await expect(viewport).toHaveAttribute("data-prediction-count", "1");
   await expect(viewport).toHaveAttribute("data-prediction-labels", "v");
+  await page.getByTestId("predict-trajectory-left").check();
   await page.getByTestId("predict-acceleration-W").check();
-  await expect(viewport).toHaveAttribute("data-prediction-count", "1");
-  await expect(viewport).toHaveAttribute("data-prediction-labels", "a");
+  await expect(viewport).toHaveAttribute("data-prediction-count", "2");
+  await expect(viewport).toHaveAttribute("data-prediction-labels", "v,a");
   await page.getByTestId("commit-prediction").click();
   await expect(viewport).toHaveAttribute("data-prediction-count", "2");
   await expect(viewport).toHaveAttribute("data-prediction-anchors", "particle,particle");
   await expect(viewport).toHaveAttribute("data-prediction-labels", "v,a");
   await expect(page.getByTestId("feedback-status")).toContainText("答對了");
-  await expect(page.getByTestId("prediction-verdict")).toContainText("v：你的／模型");
-  await expect(page.getByTestId("prediction-verdict")).toContainText("a：你的／模型");
+  await expect(page.getByTestId("prediction-verdict")).toContainText("軌跡：你的／模型");
+  await expect(page.getByTestId("prediction-verdict")).toContainText("初始 a：你的／模型");
 });
 
 test("@mobile spatial chooser and Canvas remain usable at 320px", async ({ page }) => {

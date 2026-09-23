@@ -45,7 +45,7 @@ import {
   advance,
   commitChange,
   commitDirection,
-  commitVelocity,
+  commitTrajectory,
   comparisonStage,
   evidencePolicy,
   explainA,
@@ -677,7 +677,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               focusToken={focusToken}
               onCommitDirection={(p) => transition(commitDirection(learning, p), "答案已提交。")}
               onCommitChange={(p) => transition(commitChange(learning, p), "答案已提交；下方是 E、F、a 的結果。")}
-              onCommitVelocity={(p) => transition(commitVelocity(learning, p), "答案已提交；可以單步或播放觀察。")}
+              onCommitTrajectory={(p) => transition(commitTrajectory(learning, p), "答案已提交；可以單步或播放觀察。")}
               onReveal={() => transition(revealNext(learning), "已顯示下一層結果。")}
               onAdvance={() => transition(advance(learning), "進入下一步。")}
               onExplainA={(e) => transition(explainA(learning, e), "說明已送出；換個情境再試一次。")}

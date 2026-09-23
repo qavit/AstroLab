@@ -4,9 +4,9 @@ import type { Compass, LearningState } from "../../models/electrostatic-learning
 export type PredictionAnchor = "probe" | "particle";
 
 /**
- * A learner's own compass guess, ready to draw. Direction only — never derived from
- * `probeReadout()`/`particleReadout()`, never the Gate 5 shared physical vector scale, and never
- * part of physical setup, runtime, schema v1 or the share URL. Presentation state only.
+ * A compass overlay used by a guided prompt. It normally reflects the learner's own guess; C4
+ * also includes its stated upward initial velocity so the known v and predicted a stay visually
+ * distinct. It never uses the Gate 5 physical vector scale or enters setup/schema/share state.
  */
 export interface PredictionMarker {
   readonly anchor: PredictionAnchor;
@@ -120,7 +120,7 @@ export function committedPredictionMarkers(learning: LearningState): readonly Pr
     }
     if (learning.stage === "c4" && learning.predictions.c4) {
       return [
-        { anchor: "particle", compass: learning.predictions.c4.velocity, label: "v" },
+        { anchor: "particle", compass: "N", label: "v" },
         { anchor: "particle", compass: learning.predictions.c4.acceleration, label: "a" },
       ];
     }

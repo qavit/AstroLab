@@ -55,7 +55,7 @@ test("C c1 observe anchors at the particle", () => {
 });
 
 test("C c4 observe surfaces both velocity and acceleration, distinctly labelled, both at the particle", () => {
-  const observe = { activity: "C", step: "observe", stage: "c4", predictions: { c4: { velocity: "N", acceleration: "W" } } };
+  const observe = { activity: "C", step: "observe", stage: "c4", predictions: { c4: { trajectory: "left", acceleration: "W" } } };
   assert.deepEqual(committedPredictionMarkers(observe), [
     { anchor: "particle", compass: "N", label: "v" },
     { anchor: "particle", compass: "W", label: "a" },

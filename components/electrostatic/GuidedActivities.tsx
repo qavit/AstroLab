@@ -7,9 +7,9 @@ import {
   changeOf,
   COMPASS_4_ZERO,
   COMPASS_8,
-  compassOf,
   componentVerdicts,
   probeCompass,
+  trajectoryTurn,
   type ActivityId,
   type AExplanation,
   type BExplanation,
@@ -17,9 +17,10 @@ import {
   type Change,
   type Compass,
   type ComponentVerdict,
-  type CVelocityPrediction,
+  type CTrajectoryPrediction,
   type DirectionPrediction,
   type LearningState,
+  type TrajectoryTurn,
 } from "../../models/electrostatic-learning.ts";
 import { initialRuntime, particleReadout, probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import type { PredictionMarker } from "./guidedPrediction.ts";
@@ -31,32 +32,27 @@ const COMPASS_LABEL: Record<Compass, string> = {
   E: "→ 向右", NE: "↗ 右上", N: "↑ 向上", NW: "↖ 左上", W: "← 向左", SW: "↙ 左下", S: "↓ 向下", SE: "↘ 右下", zero: "零場",
 };
 const CHANGE_LABEL: Record<Change, string> = { same: "不變", reverse: "反向", double: "加倍", half: "減半" };
+const TRAJECTORY_LABEL: Record<TrajectoryTurn, string> = { left: "向左偏轉", straight: "維持直線", right: "向右偏轉" };
 
 const ACTIVITY_TITLE: Record<ActivityId, string> = {
-  A: "任務一｜兩個電場會往哪裡？",
-  B: "任務二｜對稱會留下什麼？",
-  C: "任務三｜從電場到運動",
+  A: "兩個電場會往哪裡？",
+  B: "對稱會留下什麼？",
+  C: "從電場到運動",
 };
+const ACTIVITY_TAB: Record<ActivityId, string> = { A: "任務一", B: "任務二", C: "任務三" };
 
 /**
  * Task wording is part of the answer-leak surface: B's own topic ("零場") is one of the options
  * the learner must choose between, so the heading stays neutral until the prediction is committed.
  */
 function taskTitle(state: LearningState): string {
-  if (state.activity === "C") {
-    const stage = state.step === "complete" ? 4 : Number(state.stage.slice(1));
-    return `${ACTIVITY_TITLE.C}（${stage}/4）`;
-  }
-  if (state.activity === "B" && (state.step === "predict" || state.step === "transfer-predict")) {
-    return "任務二｜對稱會留下什麼？";
-  }
   return ACTIVITY_TITLE[state.activity];
 }
 
 export interface GuidedHandlers {
   readonly onCommitDirection: (prediction: DirectionPrediction) => void;
   readonly onCommitChange: (prediction: CFlipPrediction) => void;
-  readonly onCommitVelocity: (prediction: CVelocityPrediction) => void;
+  readonly onCommitTrajectory: (prediction: CTrajectoryPrediction) => void;
   readonly onReveal: () => void;
   readonly onAdvance: () => void;
   readonly onExplainA: (explanation: AExplanation) => void;
@@ -157,27 +153,53 @@ function ChangeForm(props: { readonly prompt: string; readonly options: readonly
   );
 }
 
-/** Two spatial predictions (velocity, acceleration) at the test charge. Only the most recently
- * touched one previews on Canvas before submit, so the two guesses never stack unreadably. */
-function VelocityForm(props: { readonly onCommit: (p: CVelocityPrediction) => void; readonly onPreview: (markers: readonly PredictionMarker[]) => void }) {
-  const [velocity, setVelocity] = useState<Compass | null>(null);
+function TrajectoryGlyph({ turn }: { readonly turn: TrajectoryTurn }) {
+  const path = turn === "left" ? "M48 62 C48 43 42 25 18 12"
+    : turn === "right" ? "M48 62 C48 43 54 25 78 12"
+      : "M48 62 L48 12";
+  return (
+    <svg viewBox="0 0 96 72" role="img" aria-label={TRAJECTORY_LABEL[turn]}>
+      <path className={styles.trajectoryGuide} d="M48 64 L48 48" />
+      <path className={styles.trajectoryPath} d={path} />
+      <circle className={styles.trajectoryStart} cx="48" cy="62" r="3" />
+    </svg>
+  );
+}
+
+/** C4 makes the upward initial velocity an explicit condition. The learner predicts qualitative
+ * curvature and initial acceleration; the Canvas keeps v and a visually distinct. */
+function TrajectoryForm(props: { readonly onCommit: (p: CTrajectoryPrediction) => void; readonly onPreview: (markers: readonly PredictionMarker[]) => void }) {
+  const [trajectory, setTrajectory] = useState<TrajectoryTurn | null>(null);
   const [acceleration, setAcceleration] = useState<Compass | null>(null);
-  useEffect(() => () => props.onPreview([]), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const chooseVelocity = (value: Compass) => {
-    setVelocity(value);
-    props.onPreview([{ anchor: "particle", compass: value, label: "v" }]);
-  };
+  useEffect(() => {
+    props.onPreview([{ anchor: "particle", compass: "N", label: "v" }]);
+    return () => props.onPreview([]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const chooseAcceleration = (value: Compass) => {
     setAcceleration(value);
-    props.onPreview([{ anchor: "particle", compass: value, label: "a" }]);
+    props.onPreview([
+      { anchor: "particle", compass: "N", label: "v" },
+      { anchor: "particle", compass: value, label: "a" },
+    ]);
   };
   return (
-    <form className={styles.guidedForm} onSubmit={(event) => { event.preventDefault(); if (velocity && acceleration) props.onCommit({ velocity, acceleration }); }}>
-      <p className={styles.guidedPrompt}>粒子現在有向上的初速度。一開始，它的速度與加速度各指向哪裡？</p>
-      <CompassChooser legend="初速度方向 v" name="predict-velocity" directions={COMPASS_8} value={velocity} onChange={chooseVelocity} />
+    <form className={styles.guidedForm} onSubmit={(event) => { event.preventDefault(); if (trajectory && acceleration) props.onCommit({ trajectory, acceleration }); }}>
+      <p className={styles.guidedPrompt}>現在給測試電荷一個<strong>向上的初速度</strong>。你預測接下來的軌跡會怎麼偏轉？剛開始的加速度又朝哪裡？</p>
+      <fieldset className={styles.controlGroup}>
+        <legend>軌跡預測</legend>
+        <div className={styles.trajectoryChoiceGrid}>
+          {(Object.keys(TRAJECTORY_LABEL) as TrajectoryTurn[]).map((turn) => (
+            <label key={turn} className={styles.trajectoryChoice}>
+              <input type="radio" name="predict-trajectory" value={turn} checked={trajectory === turn} onChange={() => setTrajectory(turn)} data-testid={`predict-trajectory-${turn}`} />
+              <TrajectoryGlyph turn={turn} />
+              <span>{TRAJECTORY_LABEL[turn]}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <CompassChooser legend="初始加速度方向 a" name="predict-acceleration" directions={COMPASS_8} value={acceleration} onChange={chooseAcceleration} />
-      <p className={styles.helperText}>速度 v 是粒子現在往哪裡走；加速度 a 是速度接下來會往哪裡偏。兩者可以不同方向。</p>
-      <button type="submit" className={styles.shareButton} disabled={!velocity || !acceleration} data-testid="commit-prediction">提交答案</button>
+      <p className={styles.helperText}>只判斷初期往哪一側彎，不需要猜精確曲線。</p>
+      <button type="submit" className={styles.shareButton} disabled={!trajectory || !acceleration} data-testid="commit-prediction">提交答案</button>
     </form>
   );
 }
@@ -255,9 +277,7 @@ function BExplainForm({ onSubmit }: { readonly onSubmit: (e: BExplanation) => vo
 
 function stepLabel(state: LearningState): string {
   if (state.activity === "C") {
-    if (state.step === "complete") return "完成";
-    const stage = { c1: "1 初始加速度", c2: "2 反轉 q", c3: "3 質量加倍", c4: "4 加入初速度" }[state.stage];
-    return `${stage} · ${state.step === "predict" ? "先預測" : "看結果"}`;
+    return state.step === "complete" ? "完成" : state.step === "predict" ? "先預測" : "看結果";
   }
   return {
     predict: "先預測", observe: "看結果", explain: "說明原因", manipulate: "動手找規律",
@@ -267,13 +287,26 @@ function stepLabel(state: LearningState): string {
 
 function TaskProgress({ state }: { readonly state: LearningState }) {
   const { stages, current, total } = guidedProgress(state);
-  const taskName = ACTIVITY_TITLE[state.activity].split("｜")[0];
   const progressKind = state.activity === "C" ? "小題" : "情境";
-  const numerals = ["①", "②", "③", "④"];
   return (
-    <nav className={styles.taskProgress} aria-label={`${taskName}進度`} data-testid="task-progress" data-activity={state.activity} data-stage={current} data-count={total}>
-      <p>{progressKind} {current} / {total}</p>
-      <ol style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}>{stages.map((label, index) => <li key={label} data-current={index + 1 === current ? "true" : "false"} data-complete={index + 1 < current ? "true" : "false"}><span aria-hidden="true">{numerals[index]}</span> {label}</li>)}</ol>
+    <nav className={styles.taskProgress} aria-label={`${ACTIVITY_TAB[state.activity]}進度`} data-testid="task-progress" data-activity={state.activity} data-stage={current} data-count={total}>
+      <ol style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}>
+        {stages.map((label, index) => {
+          const position = index + 1;
+          return (
+            <li
+              key={label}
+              aria-current={position === current ? "step" : undefined}
+              aria-label={`${label}，第 ${position} 個${progressKind}，共 ${total} 個`}
+              data-current={position === current ? "true" : "false"}
+              data-complete={position < current ? "true" : "false"}
+            >
+              <span className={styles.progressNode} aria-hidden="true" />
+              <span className={styles.progressLabel} aria-hidden="true">{label}</span>
+            </li>
+          );
+        })}
+      </ol>
     </nav>
   );
 }
@@ -427,7 +460,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
             className={learning.activity === id ? styles.activeButton : undefined}
             onClick={() => props.onSwitch(id)}
             data-testid={`activity-${id}`}
-          >{ACTIVITY_TITLE[id].split("｜")[0]}</button>
+          >{ACTIVITY_TAB[id]}</button>
         ))}
       </nav>
       <h2 id="guided-task-heading" ref={headingRef} tabIndex={-1} className={styles.guidedHeading}>{taskTitle(learning)}</h2>
@@ -475,7 +508,7 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
         />
       );
     }
-    if (stage === "c4") return <VelocityForm key={props.formKey} onCommit={props.onCommitVelocity} onPreview={props.onPreview} />;
+    if (stage === "c4") return <TrajectoryForm key={props.formKey} onCommit={props.onCommitTrajectory} onPreview={props.onPreview} />;
     return (
       <ChangeForm
         key={props.formKey}
@@ -537,20 +570,28 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
       );
     }
   } else if (stage === "c4" && learning.predictions.c4) {
-    const velocityModel = compassOf({ x: setup.testParticle.vx_mps, y: setup.testParticle.vy_mps }, false);
-    const velocityMatch = learning.predictions.c4.velocity === velocityModel;
+    const trajectoryModel = trajectoryTurn(
+      { x: setup.testParticle.vx_mps, y: setup.testParticle.vy_mps },
+      readout.valid ? readout.acceleration_mps2 : { x: 0, y: 0 },
+    );
+    const trajectoryMatch = learning.predictions.c4.trajectory === trajectoryModel;
     const accelerationMatch = learning.predictions.c4.acceleration === accel;
+    const mismatchMessage = accelerationMatch && !trajectoryMatch
+      ? "你已判斷出加速度向左。當速度持續增加左向分量時，路徑還會保持直線嗎？"
+      : trajectoryMatch && !accelerationMatch
+        ? "軌跡偏轉已判斷正確；再看測試電荷左側的電場與初始加速度方向。"
+        : "先分開判斷：速度決定當下運動方向；加速度決定速度如何改變。";
     verdict = (
       <>
-        <section className={styles.comparisonCard} data-testid="prediction-verdict" data-match={velocityMatch && accelerationMatch ? "true" : "false"}>
-          <FeedbackStatus match={velocityMatch && accelerationMatch} matchMessage="速度和加速度的預測都和模型一致。" mismatchMessage="先比較速度 v 和加速度 a：它們不必指向同一方向。" />
+        <section className={styles.comparisonCard} data-testid="prediction-verdict" data-match={trajectoryMatch && accelerationMatch ? "true" : "false"}>
+          <FeedbackStatus match={trajectoryMatch && accelerationMatch} matchMessage="軌跡偏轉與初始加速度都和模型一致。" mismatchMessage={mismatchMessage} />
           <dl className={styles.comparisonGrid}>
-            <div><dt>v：你的／模型</dt><dd>{COMPASS_LABEL[learning.predictions.c4.velocity]} ／ {COMPASS_LABEL[velocityModel]}</dd></div>
-            <div><dt>a：你的／模型</dt><dd>{COMPASS_LABEL[learning.predictions.c4.acceleration]} ／ {accel ? COMPASS_LABEL[accel] : "未定義"}</dd></div>
+            <div><dt>軌跡：你的／模型</dt><dd>{TRAJECTORY_LABEL[learning.predictions.c4.trajectory]} ／ {TRAJECTORY_LABEL[trajectoryModel]}</dd></div>
+            <div><dt>初始 a：你的／模型</dt><dd>{COMPASS_LABEL[learning.predictions.c4.acceleration]} ／ {accel ? COMPASS_LABEL[accel] : "未定義"}</dd></div>
           </dl>
-          {velocityMatch && accelerationMatch
-            ? <p className={styles.feedbackExplanation}>關鍵：v 是現在的方向；a 是速度接下來偏轉的方向。用「單步」或短暫播放觀察。</p>
-            : <details className={styles.feedbackDetails}><summary>查看模型說明</summary><p>v 是粒子現在往哪裡走；a 是速度接下來會往哪裡偏，兩者可以不同方向。</p></details>}
+          {trajectoryMatch && accelerationMatch
+            ? <p className={styles.feedbackExplanation}>關鍵：v 決定當下運動方向；a 決定速度如何改變。初速度向上、加速度向左，所以軌跡逐漸向左彎。</p>
+            : <details className={styles.feedbackDetails}><summary>查看關鍵關係</summary><p>初速度向上；向左的加速度會讓速度逐漸增加左向分量，因此路徑向左彎。</p></details>}
         </section>
       </>
     );

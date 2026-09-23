@@ -348,14 +348,30 @@
 .activityTabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
 .guidedHeading { margin: 0 0 10px; font: 500 19px Georgia, "Noto Serif TC", serif; }
 .guidedHeading:focus-visible { outline: 3px solid #d9a735; outline-offset: 3px; }
-.taskProgress { display: grid; gap: 7px; margin: -2px 0 14px; padding: 10px; border: 1px solid #c9d9df; border-radius: 8px; background: #f4fafb; }
-.taskProgress p { margin: 0; color: #355d70; font-size: 12px; font-weight: 700; }
-.taskProgress ol { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 0; margin: 0; list-style: none; }
-.taskProgress li { min-width: 0; padding: 5px 4px; border-radius: 5px; color: #5b7480; font-size: 10px; line-height: 1.3; text-align: center; }
-.taskProgress li[data-current="true"] { background: #dceef2; color: #143f58; font-weight: 800; box-shadow: inset 0 0 0 1px #246b82; }
+.taskProgress { margin: -2px 0 14px; padding: 6px 0 8px; }
+.taskProgress ol { display: grid; padding: 0; margin: 0; list-style: none; }
+.taskProgress li { position: relative; display: grid; justify-items: center; align-content: start; gap: 6px; min-width: 0; color: #657e89; font-size: 10px; line-height: 1.25; text-align: center; }
+.taskProgress li::before { content: ""; position: absolute; z-index: 0; top: 6px; right: 50%; width: 100%; height: 2px; background: #bfd0d7; }
+.taskProgress li:first-child::before { display: none; }
+.progressNode { position: relative; z-index: 1; display: block; width: 12px; height: 12px; border: 2px solid #8da6b0; border-radius: 50%; background: #fff; }
+.progressLabel { max-width: 100%; min-height: 2.5em; padding: 0 3px; overflow-wrap: anywhere; }
 .taskProgress li[data-complete="true"] { color: #246b82; font-weight: 700; }
+.taskProgress li[data-complete="true"]::before,
+.taskProgress li[data-current="true"]::before { background: #5791a3; }
+.taskProgress li[data-complete="true"] .progressNode { border-color: #39788c; background: #39788c; }
+.taskProgress li[data-current="true"] { color: #143f58; font-weight: 800; }
+.taskProgress li[data-current="true"] .progressNode { width: 16px; height: 16px; margin-top: -2px; border: 4px solid #fff; background: #246b82; box-shadow: 0 0 0 2px #246b82; }
 .guidedForm { display: grid; gap: 10px; margin-bottom: 12px; }
 .guidedPrompt { margin: 0; line-height: 1.6; }
+.trajectoryChoiceGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.trajectoryChoice { display: grid; justify-items: center; align-content: start; gap: 3px; min-width: 0; min-height: 112px; padding: 7px 4px; border: 1px solid #c4d6dd; border-radius: 8px; background: #fff; color: #355d70; cursor: pointer; text-align: center; }
+.trajectoryChoice:has(input:checked) { border-color: #246b82; background: #dceef2; box-shadow: inset 0 0 0 1px #246b82; }
+.trajectoryChoice input { width: 18px; height: 18px; min-height: 0; margin: 0; }
+.trajectoryChoice svg { width: min(78px, 100%); height: 58px; overflow: visible; }
+.trajectoryGuide { fill: none; stroke: #a8bbc3; stroke-width: 2; stroke-dasharray: 3 3; }
+.trajectoryPath { fill: none; stroke: #246b82; stroke-width: 4; stroke-linecap: round; }
+.trajectoryStart { fill: #d9a735; stroke: #143f58; stroke-width: 1.5; }
+.trajectoryChoice > span { font-size: 11px; font-weight: 750; line-height: 1.25; }
 .guidedMagnitudeControl { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid #bfd2da; border-radius: 8px; background: #f4fafb; }
 .guidedMagnitudeControl > label { color: #234c62; font-size: 14px; font-weight: 750; }
 .guidedMagnitudeField { display: inline-flex; align-items: center; gap: 7px; color: #355d70; font-size: 14px; font-weight: 700; white-space: nowrap; }

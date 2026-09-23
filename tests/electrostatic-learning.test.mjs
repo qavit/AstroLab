@@ -9,7 +9,7 @@ import {
   changeOf,
   commitChange,
   commitDirection,
-  commitVelocity,
+  commitTrajectory,
   componentVerdicts,
   evidencePolicy,
   explainA,
@@ -18,6 +18,7 @@ import {
   revealNext,
   SANDBOX_POLICY,
   startActivity,
+  trajectoryTurn,
 } from "../models/electrostatic-learning.ts";
 import { applySetupEdit, initialRuntime, particleReadout, probeReadout } from "../models/electrostatic.ts";
 import { validateSetup } from "../models/electrostatic-validation.ts";
@@ -236,7 +237,7 @@ test("C: charge flip keeps E and reverses F and a; mass doubling keeps E, F and 
   assert.equal(state.predictions.c2.F, "reverse");
 });
 
-test("C: initial velocity does not change E/F/a; velocity and acceleration directions differ", () => {
+test("C: upward initial velocity with left acceleration predicts a left-turning trajectory", () => {
   const c1 = readout("c1");
   const c4 = readout("c4");
   assert.deepEqual(c4.field, c1.field);
@@ -244,6 +245,12 @@ test("C: initial velocity does not change E/F/a; velocity and acceleration direc
   assert.deepEqual(c4.acceleration_mps2, c1.acceleration_mps2);
   assert.equal(accelerationCompass(c4), "W");
   assert.equal(ACTIVITY_SETUPS.c4.testParticle.vy_mps, 1, "velocity points N");
+  assert.equal(trajectoryTurn(
+    { x: ACTIVITY_SETUPS.c4.testParticle.vx_mps, y: ACTIVITY_SETUPS.c4.testParticle.vy_mps },
+    c4.acceleration_mps2,
+  ), "left");
+  assert.equal(trajectoryTurn({ x: 0, y: 1 }, { x: 0, y: -1 }), "straight", "parallel-axis acceleration does not initially turn the path");
+  assert.equal(trajectoryTurn({ x: 0, y: 1 }, { x: 1, y: 0 }), "right");
 
   let state = startActivity("C");
   state = advance(commitDirection(state, { direction: "W", reason: "sign" }));
@@ -251,7 +258,8 @@ test("C: initial velocity does not change E/F/a; velocity and acceleration direc
   state = advance(commitChange(state, { E: "same", F: "same", a: "half" }));
   assert.equal(state.stage, "c4");
   assertAllHidden(state, "C c4 predict");
-  state = commitVelocity(state, { velocity: "N", acceleration: "W" });
+  state = commitTrajectory(state, { trajectory: "left", acceleration: "W" });
+  assert.deepEqual(state.predictions.c4, { trajectory: "left", acceleration: "W" });
   const policy = evidencePolicy(state);
   assert.equal(policy.trajectory, true);
   assert.equal(policy.timeControls, true);
