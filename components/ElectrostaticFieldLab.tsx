@@ -22,7 +22,6 @@ import styles from "./electrostatic/ElectrostaticFieldLab.module.css";
 import { MathProvider } from "./math/MathJax";
 import type { Vec2 } from "../lib/science/electrostatics/types.ts";
 import {
-  advancePlayback,
   applySetupEdit,
   ELECTROSTATIC_PRESETS,
   initialRuntime,
@@ -33,10 +32,11 @@ import {
   type PresetId,
 } from "../models/electrostatic.ts";
 import {
-  checkpointCollector,
+  advanceTimeline,
   createPlaybackHistory,
-  recordPlayback,
   seekRuntime,
+  stepTimelineForward,
+  timelineHorizonSteps,
   type PlaybackHistory,
 } from "../models/electrostatic-history.ts";
 import {
@@ -82,12 +82,12 @@ interface LabState {
 
 function stopAnnouncement(runtime: ElectrostaticRuntime): string | null {
   if (runtime.stop?.reason === "entered-source-core") {
-    return `測試電荷在 ${runtime.stop.t_s.toFixed(3)} 秒時太靠近源電荷，因此停在模型仍有效的邊界。請按「重新開始」再試一次。`;
+    return `測試電荷在 ${runtime.stop.t_s.toFixed(3)} 秒時太靠近源電荷，因此停在模型仍有效的邊界。請按「回到起點」再試一次。`;
   }
   if (runtime.stop?.reason === "left-domain") {
-    return `測試電荷在 ${runtime.stop.t_s.toFixed(3)} 秒時離開觀察範圍，已停在邊界。請按「重新開始」再試一次。`;
+    return `測試電荷在 ${runtime.stop.t_s.toFixed(3)} 秒時離開觀察範圍，已停在邊界。請按「回到起點」再試一次。`;
   }
-  if (runtime.error) return "計算暫時無法繼續，已保留最後一個有效狀態。請按「重新開始」。";
+  if (runtime.error) return "計算暫時無法繼續，已保留最後一個有效狀態。請按「回到起點」。";
   if (runtime.autoPause === "behind-realtime") {
     return "裝置來不及連續顯示每一步，已自動暫停；模型時間沒有跳過。按播放即可繼續。";
   }
@@ -98,6 +98,11 @@ function stopAnnouncement(runtime: ElectrostaticRuntime): string | null {
 function isInteractive(target: EventTarget | null): boolean {
   return target instanceof Element &&
     target.closest("input, textarea, select, button, a, summary, [role='button'], [contenteditable='true']") !== null;
+}
+
+/** Render-facing summary of the playback history (the history itself lives in a ref). */
+function timelineViewOf(history: PlaybackHistory) {
+  return { max: history.maxSimulatedSteps, horizon: timelineHorizonSteps(history), terminal: history.terminalSteps !== null };
 }
 
 export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabProps) {
@@ -116,7 +121,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   });
   const [initialHistory] = useState(() => createPlaybackHistory(lab.runtime));
   const historyRef = useRef<PlaybackHistory>(initialHistory);
-  const [maxSimulatedSteps, setMaxSimulatedSteps] = useState(lab.runtime.macroSteps);
+  const [timelineView, setTimelineView] = useState(() => timelineViewOf(createPlaybackHistory(lab.runtime)));
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const policy = evidencePolicy(learning);
   const policyRef = useRef(policy);
@@ -170,7 +175,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   const resetHistory = useCallback((runtime: ElectrostaticRuntime) => {
     const history = createPlaybackHistory(runtime);
     historyRef.current = history;
-    setMaxSimulatedSteps(history.maxSimulatedSteps);
+    setTimelineView(timelineViewOf(history));
   }, []);
 
   const updateRuntime = useCallback((transition: (current: LabState) => ElectrostaticRuntime) => {
@@ -374,6 +379,16 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     setAnnouncement(`已回到 ${result.runtime.particle.t_s.toFixed(2)} 秒。`);
   }, [commitLab]);
 
+  /** ±0.1 s forward: existing history first, then the live edge extends the simulation. */
+  const stepForward = useCallback(() => {
+    const current = labRef.current;
+    const result = stepTimelineForward(current.setup, historyRef.current, current.runtime);
+    historyRef.current = result.history;
+    setTimelineView(timelineViewOf(result.history));
+    commitLab({ setup: current.setup, runtime: result.runtime });
+    setAnnouncement(`已前進到 ${result.runtime.particle.t_s.toFixed(2)} 秒。`);
+  }, [commitLab]);
+
   const pauseForDrag = (target: DraggableObject) => {
     if (target.kind === "probe") return;
     if (target.kind === "source" && !policyRef.current.sourcesMovable) return;
@@ -391,11 +406,9 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       const elapsed_s = last === null ? 0 : (now - last) / 1000;
       last = now;
       updateRuntime(({ setup, runtime }) => {
-        const candidates: ElectrostaticRuntime[] = [];
-        const next = advancePlayback(setup, runtime, elapsed_s * playbackSpeed, checkpointCollector(candidates));
-        const history = recordPlayback(historyRef.current, next, candidates);
+        const { runtime: next, history } = advanceTimeline(setup, historyRef.current, runtime, elapsed_s * playbackSpeed);
         historyRef.current = history;
-        setMaxSimulatedSteps(history.maxSimulatedSteps);
+        setTimelineView(timelineViewOf(history));
         return next;
       });
       if (labRef.current.runtime.status === "running") frame = requestAnimationFrame(tick);
@@ -639,11 +652,14 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
           {!entryPending && policy.timeControls
             ? <TimeControls
                 runtime={runtime}
-                maxSimulatedSteps={maxSimulatedSteps}
+                maxSimulatedSteps={timelineView.max}
+                horizonSteps={timelineView.horizon}
+                terminal={timelineView.terminal}
                 speed={playbackSpeed}
                 onSpeed={setPlaybackSpeed}
                 onTogglePlay={togglePlay}
                 onSeek={seekTo}
+                onStepForward={stepForward}
                 onResetRuntime={resetRuntime}
               />
             : null}

@@ -197,7 +197,7 @@ test("keeps the M3 fixed clock pure: RAF only at the component boundary, no dyna
     assert.doesNotMatch(source, /requestAnimationFrame|performance\.now|Date\.now|document\.|from "react"/);
   }
   assert.match(lab, /requestAnimationFrame/);
-  assert.match(lab, /advancePlayback/);
+  assert.match(lab, /advanceTimeline/);
   for (const source of [lab, panel, renderer, time]) {
     assert.doesNotMatch(source, /stepMacro|accelerationFromField|forceFromField|mass_kg\s*\)|\* *q_C|q_C *\*/);
   }

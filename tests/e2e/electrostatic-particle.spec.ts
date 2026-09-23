@@ -29,10 +29,11 @@ test("test-charge inspector uses semantic rows and shared MathJax formulas", asy
 test("D-10 transport records history, seeks by 0.1 s, forbids future scrub, and resets", async ({ page }) => {
   await playForHistory(page);
   const timeline = page.getByTestId("timeline");
-  const maximum = Number(await timeline.getAttribute("max"));
+  const maximum = Number(await timeline.getAttribute("data-history-steps"));
   const current = Number(await timeline.inputValue());
   expect(maximum).toBe(current);
   expect(maximum).toBeGreaterThan(120);
+  expect(Number(await timeline.getAttribute("max"))).toBeGreaterThan(maximum);
 
   await page.getByTestId("seek-back").click();
   const rewound = Number(await timeline.inputValue());
@@ -40,10 +41,10 @@ test("D-10 transport records history, seeks by 0.1 s, forbids future scrub, and 
   await expect(page.getByTestId("seek-forward")).toBeEnabled();
   await page.getByTestId("seek-forward").click();
   expect(Number(await timeline.inputValue())).toBe(current);
-  await expect(page.getByTestId("seek-forward")).toBeDisabled();
 
   await page.getByTestId("reset-runtime").click();
-  await expect(timeline).toHaveAttribute("max", "0");
+  await expect(timeline).toHaveAttribute("data-history-steps", "0");
+  await expect(timeline).toHaveValue("0");
   await expect(page.getByTestId("particle-time")).toContainText("0.000 s");
 });
 
@@ -59,16 +60,16 @@ test("playback speed changes wall scheduling only and never exposes the fixed ph
 
 test("probe edits preserve history while source edits invalidate it", async ({ page }) => {
   await playForHistory(page);
-  const before = await page.getByTestId("timeline").getAttribute("max");
+  const before = await page.getByTestId("timeline").getAttribute("data-history-steps");
   await page.getByTestId("probe-handle").click();
   await page.getByTestId("probe-x").fill("0.7");
   await page.getByTestId("probe-x").press("Enter");
-  await expect(page.getByTestId("timeline")).toHaveAttribute("max", before ?? "");
+  await expect(page.getByTestId("timeline")).toHaveAttribute("data-history-steps", before ?? "");
 
   await page.getByTestId("source-handle-s1").click();
   await page.getByTestId("source-x").fill("0.1");
   await page.getByTestId("source-x").press("Enter");
-  await expect(page.getByTestId("timeline")).toHaveAttribute("max", "0");
+  await expect(page.getByTestId("timeline")).toHaveAttribute("data-history-steps", "0");
 });
 
 test("test-charge initial edits invalidate history and invalid drafts retain the attempted text", async ({ page }) => {
@@ -76,7 +77,7 @@ test("test-charge initial edits invalidate history and invalid drafts retain the
   const mass = page.getByTestId("particle-mass");
   await mass.fill("12");
   await mass.press("Enter");
-  await expect(page.getByTestId("timeline")).toHaveAttribute("max", "0");
+  await expect(page.getByTestId("timeline")).toHaveAttribute("data-history-steps", "0");
 
   await mass.fill("999");
   await mass.press("Enter");

@@ -11,17 +11,20 @@ const HELP_POPOVER_WIDTH = 260;
 interface TimeControlsProps {
   readonly runtime: ElectrostaticRuntime;
   readonly maxSimulatedSteps: number;
+  readonly horizonSteps: number;
+  readonly terminal: boolean;
   readonly speed: number;
   readonly onSpeed: (speed: number) => void;
   readonly onTogglePlay: () => void;
   readonly onSeek: (macroSteps: number) => void;
+  readonly onStepForward: () => void;
   readonly onResetRuntime: () => void;
 }
 
 const SPEEDS = [0.25, 0.5, 1, 2] as const;
 const timeOf = (steps: number) => steps / 960;
 const HELP_ID = "electrostatic-transport-help";
-const HELP_TEXT = "空白鍵播放／暫停。時間軸只能回看已經算過的歷史；播放會從目前位置繼續向前。";
+const HELP_TEXT = "空白鍵播放／暫停。拖曳時間軸可回看已經模擬過的部分（淺色區段）；按播放會從目前位置繼續，追上最新狀態後再往前模擬。";
 
 /**
  * A compact single dock (Projectile's `.projectile-transport` grammar): one row, ~34px
@@ -71,11 +74,11 @@ export default function TimeControls(props: TimeControlsProps) {
           {running ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
           {running ? "暫停" : "播放"}
         </button>
-        <button type="button" onClick={() => props.onSeek(Math.max(0, current - LEARNER_SEEK_STEPS))} disabled={running || current === 0} data-testid="seek-back">−0.1s</button>
-        <button type="button" onClick={() => props.onSeek(current + LEARNER_SEEK_STEPS)} disabled={running || current + LEARNER_SEEK_STEPS > props.maxSimulatedSteps} data-testid="seek-forward">＋0.1s</button>
-        <button type="button" className={styles.iconButton} onClick={props.onResetRuntime} data-testid="reset-runtime">
-          <RotateCcw size={14} aria-hidden="true" />重新開始
+        <button type="button" onClick={props.onResetRuntime} className={styles.iconButton} aria-label="回到起點（時間 0）" data-testid="reset-runtime">
+          <RotateCcw size={14} aria-hidden="true" />回到起點
         </button>
+        <button type="button" onClick={() => props.onSeek(Math.max(0, current - LEARNER_SEEK_STEPS))} disabled={current === 0} aria-label="後退約 0.1 秒" data-testid="seek-back">−0.1s</button>
+        <button type="button" onClick={props.onStepForward} disabled={blocked || (props.terminal && current >= props.maxSimulatedSteps)} aria-label="前進約 0.1 秒" data-testid="seek-forward">＋0.1s</button>
         <select
           className={styles.speedSelect}
           value={props.speed}
@@ -86,20 +89,22 @@ export default function TimeControls(props: TimeControlsProps) {
           {SPEEDS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}
         </select>
 
-        <span className={styles.timelineLabel}>{timeOf(current).toFixed(2)}s</span>
+        <span className={styles.timelineLabel} data-testid="timeline-time" aria-live="off">t = {timeOf(current).toFixed(2)} s</span>
         <input
           type="range"
           className={styles.timelineInput}
           min={0}
-          max={Math.max(0, props.maxSimulatedSteps)}
+          max={props.horizonSteps}
           step={1}
-          value={Math.min(current, props.maxSimulatedSteps)}
-          disabled={running || props.maxSimulatedSteps === 0}
-          aria-label="回看已模擬的時間"
-          onChange={(event) => props.onSeek(Number(event.target.value))}
+          value={Math.min(current, props.horizonSteps)}
+          style={{ ["--simulated" as string]: `${Math.min(100, (props.maxSimulatedSteps / props.horizonSteps) * 100)}%` }}
+          aria-label="時間軸：拖曳回看已模擬的時間"
+          aria-valuetext={`${timeOf(current).toFixed(2)} 秒`}
+          onChange={(event) => props.onSeek(Math.min(Number(event.target.value), props.maxSimulatedSteps))}
+          data-history-steps={props.maxSimulatedSteps}
           data-testid="timeline"
         />
-        <span className={styles.timelineLabel}>{timeOf(props.maxSimulatedSteps).toFixed(2)}s</span>
+        <span className={styles.timelineLabel}>已模擬 {timeOf(props.maxSimulatedSteps).toFixed(2)} s{props.terminal ? "（終點）" : ""}</span>
 
         <details className={styles.helpPopoverWrap} onToggle={onHelpToggle}>
           <summary className={styles.iconButton} aria-label="鍵盤操作說明" data-testid="transport-help">
