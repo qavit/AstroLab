@@ -356,6 +356,11 @@
 .taskProgress li[data-complete="true"] { color: #246b82; font-weight: 700; }
 .guidedForm { display: grid; gap: 10px; margin-bottom: 12px; }
 .guidedPrompt { margin: 0; line-height: 1.6; }
+.guidedMagnitudeControl { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid #bfd2da; border-radius: 8px; background: #f4fafb; }
+.guidedMagnitudeControl > label { color: #234c62; font-size: 14px; font-weight: 750; }
+.guidedMagnitudeField { display: inline-flex; align-items: center; gap: 7px; color: #355d70; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.guidedMagnitudeField input { width: 78px; min-height: 44px; padding: 7px 8px; border: 2px solid #56889c; border-radius: 7px; background: #fff; color: #143247; font: 700 17px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.guidedMagnitudeField input:hover { border-color: #246b82; }
 .guidedVerdict { margin: 0; padding: 10px; border-left: 3px solid #246b82; background: #eef6f8; line-height: 1.55; }
 .choiceGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 6px; }
 .choice { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px; border: 1px solid #d3dfe3; border-radius: 7px; cursor: pointer; }

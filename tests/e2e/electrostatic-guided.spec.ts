@@ -74,6 +74,9 @@ test("task two has a visible natural title without leaking the zero-field answer
   await page.getByTestId("advance").click();
   await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "3");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/可拖曳/);
+  await expect(page.getByTestId("guided-s2-magnitude")).toHaveAccessibleName("右側電荷大小（nC）");
+  await expect(page.getByTestId("guided-s2-magnitude")).toHaveCSS("border-top-width", "2px");
+  await expect(page.getByTestId("guided-s2-unit")).toHaveText("nC");
   const beforeMove = await page.getByTestId("probe-handle").getAttribute("aria-label");
   await page.getByTestId("probe-handle").focus();
   await page.keyboard.press("ArrowRight");

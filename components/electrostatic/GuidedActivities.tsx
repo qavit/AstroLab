@@ -386,14 +386,20 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
         <div className={styles.guidedForm}>
           <p className={styles.guidedPrompt}>把右側電荷的大小改變，再移動測量點尋找新的零場點。這一步先不移動源電荷。</p>
           {s2 ? (
-            <label>右側電荷大小（nC）
-              <input
-                type="number" min="1" max="5" step="0.5"
-                value={Math.abs(s2.q_C) * 1e9}
-                onChange={(event) => props.onSourceMagnitude("s2", Number(event.target.value))}
-                data-testid="guided-s2-magnitude"
-              />
-            </label>
+            <div className={styles.guidedMagnitudeControl}>
+              <label htmlFor="guided-s2-magnitude">右側電荷大小</label>
+              <span className={styles.guidedMagnitudeField}>
+                <input
+                  id="guided-s2-magnitude"
+                  type="number" min="1" max="5" step="0.5"
+                  value={Math.abs(s2.q_C) * 1e9}
+                  onChange={(event) => props.onSourceMagnitude("s2", Number(event.target.value))}
+                  aria-label="右側電荷大小（nC）"
+                  data-testid="guided-s2-magnitude"
+                />
+                <span aria-hidden="true" data-testid="guided-s2-unit">nC</span>
+              </span>
+            </div>
           ) : null}
           <BExplainForm key={formKey} onSubmit={props.onExplainB} />
         </div>
