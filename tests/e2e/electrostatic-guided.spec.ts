@@ -24,19 +24,20 @@ test("guided entry starts task one with evidence gated and no reason tags", asyn
   await expect(page.getByTestId("time-controls")).toHaveCount(0);
 });
 
-test("incorrect prediction teaches what to inspect; correct prediction confirms the relationship", async ({ page }) => {
+test("feedback compares the learner prediction with model-derived components", async ({ page }) => {
   await commitDirection(page, "E");
   await page.getByTestId("reveal-next").click();
   await page.getByTestId("reveal-next").click();
   await expect(page.getByTestId("prediction-verdict")).toHaveAttribute("data-match", "false");
-  await expect(page.getByTestId("prediction-verdict")).toContainText("先比較各來源箭頭");
+  await expect(page.getByTestId("prediction-verdict")).toContainText("再比對一次");
+  await expect(page.getByTestId("prediction-verdict")).toContainText("水平分量部分抵消");
 
   await page.getByTestId("restart-activity").click();
   await commitDirection(page, "S");
   await page.getByTestId("reveal-next").click();
   await page.getByTestId("reveal-next").click();
   await expect(page.getByTestId("prediction-verdict")).toHaveAttribute("data-match", "true");
-  await expect(page.getByTestId("prediction-verdict")).toContainText("抓到關鍵");
+  await expect(page.getByTestId("prediction-verdict")).toContainText("一致");
 });
 
 test("task two has a visible natural title without leaking the zero-field answer", async ({ page }) => {
@@ -46,7 +47,7 @@ test("task two has a visible natural title without leaking the zero-field answer
   expect(before.split("你的方向預測")[0]).not.toContain("零場");
   await commitDirection(page, "zero");
   await page.getByTestId("reveal-next").click();
-  await expect(page.getByTestId("zero-direction")).toContainText("方向未定義");
+  await expect(page.getByTestId("total-direction")).toContainText("合電場為零，因此沒有方向");
 });
 
 test("task three reveals E, F and a only after commitment while preserving time gating", async ({ page }) => {

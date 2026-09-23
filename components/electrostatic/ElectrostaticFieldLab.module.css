@@ -168,6 +168,28 @@
 }
 .objectTooltip strong { font-size: 13px; }
 .objectTooltip span { color: #a8bdc6; font-size: 11px; }
+/* One-shot attention cue: a short, non-looping ring at the anchor that just gained new evidence.
+   `animation-fill-mode: forwards` leaves it invisible (opacity 0) once the single run finishes,
+   so nothing needs a JS timer to clean it up. */
+.attentionPulse {
+  position: absolute;
+  z-index: 6;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  margin-top: -13px;
+  border-radius: 50%;
+  border: 2px solid #ffd66f;
+  pointer-events: none;
+  animation: attention-pulse 220ms ease-out 1 forwards;
+}
+@keyframes attention-pulse {
+  0% { transform: scale(.55); opacity: 1; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .attentionPulse { animation: none; opacity: 0; }
+}
 .focusRing { fill: none; stroke: transparent; stroke-width: 2; pointer-events: none; }
 .focusRingActive { fill: none; stroke: rgba(255,255,255,.86); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
 .objectHandle:focus { outline: none; }
@@ -329,6 +351,48 @@
 .choice:has(input:checked) { border-color: #246b82; background: #dceef2; }
 .choice input { min-height: 0; width: 18px; height: 18px; }
 .revealList { margin: 0; padding-left: 20px; line-height: 1.7; }
+
+/* Spatial direction chooser: real radio inputs laid out NW/N/NE, W/·/E, SW/S/SE so the choice
+   reads as a direction in space rather than nine rectangular form rows. The input itself is
+   visually hidden but fills its cell, so focus/keyboard/AT semantics stay entirely native. */
+.compassChooser { border: 0; padding: 0; margin: 0 0 4px; }
+.compassChooser > legend { padding: 0 0 6px; font-weight: 700; font-size: 13px; color: #35566a; }
+.compassGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(44px, 60px));
+  grid-template-rows: repeat(3, minmax(44px, 60px));
+  grid-template-areas: "nw n ne" "w c e" "sw s se";
+  gap: 6px;
+  margin: 0 auto;
+}
+.compassCell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 1px solid #c7d5dc;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+.compassCell input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.compassCell:has(input:checked) { border-color: #246b82; border-width: 2px; background: #dceef2; }
+.compassCell:has(input:checked) .compassArrow { font-weight: 900; }
+.compassCell:has(input:checked) .compassWord { color: #143f58; font-weight: 700; }
+.compassCell:has(input:focus-visible) { outline: 3px solid #d9a735; outline-offset: 2px; }
+.compassArrow { font-size: 19px; line-height: 1; color: #214d65; }
+.compassWord { font-size: 9px; color: #5d7783; }
 
 /* Compact single dock (Projectile's `.projectile-transport` grammar): ~34px controls, one row
    that wraps rather than a permanent second row for the scrub bar or the help sentence. */

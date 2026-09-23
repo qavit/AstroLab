@@ -28,6 +28,17 @@ export interface ProbeVectorScene {
   readonly resultant: Vec2 | null;
 }
 
+/**
+ * One learner compass guess, already resolved to a screen anchor. `displacement` is fixed-length
+ * and direction-only (see guidedPrediction.ts) — never the Gate 5 physical vector scale, and
+ * `null` only for a dedicated "zero" marker, never a degenerate zero-length arrow.
+ */
+export interface PredictionGlyph {
+  readonly anchor: Vec2;
+  readonly displacement: Vec2 | null;
+  readonly label?: string;
+}
+
 export type SelectedObject =
   | { readonly kind: "source"; readonly id: string }
   | { readonly kind: "probe" }
@@ -443,4 +454,43 @@ export function drawParticle(
   if (particle.positive) { context.moveTo(0, -3.5); context.lineTo(0, 3.5); }
   context.stroke();
   context.restore();
+}
+
+/** Violet/lilac + dashed: clearly not gold/teal contributions, not a white resultant, not orange
+ * test charge — a learner's own guess, never model evidence. */
+const PREDICTION_COLOUR = "#b38bf5";
+
+function drawPredictionZero(context: CanvasRenderingContext2D, point: Vec2): void {
+  context.save();
+  context.strokeStyle = PREDICTION_COLOUR;
+  context.lineWidth = 2;
+  context.setLineDash([3, 3]);
+  context.beginPath();
+  context.arc(point.x, point.y, 13, 0, 2 * Math.PI);
+  context.stroke();
+  context.restore();
+}
+
+function drawPredictionLabel(context: CanvasRenderingContext2D, point: Vec2, text: string): void {
+  context.save();
+  context.font = "700 12px ui-sans-serif, system-ui, sans-serif";
+  context.fillStyle = PREDICTION_COLOUR;
+  context.textBaseline = "middle";
+  context.fillText(text, point.x + 7, point.y);
+  context.restore();
+}
+
+/** Draws every learner compass guess: a dashed violet arrow (direction only), or a dedicated
+ * dashed ring for "zero" — never a degenerate zero-length arrow, never model evidence styling. */
+export function drawPredictionMarkers(context: CanvasRenderingContext2D, markers: readonly PredictionGlyph[]): void {
+  for (const marker of markers) {
+    if (marker.displacement === null) {
+      drawPredictionZero(context, marker.anchor);
+      if (marker.label) drawPredictionLabel(context, marker.anchor, marker.label);
+      continue;
+    }
+    const to = { x: marker.anchor.x + marker.displacement.x, y: marker.anchor.y + marker.displacement.y };
+    drawArrowBetween(context, marker.anchor, to, PREDICTION_COLOUR, { outline: true, width: 2.2, headScale: 0.3 });
+    if (marker.label) drawPredictionLabel(context, to, marker.label);
+  }
 }

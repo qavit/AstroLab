@@ -12,11 +12,14 @@ import { formatCharge, sourceDisplayName } from "./labels.ts";
 import { TOOL_BANNER, type ToolMode } from "./tools.ts";
 import ElectrostaticLayerDrawer, { INITIAL_ELECTROSTATIC_LAYERS, type ElectrostaticLayerState } from "./ElectrostaticLayerDrawer";
 import { buildVectorConstruction, probeVectorEnvelopeRadius } from "./vectorConstruction.ts";
+import { predictionDisplacement, type PredictionMarker } from "./guidedPrediction.ts";
 import {
   drawDynamicField,
+  drawPredictionMarkers,
   drawStaticField,
   prepareCanvas,
   type ParticleGlyph,
+  type PredictionGlyph,
   type ProbeVectorScene,
   type SelectedObject,
 } from "./render.ts";
@@ -43,14 +46,21 @@ interface FieldCanvasProps {
   /** Transient Canvas<->readout linkage (never selection, never physics). */
   readonly emphasizedSourceId: string | null;
   readonly onSourceHover: (id: string | null) => void;
+  /** Guided-only: the learner's own uncommitted-or-committed compass guess(es). Never model evidence. */
+  readonly predictionMarkers: readonly PredictionMarker[];
+  /** Guided-only: a one-shot attention cue; remounted (and replayed) whenever `key` changes. */
+  readonly attentionCue: { readonly anchor: "probe" | "particle"; readonly key: string } | null;
 }
 
 const HIDDEN_GRID = { ok: false, reason: "no-sources" } as const;
+/** Fixed, direction-only length for a learner's compass guess — deliberately not the Gate 5
+ * shared physical vector scale, since a guess never carries a magnitude claim. */
+const PREDICTION_ARROW_LENGTH_PX = 40;
 
 export default function FieldCanvas(props: FieldCanvasProps) {
   const { setup, runtime, policy, selected, onSelect, onMove, onDragStart } = props;
   const { tool, onPlace, onDelete, onExitTool, layersOpen, onLayersOpenChange, layersTriggerRef } = props;
-  const { emphasizedSourceId, onSourceHover } = props;
+  const { emphasizedSourceId, onSourceHover, predictionMarkers, attentionCue } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -167,6 +177,22 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     };
   }, [probe, showProbe, showContributions, probeTotal, emphasizedSourceId, size.width, size.height, setup.sources]);
 
+  /** Guided-only prediction glyphs: resolved anchors, direction-only length, never model evidence. */
+  const predictionGlyphs: readonly PredictionGlyph[] = useMemo(() => predictionMarkers.map((marker) => ({
+    anchor: marker.anchor === "probe"
+      ? worldToScreen({ x: setup.probe.x_m, y: setup.probe.y_m }, camera)
+      : worldToScreen({ x: setup.testParticle.x_m, y: setup.testParticle.y_m }, camera),
+    displacement: predictionDisplacement(marker.compass, PREDICTION_ARROW_LENGTH_PX),
+    label: marker.label,
+  })), [predictionMarkers, camera, setup.probe.x_m, setup.probe.y_m, setup.testParticle.x_m, setup.testParticle.y_m]);
+
+  const attentionCuePoint = useMemo(() => {
+    if (!attentionCue) return null;
+    return attentionCue.anchor === "probe"
+      ? worldToScreen({ x: setup.probe.x_m, y: setup.probe.y_m }, camera)
+      : worldToScreen({ x: setup.testParticle.x_m, y: setup.testParticle.y_m }, camera);
+  }, [attentionCue, camera, setup.probe.x_m, setup.probe.y_m, setup.testParticle.x_m, setup.testParticle.y_m]);
+
   useEffect(() => {
     const canvas = staticCanvasRef.current;
     if (!canvas) return;
@@ -200,8 +226,9 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         showParticle ? particleGlyph : null,
         { showProbe, probeZero },
       );
+      if (predictionGlyphs.length > 0) drawPredictionMarkers(context, predictionGlyphs);
     }
-  }, [showProbe, probeZero, showParticle, camera, particleGlyph, probeScene, selected, setup.probe.x_m, setup.probe.y_m, setup.sources, size]);
+  }, [showProbe, probeZero, showParticle, camera, particleGlyph, probeScene, selected, setup.probe.x_m, setup.probe.y_m, setup.sources, size, predictionGlyphs]);
 
   return (
     <div
@@ -216,6 +243,9 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       data-camera-zoom={view.zoom.toFixed(3)}
       data-camera-pan={`${view.panX_px.toFixed(1)},${view.panY_px.toFixed(1)}`}
       data-probe-vectors={probeScene.contributions.length + (probeScene.resultant ? 1 : 0)}
+      data-prediction-count={predictionMarkers.length}
+      data-prediction-anchors={predictionMarkers.map((marker) => marker.anchor).join(",")}
+      data-prediction-labels={predictionMarkers.map((marker) => marker.label ?? "").join(",")}
       data-particle-screen={(() => {
         const p = worldToScreen({ x: runtime.particle.x_m, y: runtime.particle.y_m }, camera);
         return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
@@ -265,6 +295,19 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         >
           <strong>{hover.title}</strong><span>{hover.detail}</span>
         </div>
+      ) : null}
+      {/* One-shot attention cue: remounted (key = attentionCue.key) whenever new evidence appears,
+          so the CSS animation replays; prefers-reduced-motion turns the animation off in CSS,
+          leaving the evidence itself unaffected. */}
+      {attentionCue && attentionCuePoint ? (
+        <div
+          key={attentionCue.key}
+          className={styles.attentionPulse}
+          data-testid="guided-attention-cue"
+          data-attention-key={attentionCue.key}
+          style={{ left: attentionCuePoint.x, top: attentionCuePoint.y }}
+          aria-hidden="true"
+        />
       ) : null}
       <p className={styles.srOnly} id="field-semantic-summary">
         電場方向與大小由箭頭呈現。源電荷、測量點與測試電荷都能直接點選、拖曳或用鍵盤移動；完整數值可在右側讀值中查看。

@@ -55,6 +55,7 @@ import {
   type ActivityId,
   type LearningState,
 } from "../models/electrostatic-learning.ts";
+import { attentionCueFor, committedPredictionMarkers, type PredictionMarker } from "./electrostatic/guidedPrediction.ts";
 
 interface ElectrostaticFieldLabProps {
   readonly share: ShareRouteInput;
@@ -128,6 +129,9 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   const [selected, setSelected] = useState<SelectedObject>(null);
   /** Transient Canvas<->readout hover/focus linkage only; never selection, physics or history. */
   const [emphasizedSourceId, setEmphasizedSourceId] = useState<string | null>(null);
+  /** Guided-only: the learner's own live, uncommitted compass guess(es). Never model evidence,
+   * never physical setup/runtime/schema — cleared on every learning transition. */
+  const [livePreview, setLivePreview] = useState<readonly PredictionMarker[]>([]);
   const [notice, setNotice] = useState<string | null>(() => initial.error ?? (initial.issues[0]?.message ?? null));
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [modelInfoOpen, setModelInfoOpen] = useState(false);
@@ -464,6 +468,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     setTool("select");
     setNotice(null);
     setShareStatus(null);
+    setLivePreview([]);
     if (focus) setFocusToken((token) => token + 1);
   };
 
@@ -481,6 +486,9 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       setLearning(next);
       setFocusToken((token) => token + 1);
     }
+    // The learner's live, uncommitted guess never survives a transition: either it was just
+    // committed (the model's own copy in `learning` now takes over) or the step moved on.
+    setLivePreview([]);
     setAnnouncement(message);
   };
 
@@ -499,6 +507,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     setEntryPending(false);
     setSelected(null);
     setTool("select");
+    setLivePreview([]);
     setAnnouncement("已進入自由探索；全部操作與讀值都已開放。");
   };
 
@@ -513,6 +522,10 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   };
 
   const comparison = learning ? comparisonStage(learning) : null;
+  /** The live guess wins while the learner is still choosing; once committed, `learning` itself
+   * carries the answer, so the Canvas keeps showing it through the compare/observe steps too. */
+  const predictionMarkers = livePreview.length > 0 ? livePreview : learning ? committedPredictionMarkers(learning) : [];
+  const attentionCue = learning ? attentionCueFor(learning) : null;
 
   const shareSetup = async () => {
     const result = createShareUrl(setup, window.location.href);
@@ -618,6 +631,8 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               layersTriggerRef={layersTriggerRef}
               emphasizedSourceId={emphasizedSourceId}
               onSourceHover={setEmphasizedSourceId}
+              predictionMarkers={predictionMarkers}
+              attentionCue={attentionCue}
             />
           </section>
 
@@ -660,18 +675,19 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               runtime={runtime}
               comparisonSetup={comparison ? ACTIVITY_SETUPS[comparison] : null}
               focusToken={focusToken}
-              onCommitDirection={(p) => transition(commitDirection(learning, p), "預測已送出；開始顯示證據。")}
-              onCommitChange={(p) => transition(commitChange(learning, p), "預測已送出；E、F、a 證據已顯示。")}
-              onCommitVelocity={(p) => transition(commitVelocity(learning, p), "預測已送出；可以單步或播放觀察。")}
-              onReveal={() => transition(revealNext(learning), "已顯示下一層證據。")}
+              onCommitDirection={(p) => transition(commitDirection(learning, p), "答案已提交。")}
+              onCommitChange={(p) => transition(commitChange(learning, p), "答案已提交；下方是 E、F、a 的結果。")}
+              onCommitVelocity={(p) => transition(commitVelocity(learning, p), "答案已提交；可以單步或播放觀察。")}
+              onReveal={() => transition(revealNext(learning), "已顯示下一層結果。")}
               onAdvance={() => transition(advance(learning), "進入下一步。")}
-              onExplainA={(e) => transition(explainA(learning, e), "說明已送出；已換成新的情境。")}
-              onExplainB={(e) => transition(explainB(learning, e), "說明已送出；已換成新的情境。")}
+              onExplainA={(e) => transition(explainA(learning, e), "說明已送出；換個情境再試一次。")}
+              onExplainB={(e) => transition(explainB(learning, e), "說明已送出；換個情境再試一次。")}
               onSwitch={enterActivity}
               onRestart={() => enterActivity(learning.activity)}
               onExplore={() => exploreSandbox(true)}
               onShare={shareSetup}
               onSourceMagnitude={setGuidedSourceMagnitude}
+              onPreview={setLivePreview}
             />
             {learning.activity === "C"
               ? <ParticlePanel setup={setup} runtime={runtime} policy={policy} />
