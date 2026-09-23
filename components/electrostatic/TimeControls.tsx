@@ -36,26 +36,25 @@ export default function TimeControls(props: TimeControlsProps) {
   const running = runtime.status === "running";
   const blocked = runtime.status === "stopped" || runtime.error !== null;
   const current = runtime.macroSteps;
-  const [helpPos, setHelpPos] = useState<{ top: number; left: number } | null>(null);
+  const [helpOffset, setHelpOffset] = useState(0);
 
   /**
-   * The transport row wraps at narrow widths, so the help trigger's on-screen position isn't
-   * fixed relative to any CSS anchor — a static `right:0` popover ended up jumping off-screen
-   * whenever the icon landed mid-row instead of at the row's trailing edge. Measuring the
-   * trigger's actual rect on open and placing the (position:fixed) popover from that keeps it
-   * anchored to the icon regardless of where the row wrapped it to.
+   * The popover opens upward (CSS), because the dock sits near the bottom of the page and a
+   * downward one ran off the edge. Horizontally the transport row wraps at narrow widths, so
+   * the trigger is not reliably at the row's trailing edge and no static CSS anchor works:
+   * this measures where the trigger actually is and returns an offset *relative to the
+   * trigger*, so the popover stays absolutely positioned — scrolling with the dock as any
+   * in-flow popover should — while still being clamped inside the viewport.
    */
   const onHelpToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
-    if (!event.currentTarget.open) {
-      setHelpPos(null);
-      return;
-    }
+    if (!event.currentTarget.open) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    const left = Math.min(
-      Math.max(8, rect.right - HELP_POPOVER_WIDTH),
-      window.innerWidth - HELP_POPOVER_WIDTH - 8,
+    const width = Math.min(HELP_POPOVER_WIDTH, window.innerWidth - 16);
+    const clampedLeft = Math.min(
+      Math.max(8, rect.right - width),
+      window.innerWidth - width - 8,
     );
-    setHelpPos({ top: rect.bottom + 8, left });
+    setHelpOffset(clampedLeft - rect.left);
   };
 
   return (
@@ -106,11 +105,7 @@ export default function TimeControls(props: TimeControlsProps) {
           <summary className={styles.iconButton} aria-label="鍵盤操作說明" data-testid="transport-help">
             <HelpCircle size={16} aria-hidden="true" />
           </summary>
-          <div
-            className={styles.helpPopover}
-            role="note"
-            style={helpPos ? { top: helpPos.top, left: helpPos.left, right: "auto" } : undefined}
-          >
+          <div className={styles.helpPopover} role="note" style={{ left: helpOffset }}>
             {HELP_TEXT}
           </div>
         </details>
