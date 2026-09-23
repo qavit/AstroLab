@@ -34,6 +34,8 @@ interface AccessibleObjectsProps {
   readonly onMove: (target: DraggableObject, point: Vec2) => void;
   /** A pointer gesture begins on an object (sources and the particle pause playback). */
   readonly onDragStart: (target: DraggableObject) => void;
+  /** The pointer gesture ends, whether released normally or cancelled mid-drag. */
+  readonly onDragEnd?: () => void;
   readonly particle: ParticleHandle;
   readonly showProbe: boolean;
   readonly showParticle: boolean;
@@ -72,8 +74,9 @@ function labelParticle(particle: ParticleHandle): string {
 }
 
 export default function AccessibleObjects(props: AccessibleObjectsProps) {
-  const { camera, sources, probe, selected, onSelect, onMove, onDragStart, particle, showProbe, showParticle } = props;
+  const { camera, sources, probe, selected, onSelect, onMove, onDragStart, onDragEnd, particle, showProbe, showParticle } = props;
   const { tool, onPlace, onDelete, onExitTool, onHover, onPan, emphasizedSourceId = null } = props;
+  const endDrag = () => onDragEnd?.();
   const backdropGesture = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null);
   const probePoint = worldToScreen(probe, camera);
   const particlePoint = worldToScreen(particle.initial, camera);
@@ -203,6 +206,8 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
             transform={`translate(${point.x} ${point.y})`}
             onPointerDown={pointerDown(target)}
             onPointerMove={(event) => pointerMove(target, event)}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
             onKeyDown={keyMove(target, { x: source.x_m, y: source.y_m })}
             onPointerEnter={() => onHover(target)}
             onPointerLeave={() => onHover(null)}
@@ -227,6 +232,8 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
           transform={`translate(${probePoint.x} ${probePoint.y})`}
           onPointerDown={pointerDown(PROBE)}
           onPointerMove={(event) => pointerMove(PROBE, event)}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
           onKeyDown={keyMove(PROBE, probe)}
           onPointerEnter={() => onHover(PROBE)}
           onPointerLeave={() => onHover(null)}
@@ -249,6 +256,8 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
           transform={`translate(${particlePoint.x} ${particlePoint.y})`}
           onPointerDown={pointerDown(PARTICLE)}
           onPointerMove={(event) => pointerMove(PARTICLE, event)}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
           onKeyDown={keyMove(PARTICLE, particle.initial)}
           onPointerEnter={() => onHover(PARTICLE)}
           onPointerLeave={() => onHover(null)}

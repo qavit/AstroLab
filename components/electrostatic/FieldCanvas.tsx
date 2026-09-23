@@ -61,6 +61,13 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     setHoverTarget(target);
     onSourceHover(target?.kind === "source" ? target.id : null);
   };
+  // Pointer capture keeps a dragged object "hovered" even once the cursor leaves it, so the
+  // identity tooltip needs its own drag-aware suppression rather than relying on hover state.
+  const [dragging, setDragging] = useState(false);
+  const handleDragStart = (target: DraggableObject) => {
+    setDragging(true);
+    onDragStart(target);
+  };
   const [layers, setLayers] = useState<ElectrostaticLayerState>(INITIAL_ELECTROSTATIC_LAYERS);
   const [view, setView] = useState<CameraView>(INITIAL_CAMERA_VIEW);
   const [tipOpen, setTipOpen] = useState(true);
@@ -229,7 +236,8 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         selected={selected}
         onSelect={onSelect}
         onMove={onMove}
-        onDragStart={onDragStart}
+        onDragStart={handleDragStart}
+        onDragEnd={() => setDragging(false)}
         showProbe={showProbe}
         showParticle={showParticle}
         particle={{ initial: { x: setup.testParticle.x_m, y: setup.testParticle.y_m }, q_C: setup.testParticle.q_C, mass_kg: setup.testParticle.mass_kg }}
@@ -244,8 +252,10 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       {tool !== "select" ? (
         <p className={styles.toolBanner} role="status" data-testid="tool-banner">{TOOL_BANNER[tool]}</p>
       ) : null}
-      {/* HTML rather than SVG text so the bubble sizes itself to the label at any string length. */}
-      {hover ? (
+      {/* HTML rather than SVG text so the bubble sizes itself to the label at any string length.
+          Suppressed while dragging: pointer capture keeps the object "hovered" the whole drag,
+          but the identity tooltip should only read as a hover affordance, not linger over a drag. */}
+      {hover && !dragging ? (
         <div
           className={styles.objectTooltip}
           data-testid="object-tooltip"
