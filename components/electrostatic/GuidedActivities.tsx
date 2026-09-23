@@ -109,6 +109,8 @@ function RadioGroup<T extends string>(props: {
  * unmounting (task switch/restart/step change) clears that preview so it never goes stale. */
 function DirectionForm(props: {
   readonly prompt: string;
+  /** Physics wording belongs to this activity's actual source/target geometry. */
+  readonly hint: string;
   readonly options: readonly Compass[];
   readonly anchor: "probe" | "particle";
   readonly onCommit: (prediction: DirectionPrediction) => void;
@@ -130,7 +132,7 @@ function DirectionForm(props: {
     >
       <p className={styles.guidedPrompt}>{props.prompt}</p>
       <CompassChooser legend="你的方向預測" name="predict-direction" directions={props.options} value={direction} onChange={choose} />
-      <details className={styles.hintDisclosure}><summary>需要一點提示？</summary><p>先分別想每顆電荷在測量點造成的方向，再把兩支箭頭合起來。</p></details>
+      <details className={styles.hintDisclosure}><summary>需要一點提示？</summary><p>{props.hint}</p></details>
       <button type="submit" className={styles.shareButton} disabled={!direction} data-testid="commit-prediction">提交答案</button>
     </form>
   );
@@ -262,8 +264,9 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
         <DirectionForm
           key={formKey}
           prompt={learning.step === "predict"
-            ? "來源已鎖定。只看電荷符號與位置：探針所在目標點的合電場指向哪裡？"
+            ? "來源已鎖定。只看電荷符號與位置：測量點的合電場指向哪裡？"
             : "換個情境：右側來源已反轉為負電荷。重新預測測量點的合電場方向。"}
+          hint="先分別想每顆源電荷在測量點造成的方向，再把兩支箭頭合起來。"
           options={[...COMPASS_8, "zero"]}
           anchor="probe"
           onCommit={props.onCommitDirection}
@@ -296,7 +299,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
     } else if (learning.step === "explain") {
       body = (
         <>
-          <p className={styles.helperText}>對照探針表格裡每個來源的 Eₓ、Eᵧ 正負號。</p>
+          <p className={styles.helperText}>對照測量點表格裡每個來源的 Eₓ、Eᵧ 正負號。</p>
           <AExplainForm key={formKey} onSubmit={props.onExplainA} />
         </>
       );
@@ -309,8 +312,11 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
         <DirectionForm
           key={formKey}
           prompt={learning.step === "predict"
-            ? "兩顆等量正電荷左右對稱，探針在中點。中點的合電場指向哪裡？"
+            ? "兩顆等量正電荷左右對稱，測量點在中點。中點的合電場指向哪裡？"
             : "換個情境：四顆等量正電荷位於矩形四角，測量點在中心。中心的合電場是？"}
+          hint={learning.step === "predict"
+            ? "先比較左右兩顆源電荷在測量點造成的方向，再判斷它們是否抵消。"
+            : "觀察對稱位置的源電荷如何成對抵消，再判斷中心的合電場。"}
           options={COMPASS_4_ZERO}
           anchor="probe"
           onCommit={props.onCommitDirection}
@@ -330,7 +336,9 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
                 answer={COMPASS_LABEL[predicted]}
                 model={modelDirection ? COMPASS_LABEL[modelDirection] : null}
                 explanation={field.valid && field.isZero
-                  ? "兩顆來源的貢獻大小相等、方向相反，因此合場為零（方向未定義，不是 0°）。"
+                  ? learning.step === "transfer-observe"
+                    ? "四顆等量源電荷在對稱位置的貢獻成對抵消，因此合電場為零（方向未定義，不是 0°）。"
+                    : "兩顆源電荷的貢獻大小相等、方向相反，因此合電場為零（方向未定義，不是 0°）。"
                   : componentExplanation(field)}
               />
               <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">
@@ -418,7 +426,8 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
       return (
         <DirectionForm
           key={props.formKey}
-          prompt="來源與測試粒子都固定、粒子靜止。這顆正測試電荷的初始加速度指向哪裡？"
+          prompt="源電荷與測試電荷都固定、測試電荷靜止。這顆正測試電荷的初始加速度指向哪裡？"
+          hint="先看測試電荷位於源電荷的哪一側；正源電荷在該處的電場向外，正測試電荷的加速度與電場同向。"
           options={[...COMPASS_8, "zero"]}
           anchor="particle"
           onCommit={props.onCommitDirection}
@@ -430,7 +439,7 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
     return (
       <ChangeForm
         key={props.formKey}
-        prompt={stage === "c2" ? "把測試電荷改成負電荷（大小不變）。和原本相比：" : "把測試粒子質量加倍（電荷不變）。和原本相比："}
+        prompt={stage === "c2" ? "把測試電荷改成負電荷（大小不變）。和原本相比：" : "把測試電荷質量加倍（電荷不變）。和原本相比："}
         options={stage === "c2" ? ["same", "reverse"] : ["same", "double", "half"]}
         onCommit={props.onCommitChange}
       />
@@ -444,7 +453,7 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
       <Comparison
         answer={COMPASS_LABEL[learning.predictions.c1]}
         model={accel ? COMPASS_LABEL[accel] : null}
-        explanation="正電荷沿著源電荷指向測量點的方向直線遠離，加速度與 E 同方向。"
+        explanation="正測試電荷位於正源電荷左側；該處電場由源電荷向外，因此初始電力與加速度都向左。"
       />
     );
   } else if ((stage === "c2" || stage === "c3") && comparisonSetup && readout.valid) {
@@ -499,7 +508,7 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
   }
   return (
     <div className={styles.guidedForm}>
-      <p className={styles.guidedPrompt}>下方「測試粒子讀值」列出這個位置的 E、F、a：E 屬於場；F 依賴 q；a 依賴 q/m。</p>
+      <p className={styles.guidedPrompt}>下方「測試電荷讀值」列出這個位置的 E、F、a：E 屬於場；F 依賴 q；a 依賴 q/m。</p>
       {verdict}
       <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">
         {stage === "c4" ? "完成任務三" : "下一步"}

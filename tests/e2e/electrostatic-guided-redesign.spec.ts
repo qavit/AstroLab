@@ -22,6 +22,7 @@ test("A uses a native spatial chooser, previews only the learner guess, then rev
   await expect(viewport).toHaveAttribute("data-prediction-count", "0");
   await expect(viewport).toHaveAttribute("data-field-visible", "false");
   await expect(viewport).toHaveAttribute("data-probe-vectors", "0");
+  await expect(page.locator("details p")).toHaveText("先分別想每顆源電荷在測量點造成的方向，再把兩支箭頭合起來。");
   for (const retiredLabel of ["你已承諾", "各來源貢獻（已顯示）", "合場與零場標記（已顯示）", "模型證據", "送出預測（送出後不能修改）", "鎖定預測，查看證據"]) {
     await expect(page.getByText(retiredLabel, { exact: true })).toHaveCount(0);
   }
@@ -59,7 +60,7 @@ test("reduced motion suppresses only the attention animation, not the revealed e
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-probe-vectors", "2");
 });
 
-test("B keeps its zero prediction distinct and the preview clears on restart or activity switch", async ({ page }) => {
+test("B keeps zero prediction distinct and uses four-source symmetry feedback in its transfer", async ({ page }) => {
   const viewport = page.getByTestId("field-viewport");
   await page.getByTestId("predict-direction-zero").check();
   await expect(viewport).toHaveAttribute("data-prediction-count", "1");
@@ -75,6 +76,15 @@ test("B keeps its zero prediction distinct and the preview clears on restart or 
   await expect(viewport).toHaveAttribute("data-prediction-anchors", "probe");
   await page.getByTestId("reveal-next").click();
   await expect(page.getByTestId("total-direction")).toContainText("合電場為零，因此沒有方向");
+
+  await page.getByTestId("advance").click();
+  await page.getByTestId("explain-b-toward-smaller").check();
+  await page.getByTestId("submit-explanation").click();
+  await expect(page.locator("details p")).toHaveText("觀察對稱位置的源電荷如何成對抵消，再判斷中心的合電場。");
+  await submitDirection(page, "zero");
+  await page.getByTestId("reveal-next").click();
+  await expect(page.getByTestId("prediction-verdict")).toContainText("四顆等量源電荷在對稱位置的貢獻成對抵消");
+  await expect(page.getByTestId("prediction-verdict")).not.toContainText("兩顆源電荷的貢獻");
 });
 
 test("C anchors predictions at the particle and C4 commits both labelled guesses", async ({ page }) => {
@@ -84,6 +94,8 @@ test("C anchors predictions at the particle and C4 commits both labelled guesses
   await expect(viewport).toHaveAttribute("data-prediction-count", "1");
   await expect(viewport).toHaveAttribute("data-prediction-anchors", "particle");
   await expect(page.getByTestId("particle-field")).toBeVisible();
+  await expect(page.getByTestId("prediction-verdict")).toContainText("正測試電荷位於正源電荷左側");
+  await expect(page.getByTestId("prediction-verdict")).not.toContainText("源電荷指向測量點");
   await page.getByTestId("advance").click();
 
   for (const [field, answer] of [["E", "same"], ["F", "reverse"], ["a", "reverse"]] as const) {
