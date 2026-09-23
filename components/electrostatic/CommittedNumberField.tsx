@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import styles from "./ElectrostaticFieldLab.module.css";
 
 function display(value: number): string {
@@ -26,16 +26,20 @@ export default function CommittedNumberField(props: CommittedNumberFieldProps) {
   const errorId = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const textEditRef = useRef(false);
 
-  const commit = () => {
-    if (draft === null) return;
-    const value = draft.trim() === "" ? Number.NaN : Number(draft);
+  const commitText = (text: string) => {
+    const value = text.trim() === "" ? Number.NaN : Number(text);
     if (!Number.isFinite(value) || !props.onCommit(value)) {
       setError("這個數值無法使用；模型仍保留上一個有效值。按 Escape 還原顯示。");
       return;
     }
     setDraft(null);
     setError(null);
+  };
+
+  const commit = () => {
+    if (draft !== null) commitText(draft);
   };
 
   return (
@@ -49,7 +53,19 @@ export default function CommittedNumberField(props: CommittedNumberFieldProps) {
         value={draft ?? display(props.value)}
         aria-invalid={error ? "true" : undefined}
         aria-describedby={error ? errorId : undefined}
-        onChange={(event) => { setDraft(event.target.value); setError(null); }}
+        onBeforeInput={() => { textEditRef.current = true; }}
+        onChange={(event) => {
+          const next = event.target.value;
+          // Text input stays local. Native number steppers dispatch an input/change without a
+          // preceding beforeinput, so they are an explicit immediate canonical adjustment.
+          if (textEditRef.current) {
+            textEditRef.current = false;
+            setDraft(next);
+            setError(null);
+            return;
+          }
+          commitText(next);
+        }}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === "Enter") { event.preventDefault(); commit(); }

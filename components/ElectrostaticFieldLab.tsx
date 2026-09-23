@@ -155,11 +155,11 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     if (next !== current.runtime) commitLab({ setup: current.setup, runtime: next });
   }, [commitLab]);
 
-  const commitCandidate = (candidate: ElectrostaticSetup): ElectrostaticSetup | null => {
+  const commitCandidate = (candidate: ElectrostaticSetup, options: { readonly localError?: boolean } = {}): ElectrostaticSetup | null => {
     const current = labRef.current;
     const result = applySetupEdit(current.setup, current.runtime, candidate);
     if (!result.ok) {
-      setNotice(firstIssueMessage(result.issues));
+      if (!options.localError) setNotice(firstIssueMessage(result.issues));
       return null;
     }
     const next = retainFieldSceneReferences(current.setup, result.setup);
@@ -287,7 +287,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
         ? { ...source, q_C: sign * magnitude_nC * 1e-9 }
         : source),
       presetId: null,
-    }) !== null;
+    }, { localError: true }) !== null;
   };
 
   const setSourcePosition = (axis: "x" | "y", value_m: number): boolean => {
@@ -298,7 +298,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
         ? { ...source, [axis === "x" ? "x_m" : "y_m"]: value_m }
         : source),
       presetId: null,
-    }) !== null;
+    }, { localError: true }) !== null;
   };
 
   const setProbePosition = (axis: "x" | "y", value_m: number): boolean => {
@@ -306,7 +306,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       ...setup,
       probe: { ...setup.probe, [axis === "x" ? "x_m" : "y_m"]: value_m },
       presetId: null,
-    }) !== null;
+    }, { localError: true }) !== null;
   };
 
   const editParticle = (field: "x_m" | "y_m" | "vx_mps" | "vy_mps" | "q_nC" | "mass_ug", value: number): boolean => {

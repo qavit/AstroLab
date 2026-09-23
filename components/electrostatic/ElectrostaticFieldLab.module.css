@@ -380,6 +380,11 @@
   background: #fff;
   box-shadow: 0 16px 36px rgba(16, 48, 66, .18);
 }
+.presetCategory + .presetCategory { margin-top: 14px; }
+.presetCategory h2 { margin: 0 0 7px; color: #355d70; font-size: 13px; font-weight: 700; }
+.presetPopover .presetGrid button { align-items: start; text-align: left; }
+.presetPopover .presetGrid button strong { font-size: 14px; }
+.presetPopover .presetGrid button small { font-size: 12px; }
 
 /* Desktop two-column workspace: the Canvas is width-driven (fills the 1.55fr column, height
    follows via aspect-ratio) so it stays the dominant element rather than a capped fraction of
