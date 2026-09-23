@@ -5,7 +5,8 @@ import { normalizedStrength, sampleFieldGrid } from "../../lib/science/electrost
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
 import { probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import type { EvidencePolicy } from "../../models/electrostatic-learning.ts";
-import AccessibleObjects, { type DraggableObject, type HoverInfo } from "./AccessibleObjects";
+import AccessibleObjects, { type DraggableObject, type HoverTarget } from "./AccessibleObjects";
+import { formatCharge, sourceDisplayName } from "./labels.ts";
 import { TOOL_BANNER, type ToolMode } from "./tools.ts";
 import {
   drawDynamicField,
@@ -42,7 +43,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
-  const [hover, setHover] = useState<HoverInfo | null>(null);
+  const [hoverTarget, setHoverTarget] = useState<HoverTarget>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -59,6 +60,35 @@ export default function FieldCanvas(props: FieldCanvasProps) {
   }, []);
 
   const camera = useMemo(() => fitCamera(setup.domain, size), [setup.domain, size]);
+  const hover = useMemo(() => {
+    if (hoverTarget?.kind === "source") {
+      const source = setup.sources.find((item) => item.id === hoverTarget.id);
+      if (!source) return null;
+      return {
+        target: `source:${source.id}`,
+        point: worldToScreen({ x: source.x_m, y: source.y_m }, camera),
+        title: sourceDisplayName(setup.sources, source.id),
+        detail: formatCharge(source.q_C),
+      };
+    }
+    if (hoverTarget?.kind === "probe") {
+      return {
+        target: "probe",
+        point: worldToScreen({ x: setup.probe.x_m, y: setup.probe.y_m }, camera),
+        title: "測量點",
+        detail: "可拖曳，或選取後用方向鍵移動",
+      };
+    }
+    if (hoverTarget?.kind === "particle") {
+      return {
+        target: "particle",
+        point: worldToScreen({ x: setup.testParticle.x_m, y: setup.testParticle.y_m }, camera),
+        title: "測試電荷起點",
+        detail: "可拖曳，或選取後用方向鍵移動",
+      };
+    }
+    return null;
+  }, [camera, hoverTarget, setup.probe.x_m, setup.probe.y_m, setup.sources, setup.testParticle.x_m, setup.testParticle.y_m]);
   const dimensions = size.width < 600 ? { cols: 24, rows: 18 } : { cols: 40, rows: 30 };
   const showField = policy.globalField;
   const grid = useMemo(() => (!showField ? HIDDEN_GRID :
@@ -163,7 +193,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         onPlace={onPlace}
         onDelete={onDelete}
         onExitTool={onExitTool}
-        onHover={setHover}
+        onHover={setHoverTarget}
       />
       {tool !== "select" ? (
         <p className={styles.toolBanner} role="status" data-testid="tool-banner">{TOOL_BANNER[tool]}</p>
@@ -173,6 +203,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         <div
           className={styles.objectTooltip}
           data-testid="object-tooltip"
+          data-tooltip-target={hover.target}
           style={{ left: hover.point.x, top: hover.point.y }}
           aria-hidden="true"
         >

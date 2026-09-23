@@ -40,8 +40,50 @@ export default function Controls(props: ControlsProps) {
   return (
     <section className={styles.controls} aria-labelledby="setup-controls-title" data-testid="context-inspector">
       <div className={styles.sectionHeading}>
-        <p>{props.selected ? "目前選取" : "自由探索"}</p>
-        <h2 id="setup-controls-title">{heading}</h2>
+        <div>
+          <p>{props.selected ? "目前選取" : "自由探索"}</p>
+          <div className={styles.inspectorHeadingRow}>
+            <h2 id="setup-controls-title">{heading}</h2>
+            {selectedSource ? (
+              <button
+                type="button"
+                className={styles.selectedSourceDelete}
+                aria-label="刪除這顆源電荷"
+                title="刪除這顆源電荷"
+                disabled={props.setup.sources.length <= 1}
+                onClick={props.onRemoveSource}
+                data-testid="selected-source-delete"
+              >
+                <Trash2 size={16} aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.toolbar} role="group" aria-label="畫布工具">
+        <button
+          type="button"
+          className={`${styles.iconButton} ${props.tool === "add-source" ? styles.activeButton : ""}`}
+          aria-pressed={props.tool === "add-source"}
+          disabled={props.setup.sources.length >= 4}
+          title={`新增源電荷（快捷鍵 ${TOOL_SHORTCUT["add-source"]}）：在畫布上連續放置；Esc 取消`}
+          onClick={() => props.onToolChange(props.tool === "add-source" ? "select" : "add-source")}
+          data-testid="add-source"
+        >
+          <Plus size={16} aria-hidden="true" />新增
+        </button>
+        <button
+          type="button"
+          className={`${styles.iconButton} ${props.tool === "delete-source" ? styles.activeButton : ""}`}
+          aria-pressed={props.tool === "delete-source"}
+          disabled={props.setup.sources.length <= 1}
+          title={`刪除源電荷（快捷鍵 ${TOOL_SHORTCUT["delete-source"]}）：在畫布上連續刪除；Esc 取消`}
+          onClick={() => props.onToolChange(props.tool === "delete-source" ? "select" : "delete-source")}
+          data-testid="delete-tool"
+        >
+          <Trash2 size={16} aria-hidden="true" />刪除
+        </button>
       </div>
 
       {!props.selected ? (
@@ -59,9 +101,6 @@ export default function Controls(props: ControlsProps) {
             <CommittedNumberField label="水平位置 x（m）" value={selectedSource.x_m} step="0.01" min="-2" max="2" testId="source-x" onCommit={(value) => props.onSourcePosition("x", value)} />
             <CommittedNumberField label="垂直位置 y（m）" value={selectedSource.y_m} step="0.01" min="-1.5" max="1.5" testId="source-y" onCommit={(value) => props.onSourcePosition("y", value)} />
           </div>
-          <button type="button" className={`${styles.dangerButton} ${styles.iconButton}`} onClick={props.onRemoveSource} disabled={props.setup.sources.length <= 1} data-testid="remove-source">
-            <Trash2 size={16} aria-hidden="true" />移除這顆電荷
-          </button>
         </fieldset>
       ) : null}
 
@@ -76,31 +115,6 @@ export default function Controls(props: ControlsProps) {
       ) : null}
 
       {props.children}
-
-      <div className={styles.toolbar} role="group" aria-label="畫布工具">
-        <button
-          type="button"
-          className={`${styles.iconButton} ${props.tool === "add-source" ? styles.activeButton : ""}`}
-          aria-pressed={props.tool === "add-source"}
-          disabled={props.setup.sources.length >= 4}
-          title={`新增源電荷（快捷鍵 ${TOOL_SHORTCUT["add-source"]}）：先點這裡，再點畫布上要放的位置`}
-          onClick={() => props.onToolChange(props.tool === "add-source" ? "select" : "add-source")}
-          data-testid="add-source"
-        >
-          <Plus size={16} aria-hidden="true" />新增
-        </button>
-        <button
-          type="button"
-          className={`${styles.iconButton} ${props.tool === "delete-source" ? styles.activeButton : ""}`}
-          aria-pressed={props.tool === "delete-source"}
-          disabled={props.setup.sources.length <= 1}
-          title={`刪除源電荷（快捷鍵 ${TOOL_SHORTCUT["delete-source"]}）：先點這裡，再點畫布上要刪除的電荷`}
-          onClick={() => props.onToolChange(props.tool === "delete-source" ? "select" : "delete-source")}
-          data-testid="delete-tool"
-        >
-          <Trash2 size={16} aria-hidden="true" />刪除
-        </button>
-      </div>
 
       <div className={styles.inspectorActions}>
         <button type="button" className={styles.iconButton} onClick={props.onReset} data-testid="reset-setup">

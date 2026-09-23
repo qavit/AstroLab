@@ -53,39 +53,51 @@ test("empty Canvas click clears selection without changing physical state", asyn
   await expect(source).toHaveAttribute("aria-label", physicalName ?? "");
 });
 
-test("pointer placement uses the requested coordinate, auto-selects, and delete only removes a source", async ({ page }) => {
+test("persistent pointer tools add and delete several sources, respecting their boundaries", async ({ page }) => {
   await openFree(page);
-  const requested = { x: 1, y: 0.8 };
+  const first = { x: 1, y: 0.8 };
+  const second = { x: -1, y: 0.8 };
+  const third = { x: 1, y: -0.8 };
   await page.getByTestId("add-source").click();
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "add-source");
   await expect(page.getByTestId("tool-banner")).toContainText("新增模式");
-  await clickWorld(page, requested);
+  await clickWorld(page, first);
 
-  const source = page.getByTestId("source-handle-s2");
-  await expect(source).toHaveAttribute("aria-pressed", "true");
+  const source2 = page.getByTestId("source-handle-s2");
+  await expect(source2).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "add-source");
+  expect(Math.abs(Number(await page.getByTestId("source-x").inputValue()) - first.x)).toBeLessThan(0.005);
+  expect(Math.abs(Number(await page.getByTestId("source-y").inputValue()) - first.y)).toBeLessThan(0.005);
+
+  await clickWorld(page, second);
+  await expect(page.getByTestId("source-handle-s3")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "add-source");
+
+  await clickWorld(page, third);
+  await expect(page.getByTestId("source-handle-s4")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "4");
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "select");
-  expect(Math.abs(Number(await page.getByTestId("source-x").inputValue()) - requested.x)).toBeLessThan(0.005);
-  expect(Math.abs(Number(await page.getByTestId("source-y").inputValue()) - requested.y)).toBeLessThan(0.005);
-
-  await source.hover();
-  await expect(page.getByTestId("object-tooltip")).toContainText("正電荷 2");
-  await expect(page.getByTestId("object-tooltip")).toContainText("+3.0 nC");
+  await expect(page.getByTestId("setup-notice")).toContainText("上限");
 
   await page.getByTestId("delete-tool").click();
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "delete-source");
-  await page.getByTestId("probe-handle").click();
-  await expect(page.getByTestId("setup-notice")).toContainText("測量點與測試電荷不能刪除");
-  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "2");
+  await clickWorld(page, { x: 1.65, y: 1.2 });
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "delete-source");
 
-  await source.click();
-  await expect(source).toHaveCount(0);
+  await page.getByTestId("probe-handle").click();
+  await expect(page.getByTestId("setup-notice")).toContainText("測量點與測試電荷不能刪除");
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "delete-source");
+
+  await page.getByTestId("source-handle-s4").click();
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "3");
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "delete-source");
+  await page.getByTestId("source-handle-s3").click();
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "2");
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "delete-source");
+  await source2.click();
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "1");
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "select");
-
-  await page.keyboard.press("d");
-  await expect(page.getByTestId("setup-notice")).toContainText("至少要保留一顆源電荷");
-  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "select");
+  await expect(page.getByTestId("setup-notice")).toContainText("只剩一顆");
 });
 
 test("keyboard tool shortcuts, Escape, exact Arrow movement, and focus affordances are real behavior", async ({ page }) => {
@@ -133,14 +145,24 @@ test("keyboard tool shortcuts, Escape, exact Arrow movement, and focus affordanc
 
   await source.press("a");
   await expect(viewport).toHaveAttribute("data-tool", "add-source");
+  await source.press("d");
+  await expect(viewport).toHaveAttribute("data-tool", "delete-source");
+  await source.press("a");
+  await expect(viewport).toHaveAttribute("data-tool", "add-source");
+  await page.keyboard.press("Escape");
+  await expect(viewport).toHaveAttribute("data-tool", "select");
+
+  await source.press("a");
   await clickWorld(page, { x: 1, y: 0.8 });
   const added = page.getByTestId("source-handle-s2");
   await expect(added).toHaveAttribute("aria-pressed", "true");
+  await expect(viewport).toHaveAttribute("data-tool", "add-source");
   await added.focus();
   await added.press("d");
   await expect(viewport).toHaveAttribute("data-tool", "delete-source");
   await added.press("Enter");
   await expect(added).toHaveCount(0);
+  await expect(viewport).toHaveAttribute("data-tool", "select");
 
   await expect(page.getByTestId("add-source")).toHaveAttribute("title", /快捷鍵 A/);
   await expect(page.getByTestId("delete-tool")).toHaveAttribute("title", /快捷鍵 D/);
@@ -157,18 +179,74 @@ test("hover and focus explain the measurement point and test charge", async ({ p
   await expect(page.getByTestId("particle-handle")).toHaveAccessibleName(/可選取|移動/);
 });
 
+test("source tooltip follows the same source while it is dragged", async ({ page }) => {
+  await openFree(page);
+  const source = page.getByTestId("source-handle-s1");
+  await source.hover();
+  const tooltip = page.getByTestId("object-tooltip");
+  await expect(tooltip).toHaveAttribute("data-tooltip-target", "source:s1");
+  await expect(tooltip).toContainText("正電荷 1");
+  const before = await tooltip.boundingBox();
+  const sourceBox = await source.boundingBox();
+  const target = await screenPoint(page, { x: 0.55, y: 0.5 });
+  if (!before || !sourceBox) throw new Error("tooltip or source has no bounding box");
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x, target.y);
+  await page.mouse.up();
+
+  await expect(source).toHaveAccessibleName(/水平位置 0\.5[0-9] m/);
+  await expect(tooltip).toHaveAttribute("data-tooltip-target", "source:s1");
+  await expect(tooltip).toContainText("正電荷 1");
+  const after = await tooltip.boundingBox();
+  if (!after) throw new Error("tooltip lost its bounding box after drag");
+  expect(after.x).toBeGreaterThan(before.x + 40);
+});
+
+test("selected-source trash is lightweight, direct, and never enters persistent delete mode", async ({ page }) => {
+  await openFree(page);
+  await page.getByTestId("source-handle-s1").click();
+  const toolbarBeforeSettings = await page.getByTestId("add-source").evaluate((addButton) => {
+    const settings = document.querySelector("[data-testid='selected-source-controls']");
+    return Boolean(settings && (addButton.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING));
+  });
+  expect(toolbarBeforeSettings).toBe(true);
+  const directDelete = page.getByTestId("selected-source-delete");
+  await expect(directDelete).toHaveAccessibleName("刪除這顆源電荷");
+  await expect(directDelete).toHaveAttribute("title", "刪除這顆源電荷");
+  await expect(directDelete).toBeDisabled();
+  await expect(page.getByTestId("remove-source")).toHaveCount(0);
+
+  await page.getByTestId("add-source").click();
+  await clickWorld(page, { x: 1, y: 0.8 });
+  await expect(directDelete).toBeEnabled();
+  await directDelete.click();
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "1");
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "select");
+});
+
 test("@mobile touch can place and delete a source at the chosen Canvas point", async ({ page }) => {
   await openFree(page);
   const point = { x: 1, y: 0.8 };
+  const secondPoint = { x: -1, y: 0.8 };
   await page.getByTestId("add-source").click();
   await tapWorld(page, point);
   const source = page.getByTestId("source-handle-s2");
   await expect(source).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "add-source");
   expect(Math.abs(Number(await page.getByTestId("source-x").inputValue()) - point.x)).toBeLessThan(0.005);
   expect(Math.abs(Number(await page.getByTestId("source-y").inputValue()) - point.y)).toBeLessThan(0.005);
+  await tapWorld(page, secondPoint);
+  await expect(page.getByTestId("source-handle-s3")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "add-source");
 
   await page.getByTestId("delete-tool").click();
-  await tapWorld(page, point);
+  await page.getByTestId("source-handle-s3").tap();
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "2");
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "delete-source");
+  await source.tap();
   await expect(source).toHaveCount(0);
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "1");
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "select");
 });

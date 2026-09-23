@@ -1,4 +1,4 @@
-/** Canvas interaction modes. "select" is the resting mode; the others are one-shot tools. */
+/** Canvas interaction modes. "select" rests; add/delete persist until cancelled or a boundary. */
 export type ToolMode = "select" | "add-source" | "delete-source";
 
 /**
@@ -8,6 +8,6 @@ export type ToolMode = "select" | "add-source" | "delete-source";
 export const TOOL_SHORTCUT = { "add-source": "A", "delete-source": "D" } as const;
 
 export const TOOL_BANNER: Record<Exclude<ToolMode, "select">, string> = {
-  "add-source": "新增模式：點一下畫布放置源電荷（Esc 取消）",
-  "delete-source": "刪除模式：點一下要刪除的源電荷（Esc 取消）",
+  "add-source": "新增模式：可連續點畫布放置源電荷（Esc 取消）",
+  "delete-source": "刪除模式：可連續點源電荷刪除（Esc 取消）",
 };

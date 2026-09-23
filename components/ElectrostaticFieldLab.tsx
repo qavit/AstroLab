@@ -233,21 +233,28 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     });
     if (next) {
       setSelected({ kind: "source", id });
-      setTool("select");
+      if (next.sources.length >= MAX_SOURCES) {
+        setTool("select");
+        setNotice(`已達 ${MAX_SOURCES} 顆源電荷上限。`);
+      }
     }
   };
 
-  const deleteSourceById = (id: string) => {
+  const deleteSourceById = (id: string, persistent = false) => {
     const current = labRef.current.setup;
     if (current.sources.length <= 1) {
       setNotice("至少要保留一顆源電荷，這顆不能刪除。");
+      if (persistent) setTool("select");
       return;
     }
     const remaining = current.sources.filter((source) => source.id !== id);
     const next = commitCandidate({ ...current, sources: remaining, presetId: null });
     if (next) {
       setSelected({ kind: "source", id: remaining[0].id });
-      setTool("select");
+      if (!persistent || remaining.length <= 1) {
+        setTool("select");
+        if (remaining.length <= 1) setNotice("只剩一顆源電荷，已離開刪除模式。");
+      }
     }
   };
 
@@ -257,11 +264,12 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       setNotice("刪除工具只能刪除源電荷；測量點與測試電荷不能刪除。");
       return;
     }
-    deleteSourceById(target.id);
+    deleteSourceById(target.id, true);
   };
 
   const removeSource = () => {
     if (!selectedSource) return;
+    setTool("select");
     deleteSourceById(selectedSource.id);
   };
 

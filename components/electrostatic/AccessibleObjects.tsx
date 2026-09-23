@@ -21,12 +21,8 @@ export interface ParticleHandle {
   readonly mass_kg: number;
 }
 
-/** What the hover/focus tooltip shows, in screen pixels within the overlay. */
-export interface HoverInfo {
-  readonly point: Vec2;
-  readonly title: string;
-  readonly detail: string;
-}
+/** Hover/focus is object identity only; Canvas derives its current position at render time. */
+export type HoverTarget = DraggableObject | null;
 
 interface AccessibleObjectsProps {
   readonly camera: CameraTransform;
@@ -46,7 +42,7 @@ interface AccessibleObjectsProps {
   /** Delete mode: an object was clicked; the lab decides whether it may be deleted. */
   readonly onDelete: (target: DraggableObject) => void;
   readonly onExitTool: () => void;
-  readonly onHover: (info: HoverInfo | null) => void;
+  readonly onHover: (target: HoverTarget) => void;
 }
 
 function labelSource(sources: readonly SourceCharge[], source: SourceCharge): string {
@@ -90,7 +86,7 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
     }
     if (tool === "delete-source") {
       if (target) onDelete(target);
-      else onExitTool();
+      // Empty Canvas is intentionally inert in persistent delete mode.
       return;
     }
     if (!target) {
@@ -132,12 +128,6 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
     }
   };
 
-  const hoverSource = (source: SourceCharge): HoverInfo => ({
-    point: worldToScreen({ x: source.x_m, y: source.y_m }, camera),
-    title: sourceDisplayName(sources, source.id),
-    detail: formatCharge(source.q_C),
-  });
-
   return (
     <svg
       className={styles.objectOverlay}
@@ -175,9 +165,9 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
             onPointerDown={pointerDown(target)}
             onPointerMove={(event) => pointerMove(target, event)}
             onKeyDown={keyMove(target, { x: source.x_m, y: source.y_m })}
-            onPointerEnter={() => onHover(hoverSource(source))}
+            onPointerEnter={() => onHover(target)}
             onPointerLeave={() => onHover(null)}
-            onFocus={() => onHover(hoverSource(source))}
+            onFocus={() => onHover(target)}
             onBlur={() => onHover(null)}
           >
             <circle className={styles.hitTarget} r="23" />
@@ -198,9 +188,9 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
           onPointerDown={pointerDown(PROBE)}
           onPointerMove={(event) => pointerMove(PROBE, event)}
           onKeyDown={keyMove(PROBE, probe)}
-          onPointerEnter={() => onHover({ point: probePoint, title: "測量點", detail: PROBE_HINT })}
+          onPointerEnter={() => onHover(PROBE)}
           onPointerLeave={() => onHover(null)}
-          onFocus={() => onHover({ point: probePoint, title: "測量點", detail: PROBE_HINT })}
+          onFocus={() => onHover(PROBE)}
           onBlur={() => onHover(null)}
         >
           <circle className={styles.hitTarget} r="23" />
@@ -220,9 +210,9 @@ export default function AccessibleObjects(props: AccessibleObjectsProps) {
           onPointerDown={pointerDown(PARTICLE)}
           onPointerMove={(event) => pointerMove(PARTICLE, event)}
           onKeyDown={keyMove(PARTICLE, particle.initial)}
-          onPointerEnter={() => onHover({ point: particlePoint, title: "測試電荷起點", detail: PROBE_HINT })}
+          onPointerEnter={() => onHover(PARTICLE)}
           onPointerLeave={() => onHover(null)}
-          onFocus={() => onHover({ point: particlePoint, title: "測試電荷起點", detail: PROBE_HINT })}
+          onFocus={() => onHover(PARTICLE)}
           onBlur={() => onHover(null)}
         >
           <circle className={styles.hitTarget} r="23" />

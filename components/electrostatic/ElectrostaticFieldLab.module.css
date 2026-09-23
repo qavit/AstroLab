@@ -178,6 +178,9 @@
 .mobileTabs { display: none; }
 .sectionHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .sectionHeading h2 { margin: 0; font: 500 20px Georgia, "Noto Serif TC", serif; }
+.inspectorHeadingRow { display: flex; align-items: center; gap: 7px; }
+.selectedSourceDelete { display: inline-grid; place-items: center; width: 32px; min-width: 32px; min-height: 32px !important; padding: 0; border: 1px solid #c78370; border-radius: 6px; color: #86351f; background: #fff8f5; }
+.selectedSourceDelete:hover:not(:disabled) { border-color: #86351f; background: #fce9e2; }
 .controlGroup { margin: 0 0 15px; padding: 11px; border: 1px solid #d3dfe3; border-radius: 7px; }
 .controlGroup legend { padding: 0 6px; color: #355d70; font-size: 13px; font-weight: 700; }
 .controlGroup summary { padding: 0 6px; color: #355d70; font-size: 13px; font-weight: 700; cursor: pointer; }
@@ -212,7 +215,6 @@
 .inspectorLead { margin: 0 0 13px; color: #4f6c79; line-height: 1.6; }
 .toolbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 12px; }
 .inspectorActions { display: grid; gap: 7px; margin-top: 7px; }
-.dangerButton { width: 100%; margin-top: 10px; color: #86351f; }
 .precisionDisclosure,
 .readoutDetails,
 .hintDisclosure { margin-top: 10px; border-top: 1px solid #d5e0e4; }
