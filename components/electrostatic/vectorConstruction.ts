@@ -16,6 +16,26 @@ export interface VectorConstruction {
   readonly resultant: Vec2;
 }
 
+/**
+ * Calibration anchors for the probe-vector envelope radius: at a 320px-wide mobile Canvas the
+ * construction should read at roughly 56-72px, and at a typical desktop Canvas roughly 90-120px.
+ * Linear between them, clamped at the ends — camera zoom is irrelevant here, this only tracks
+ * the Canvas element's own on-screen size, never `camera.scale`.
+ */
+const ENVELOPE_MIN_DIMENSION_PX = 320;
+const ENVELOPE_MIN_RADIUS_PX = 64;
+const ENVELOPE_REFERENCE_DIMENSION_PX = 700;
+const ENVELOPE_REFERENCE_RADIUS_PX = 105;
+const ENVELOPE_FLOOR_PX = 56;
+const ENVELOPE_CEILING_PX = 120;
+
+/** Bounded, viewport-aware envelope radius for the probe's vector-addition construction. */
+export function probeVectorEnvelopeRadius(canvasMinDimension_px: number): number {
+  const slope = (ENVELOPE_REFERENCE_RADIUS_PX - ENVELOPE_MIN_RADIUS_PX) / (ENVELOPE_REFERENCE_DIMENSION_PX - ENVELOPE_MIN_DIMENSION_PX);
+  const radius = ENVELOPE_MIN_RADIUS_PX + slope * (canvasMinDimension_px - ENVELOPE_MIN_DIMENSION_PX);
+  return Math.min(ENVELOPE_CEILING_PX, Math.max(ENVELOPE_FLOOR_PX, radius));
+}
+
 function add(a: Vec2, b: Vec2): Vec2 {
   return { x: a.x + b.x, y: a.y + b.y };
 }

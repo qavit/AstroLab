@@ -11,7 +11,7 @@ import AccessibleObjects, { type DraggableObject, type HoverTarget } from "./Acc
 import { formatCharge, sourceDisplayName } from "./labels.ts";
 import { TOOL_BANNER, type ToolMode } from "./tools.ts";
 import ElectrostaticLayerDrawer, { INITIAL_ELECTROSTATIC_LAYERS, type ElectrostaticLayerState } from "./ElectrostaticLayerDrawer";
-import { buildVectorConstruction } from "./vectorConstruction.ts";
+import { buildVectorConstruction, probeVectorEnvelopeRadius } from "./vectorConstruction.ts";
 import {
   drawDynamicField,
   drawStaticField,
@@ -46,8 +46,6 @@ interface FieldCanvasProps {
 }
 
 const HIDDEN_GRID = { ok: false, reason: "no-sources" } as const;
-/** Bounded screen envelope the probe's vector-addition evidence fits inside, at one shared scale. */
-const PROBE_VECTOR_MAX_RADIUS_PX = 46;
 
 export default function FieldCanvas(props: FieldCanvasProps) {
   const { setup, runtime, policy, selected, onSelect, onMove, onDragStart } = props;
@@ -140,7 +138,10 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     // Physics y is up, screen y is down: flip once here so every vector below is already
     // screen-oriented and drawn with no further sign handling.
     const components = probe.contributions.map((item) => ({ x: item.Ex_N_per_C, y: -item.Ey_N_per_C }));
-    const construction = buildVectorConstruction(components, PROBE_VECTOR_MAX_RADIUS_PX);
+    // Camera zoom is irrelevant here: the envelope tracks the Canvas element's own on-screen
+    // size, not `camera.scale_px_per_m`, so it reads clearly at normal desktop and mobile alike.
+    const envelopeRadius = probeVectorEnvelopeRadius(Math.min(size.width, size.height));
+    const construction = buildVectorConstruction(components, envelopeRadius);
     const anyEmphasized = emphasizedSourceId !== null && probe.contributions.some((item) => item.sourceId === emphasizedSourceId);
     const contributions = probe.contributions.map((item, index) => ({
       sourceId: item.sourceId,
@@ -156,7 +157,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       chain: showResultant ? construction.chain : [],
       resultant: showResultant ? construction.resultant : null,
     };
-  }, [probe, showProbe, showContributions, probeTotal, emphasizedSourceId]);
+  }, [probe, showProbe, showContributions, probeTotal, emphasizedSourceId, size.width, size.height]);
 
   useEffect(() => {
     const canvas = staticCanvasRef.current;

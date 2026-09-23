@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildVectorConstruction } from "../components/electrostatic/vectorConstruction.ts";
+import { buildVectorConstruction, probeVectorEnvelopeRadius } from "../components/electrostatic/vectorConstruction.ts";
 
 function magnitude(v) {
   return Math.hypot(v.x, v.y);
@@ -63,4 +63,26 @@ test("degenerate all-zero input never divides by zero", () => {
   const construction = buildVectorConstruction([{ x: 0, y: 0 }], 40);
   assert.equal(construction.scale_px_per_NperC, 0);
   assert.deepEqual(construction.resultant, { x: 0, y: 0 });
+});
+
+test("the probe-vector envelope reads in the mobile band at a 320px Canvas", () => {
+  const radius = probeVectorEnvelopeRadius(320);
+  assert.ok(radius >= 56 && radius <= 72, `expected 56-72, got ${radius}`);
+});
+
+test("the probe-vector envelope reads in the desktop band at a normal desktop Canvas", () => {
+  const radius = probeVectorEnvelopeRadius(700);
+  assert.ok(radius >= 90 && radius <= 120, `expected 90-120, got ${radius}`);
+});
+
+test("the probe-vector envelope grows monotonically between mobile and desktop", () => {
+  const a = probeVectorEnvelopeRadius(320);
+  const b = probeVectorEnvelopeRadius(500);
+  const c = probeVectorEnvelopeRadius(700);
+  assert.ok(a < b && b < c);
+});
+
+test("the probe-vector envelope clamps at both ends instead of growing or shrinking without bound", () => {
+  assert.equal(probeVectorEnvelopeRadius(100), 56);
+  assert.equal(probeVectorEnvelopeRadius(5000), 120);
 });
