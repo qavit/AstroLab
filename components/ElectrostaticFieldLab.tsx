@@ -15,6 +15,8 @@ import ProbePanel from "./electrostatic/ProbePanel";
 import type { DraggableObject } from "./electrostatic/AccessibleObjects";
 import type { SelectedObject } from "./electrostatic/render";
 import { createShareUrl, initialStateFromShare, retainFieldSceneReferences, type ShareRouteInput } from "./electrostatic/share";
+import { TOOL_SHORTCUT, type ToolMode } from "./electrostatic/tools.ts";
+import { pointInDomain } from "./electrostatic/viewport.ts";
 import styles from "./electrostatic/ElectrostaticFieldLab.module.css";
 import { MathProvider } from "./math/MathJax";
 import type { Vec2 } from "../lib/science/electrostatics/types.ts";
@@ -57,12 +59,8 @@ interface ElectrostaticFieldLabProps {
   readonly share: ShareRouteInput;
 }
 
-const ADD_SOURCE_POSITIONS: readonly Vec2[] = [
-  { x: 1.2, y: 0.8 },
-  { x: -1.2, y: 0.8 },
-  { x: 1.2, y: -0.8 },
-  { x: -1.2, y: -0.8 },
-];
+const SOURCE_IDS = ["s1", "s2", "s3", "s4"] as const;
+const MAX_SOURCES = SOURCE_IDS.length;
 
 function firstIssueMessage(issues: readonly { message: string }[]): string {
   return issues[0]?.message ?? "設定未通過驗證；已保留上一個有效狀態。";
@@ -127,6 +125,11 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   const [notice, setNotice] = useState<string | null>(() => initial.error ?? (initial.issues[0]?.message ?? null));
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [modelInfoOpen, setModelInfoOpen] = useState(false);
+  const [tool, setTool] = useState<ToolMode>("select");
+  const toolRef = useRef<ToolMode>(tool);
+  useEffect(() => {
+    toolRef.current = tool;
+  }, [tool]);
 
   useEffect(() => {
     shellRef.current?.setAttribute("data-interactive", "true");
@@ -208,25 +211,58 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     ? setup.sources.find((source) => source.id === selected.id) ?? null
     : null;
 
-  const addSource = () => {
-    if (setup.sources.length >= 4) return;
-    const used = new Set(setup.sources.map((source) => source.id));
-    const id = ["s1", "s2", "s3", "s4"].find((candidate) => !used.has(candidate));
+  /** Places a source at the point the learner actually chose, rather than a canned slot. */
+  const placeSourceAt = (point: Vec2) => {
+    const current = labRef.current.setup;
+    if (current.sources.length >= MAX_SOURCES) {
+      setNotice(`最多只能有 ${MAX_SOURCES} 顆源電荷。`);
+      setTool("select");
+      return;
+    }
+    if (!pointInDomain(point, current.domain)) {
+      setNotice("請點在觀察範圍內。");
+      return;
+    }
+    const used = new Set(current.sources.map((source) => source.id));
+    const id = SOURCE_IDS.find((candidate) => !used.has(candidate));
     if (!id) return;
-    const position = ADD_SOURCE_POSITIONS[setup.sources.length - 1] ?? ADD_SOURCE_POSITIONS[0];
     const next = commitCandidate({
-      ...setup,
-      sources: [...setup.sources, { id, x_m: position.x, y_m: position.y, q_C: 3e-9 }],
+      ...current,
+      sources: [...current.sources, { id, x_m: point.x, y_m: point.y, q_C: 3e-9 }],
       presetId: null,
     });
-    if (next) setSelected({ kind: "source", id });
+    if (next) {
+      setSelected({ kind: "source", id });
+      setTool("select");
+    }
+  };
+
+  const deleteSourceById = (id: string) => {
+    const current = labRef.current.setup;
+    if (current.sources.length <= 1) {
+      setNotice("至少要保留一顆源電荷，這顆不能刪除。");
+      return;
+    }
+    const remaining = current.sources.filter((source) => source.id !== id);
+    const next = commitCandidate({ ...current, sources: remaining, presetId: null });
+    if (next) {
+      setSelected({ kind: "source", id: remaining[0].id });
+      setTool("select");
+    }
+  };
+
+  /** Delete-tool click: only sources may be removed; the probe and test charge are permanent. */
+  const deleteTarget = (target: DraggableObject) => {
+    if (target.kind !== "source") {
+      setNotice("刪除工具只能刪除源電荷；測量點與測試電荷不能刪除。");
+      return;
+    }
+    deleteSourceById(target.id);
   };
 
   const removeSource = () => {
-    if (!selectedSource || setup.sources.length <= 1) return;
-    const remaining = setup.sources.filter((source) => source.id !== selectedSource.id);
-    const next = commitCandidate({ ...setup, sources: remaining, presetId: null });
-    if (next) setSelected({ kind: "source", id: remaining[0].id });
+    if (!selectedSource) return;
+    deleteSourceById(selectedSource.id);
   };
 
   const toggleSign = () => {
@@ -351,17 +387,46 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
-      const clockAllowed = policyRef.current.timeControls;
-      if (event.key === " " && clockAllowed && !isInteractive(event.target)) {
+      const policy = policyRef.current;
+      /* A focused Canvas object or form control owns its own keys first; only keys that reach
+       * here unclaimed are treated as global shortcuts. */
+      const global = !isInteractive(event.target);
+      const canvasObjectFocused = event.target instanceof Element && event.target.closest('[data-canvas-object="true"]') !== null;
+      if (event.key === " " && policy.timeControls && global) {
         event.preventDefault();
         togglePlay();
-      } else if (event.key === "Escape" && !isInteractive(event.target)) {
-        setSelected(null);
+      } else if (event.key === "Escape") {
+        /* Escape backs out one step: the active tool first, then the selection. */
+        if (toolRef.current !== "select") {
+          event.preventDefault();
+          setTool("select");
+        } else if (global) {
+          setSelected(null);
+        }
+      } else if ((global || canvasObjectFocused) && policy.setupControls && learning === null && !entryPending && !event.repeat) {
+        const key = event.key.toUpperCase();
+        if (key === TOOL_SHORTCUT["add-source"]) {
+          event.preventDefault();
+          if (labRef.current.setup.sources.length >= MAX_SOURCES) {
+            setNotice(`最多只能有 ${MAX_SOURCES} 顆源電荷。`);
+            setTool("select");
+            return;
+          }
+          setTool((current) => (current === "add-source" ? "select" : "add-source"));
+        } else if (key === TOOL_SHORTCUT["delete-source"]) {
+          event.preventDefault();
+          if (labRef.current.setup.sources.length <= 1) {
+            setNotice("至少要保留一顆源電荷，目前沒有可刪除的電荷。");
+            setTool("select");
+            return;
+          }
+          setTool((current) => (current === "delete-source" ? "select" : "delete-source"));
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlay]);
+  }, [entryPending, learning, togglePlay]);
 
   // Stop, error and auto-pause messages take priority; user actions announce otherwise.
   const clockMessage = stopAnnouncement(runtime);
@@ -374,6 +439,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     commitLab({ setup: target, runtime: freshRuntime });
     setLearning(next);
     setSelected(null);
+    setTool("select");
     setNotice(null);
     setShareStatus(null);
     if (focus) setFocusToken((token) => token + 1);
@@ -410,6 +476,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     setLearning(null);
     setEntryPending(false);
     setSelected(null);
+    setTool("select");
     setAnnouncement("已進入自由探索；全部操作與讀值都已開放。");
   };
 
@@ -507,6 +574,10 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               onSelect={setSelected}
               onMove={moveObject}
               onDragStart={pauseForDrag}
+              tool={!entryPending && learning === null ? tool : "select"}
+              onPlace={placeSourceAt}
+              onDelete={deleteTarget}
+              onExitTool={() => setTool("select")}
             />
           </section>
 
@@ -569,7 +640,8 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
           ) : <Controls
             setup={setup}
             selected={selected}
-            onAddSource={addSource}
+            tool={tool}
+            onToolChange={setTool}
             onRemoveSource={removeSource}
             onToggleSign={toggleSign}
             onMagnitude={setMagnitude}

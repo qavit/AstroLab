@@ -5,7 +5,8 @@ import { normalizedStrength, sampleFieldGrid } from "../../lib/science/electrost
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
 import { probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import type { EvidencePolicy } from "../../models/electrostatic-learning.ts";
-import AccessibleObjects, { type DraggableObject } from "./AccessibleObjects";
+import AccessibleObjects, { type DraggableObject, type HoverInfo } from "./AccessibleObjects";
+import { TOOL_BANNER, type ToolMode } from "./tools.ts";
 import {
   drawDynamicField,
   drawStaticField,
@@ -26,15 +27,22 @@ interface FieldCanvasProps {
   readonly selected: SelectedObject;
   readonly onSelect: (target: SelectedObject) => void;
   readonly onMove: (target: DraggableObject, point: Vec2) => void;
+  readonly tool: ToolMode;
+  readonly onPlace: (point: Vec2) => void;
+  readonly onDelete: (target: DraggableObject) => void;
+  readonly onExitTool: () => void;
 }
 
 const HIDDEN_GRID = { ok: false, reason: "no-sources" } as const;
 
-export default function FieldCanvas({ setup, runtime, policy, selected, onSelect, onMove, onDragStart }: FieldCanvasProps) {
+export default function FieldCanvas(props: FieldCanvasProps) {
+  const { setup, runtime, policy, selected, onSelect, onMove, onDragStart } = props;
+  const { tool, onPlace, onDelete, onExitTool } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
+  const [hover, setHover] = useState<HoverInfo | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -127,6 +135,7 @@ export default function FieldCanvas({ setup, runtime, policy, selected, onSelect
       ref={hostRef}
       className={styles.canvasHost}
       data-testid="field-viewport"
+      data-tool={tool}
       data-grid={`${dimensions.cols}x${dimensions.rows}`}
       data-sample-count={grid.ok ? grid.samples.length : 0}
       data-trail-count={policy.trajectory ? runtime.trail.count : 0}
@@ -150,7 +159,26 @@ export default function FieldCanvas({ setup, runtime, policy, selected, onSelect
         showProbe={showProbe}
         showParticle={policy.particle}
         particle={{ initial: { x: setup.testParticle.x_m, y: setup.testParticle.y_m }, q_C: setup.testParticle.q_C, mass_kg: setup.testParticle.mass_kg }}
+        tool={tool}
+        onPlace={onPlace}
+        onDelete={onDelete}
+        onExitTool={onExitTool}
+        onHover={setHover}
       />
+      {tool !== "select" ? (
+        <p className={styles.toolBanner} role="status" data-testid="tool-banner">{TOOL_BANNER[tool]}</p>
+      ) : null}
+      {/* HTML rather than SVG text so the bubble sizes itself to the label at any string length. */}
+      {hover ? (
+        <div
+          className={styles.objectTooltip}
+          data-testid="object-tooltip"
+          style={{ left: hover.point.x, top: hover.point.y }}
+          aria-hidden="true"
+        >
+          <strong>{hover.title}</strong><span>{hover.detail}</span>
+        </div>
+      ) : null}
       <p className={styles.srOnly} id="field-semantic-summary">
         電場方向與大小由箭頭呈現。源電荷、測量點與測試電荷都能直接點選、拖曳或用鍵盤移動；完整數值可在右側讀值中查看。
       </p>

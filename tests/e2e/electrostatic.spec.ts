@@ -59,6 +59,9 @@ test("canvas selection opens one contextual inspector; add-source auto-selects",
   await source.press("ArrowRight");
   await expect(page.getByTestId("source-x")).toHaveValue("0.01");
   await page.getByTestId("add-source").click();
+  const viewport = await page.getByTestId("field-viewport").boundingBox();
+  if (!viewport) throw new Error("field viewport has no bounding box");
+  await page.mouse.click(viewport.x + viewport.width * 0.75, viewport.y + viewport.height * 0.25);
   await expect(page.getByTestId("source-handle-s2")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("context-inspector")).toContainText("正電荷 2");
 });

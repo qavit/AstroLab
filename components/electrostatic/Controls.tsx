@@ -4,13 +4,16 @@ import type { ReactNode } from "react";
 import { Plus, RotateCcw, Share2, Trash2 } from "lucide-react";
 import type { ElectrostaticSetup } from "../../models/electrostatic.ts";
 import type { SelectedObject } from "./render.ts";
+import { sourceDisplayName } from "./labels.ts";
+import { TOOL_SHORTCUT, type ToolMode } from "./tools.ts";
 import CommittedNumberField from "./CommittedNumberField";
 import styles from "./ElectrostaticFieldLab.module.css";
 
 interface ControlsProps {
   readonly setup: ElectrostaticSetup;
   readonly selected: SelectedObject;
-  readonly onAddSource: () => void;
+  readonly tool: ToolMode;
+  readonly onToolChange: (tool: ToolMode) => void;
   readonly onRemoveSource: () => void;
   readonly onToggleSign: () => void;
   readonly onMagnitude: (magnitude_nC: number) => boolean;
@@ -21,16 +24,13 @@ interface ControlsProps {
   readonly children?: ReactNode;
 }
 
-function sourceName(setup: ElectrostaticSetup, id: string): string {
-  const index = setup.sources.findIndex((source) => source.id === id);
-  const source = setup.sources[index];
-  if (!source) return "源電荷";
-  return `${source.q_C > 0 ? "正" : "負"}電荷 ${index + 1}`;
-}
+const sourceName = (setup: ElectrostaticSetup, id: string) => sourceDisplayName(setup.sources, id);
 
 export default function Controls(props: ControlsProps) {
-  const selectedSource = props.selected?.kind === "source"
-    ? props.setup.sources.find((source) => source.id === props.selected?.id) ?? null
+  /* Bound to a local first: TypeScript cannot narrow `props.selected` inside the find callback. */
+  const selected = props.selected;
+  const selectedSource = selected?.kind === "source"
+    ? props.setup.sources.find((source) => source.id === selected.id) ?? null
     : null;
   const heading = selectedSource ? sourceName(props.setup, selectedSource.id)
     : props.selected?.kind === "probe" ? "測量點"
@@ -77,10 +77,32 @@ export default function Controls(props: ControlsProps) {
 
       {props.children}
 
-      <div className={styles.inspectorActions}>
-        <button type="button" className={styles.iconButton} onClick={props.onAddSource} disabled={props.setup.sources.length >= 4} data-testid="add-source">
-          <Plus size={16} aria-hidden="true" />新增源電荷
+      <div className={styles.toolbar} role="group" aria-label="畫布工具">
+        <button
+          type="button"
+          className={`${styles.iconButton} ${props.tool === "add-source" ? styles.activeButton : ""}`}
+          aria-pressed={props.tool === "add-source"}
+          disabled={props.setup.sources.length >= 4}
+          title={`新增源電荷（快捷鍵 ${TOOL_SHORTCUT["add-source"]}）：先點這裡，再點畫布上要放的位置`}
+          onClick={() => props.onToolChange(props.tool === "add-source" ? "select" : "add-source")}
+          data-testid="add-source"
+        >
+          <Plus size={16} aria-hidden="true" />新增
         </button>
+        <button
+          type="button"
+          className={`${styles.iconButton} ${props.tool === "delete-source" ? styles.activeButton : ""}`}
+          aria-pressed={props.tool === "delete-source"}
+          disabled={props.setup.sources.length <= 1}
+          title={`刪除源電荷（快捷鍵 ${TOOL_SHORTCUT["delete-source"]}）：先點這裡，再點畫布上要刪除的電荷`}
+          onClick={() => props.onToolChange(props.tool === "delete-source" ? "select" : "delete-source")}
+          data-testid="delete-tool"
+        >
+          <Trash2 size={16} aria-hidden="true" />刪除
+        </button>
+      </div>
+
+      <div className={styles.inspectorActions}>
         <button type="button" className={styles.iconButton} onClick={props.onReset} data-testid="reset-setup">
           <RotateCcw size={16} aria-hidden="true" />重置
         </button>
@@ -89,7 +111,8 @@ export default function Controls(props: ControlsProps) {
         </button>
       </div>
       <p id="electrostatic-keyboard-help" className={styles.keyboardHelp}>
-        鍵盤也能完成相同操作：Tab 移到畫布物件，Enter／Space 選取；方向鍵移動 0.01 m，Shift＋方向鍵移動 0.10 m；Escape 清除選取。
+        鍵盤也能完成相同操作：Tab 移到畫布物件，Enter／Space 選取；方向鍵移動 0.01 m，Shift＋方向鍵移動 0.10 m；
+        {TOOL_SHORTCUT["add-source"]} 進入新增模式，{TOOL_SHORTCUT["delete-source"]} 進入刪除模式；Escape 離開模式或清除選取。
       </p>
     </section>
   );

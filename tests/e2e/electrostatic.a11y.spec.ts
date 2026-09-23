@@ -8,7 +8,7 @@ test("@a11y electrostatic sandbox has no serious or critical axe violations", as
   const results = await new AxeBuilder({ page }).analyze();
   const blocking = results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
   expect(blocking, blocking.map((violation) => `${violation.id}: ${violation.help}`).join("\n")).toEqual([]);
-  await expect(page.getByRole("button", { name: /正源電荷/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /正電荷 1/ })).toBeVisible();
   await expect(page.getByTestId("probe-handle")).toHaveRole("button");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/測量點/);
 });

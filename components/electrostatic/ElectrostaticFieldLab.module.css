@@ -111,6 +111,46 @@
 .objectHandle { touch-action: none; cursor: grab; }
 .objectHandle:active { cursor: grabbing; }
 .hitTarget { fill: transparent; pointer-events: all; }
+/* Empty canvas is a real target: clicking it clears the selection, or places in add mode. */
+.canvasBackdrop { fill: transparent; pointer-events: all; }
+
+/* The active tool is legible from the cursor alone, before anything is clicked. */
+.canvasHost[data-tool="add-source"],
+.canvasHost[data-tool="add-source"] .objectHandle { cursor: crosshair; }
+.canvasHost[data-tool="delete-source"],
+.canvasHost[data-tool="delete-source"] .objectHandle { cursor: cell; }
+
+.toolBanner {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(15, 42, 60, .92);
+  color: #eef5f6;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.objectTooltip {
+  position: absolute;
+  z-index: 7;
+  display: grid;
+  gap: 1px;
+  transform: translate(-50%, calc(-100% - 26px));
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: rgba(15, 42, 60, .95);
+  color: #eef5f6;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.objectTooltip strong { font-size: 13px; }
+.objectTooltip span { color: #a8bdc6; font-size: 11px; }
 .focusRing { fill: none; stroke: transparent; stroke-width: 2; pointer-events: none; }
 .focusRingActive { fill: none; stroke: rgba(255,255,255,.86); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
 .objectHandle:focus { outline: none; }
@@ -170,7 +210,8 @@
 .helperText,
 .keyboardHelp { margin: 9px 0 0; color: #607985; font-size: 12px; line-height: 1.55; }
 .inspectorLead { margin: 0 0 13px; color: #4f6c79; line-height: 1.6; }
-.inspectorActions { display: grid; gap: 7px; margin-top: 12px; }
+.toolbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 12px; }
+.inspectorActions { display: grid; gap: 7px; margin-top: 7px; }
 .dangerButton { width: 100%; margin-top: 10px; color: #86351f; }
 .precisionDisclosure,
 .readoutDetails,
