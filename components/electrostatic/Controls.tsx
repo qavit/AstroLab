@@ -14,7 +14,6 @@ interface ControlsProps {
   readonly selected: SelectedObject;
   readonly tool: ToolMode;
   readonly onToolChange: (tool: ToolMode) => void;
-  readonly onRemoveSource: () => void;
   readonly onToggleSign: () => void;
   readonly onMagnitude: (magnitude_nC: number) => boolean;
   readonly onSourcePosition: (axis: "x" | "y", value_m: number) => boolean;
@@ -42,22 +41,7 @@ export default function Controls(props: ControlsProps) {
       <div className={styles.sectionHeading}>
         <div>
           <p>{props.selected ? "目前選取" : "自由探索"}</p>
-          <div className={styles.inspectorHeadingRow}>
-            <h2 id="setup-controls-title">{heading}</h2>
-            {selectedSource ? (
-              <button
-                type="button"
-                className={styles.selectedSourceDelete}
-                aria-label="刪除這顆源電荷"
-                title="刪除這顆源電荷"
-                disabled={props.setup.sources.length <= 1}
-                onClick={props.onRemoveSource}
-                data-testid="selected-source-delete"
-              >
-                <Trash2 size={16} aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
+          <h2 id="setup-controls-title">{heading}</h2>
         </div>
       </div>
 
@@ -93,13 +77,38 @@ export default function Controls(props: ControlsProps) {
       {selectedSource ? (
         <fieldset className={styles.controlGroup} data-testid="selected-source-controls">
           <legend>{sourceName(props.setup, selectedSource.id)}的設定</legend>
-          <button type="button" onClick={props.onToggleSign} data-testid="toggle-source-sign">
-            改成{selectedSource.q_C > 0 ? "負" : "正"}電荷
-          </button>
-          <div className={styles.parameterGrid}>
-            <CommittedNumberField label="電量大小（nC）" value={Math.abs(selectedSource.q_C / 1e-9)} step="0.25" min="1" max="5" testId="source-magnitude" onCommit={props.onMagnitude} />
-            <CommittedNumberField label="水平位置 x（m）" value={selectedSource.x_m} step="0.01" min="-2" max="2" testId="source-x" onCommit={(value) => props.onSourcePosition("x", value)} />
-            <CommittedNumberField label="垂直位置 y（m）" value={selectedSource.y_m} step="0.01" min="-1.5" max="1.5" testId="source-y" onCommit={(value) => props.onSourcePosition("y", value)} />
+          <div className={styles.sourceEditorGroup} role="group" aria-label="電荷" data-testid="source-charge-controls">
+            <p>電荷</p>
+            <div className={styles.chargeRow}>
+              <div className={styles.signToggle} role="group" aria-label="電荷正負">
+                <button
+                  type="button"
+                  className={selectedSource.q_C > 0 ? styles.signOptionActive : styles.signOption}
+                  aria-label="設為正電荷"
+                  aria-pressed={selectedSource.q_C > 0}
+                  title="設為正電荷"
+                  onClick={() => { if (selectedSource.q_C < 0) props.onToggleSign(); }}
+                  data-testid="source-sign-positive"
+                >＋</button>
+                <button
+                  type="button"
+                  className={selectedSource.q_C < 0 ? styles.signOptionActive : styles.signOption}
+                  aria-label="設為負電荷"
+                  aria-pressed={selectedSource.q_C < 0}
+                  title="設為負電荷"
+                  onClick={() => { if (selectedSource.q_C > 0) props.onToggleSign(); }}
+                  data-testid="source-sign-negative"
+                >−</button>
+              </div>
+              <CommittedNumberField label="電量（nC）" value={Math.abs(selectedSource.q_C / 1e-9)} step="0.25" min="1" max="5" testId="source-magnitude" onCommit={(value) => value >= 0 && props.onMagnitude(value)} />
+            </div>
+          </div>
+          <div className={styles.sourceEditorGroup} role="group" aria-label="位置" data-testid="source-position-controls">
+            <p>位置</p>
+            <div className={styles.sourcePositionRow}>
+              <CommittedNumberField label="x（m）" value={selectedSource.x_m} step="0.01" min="-2" max="2" testId="source-x" onCommit={(value) => props.onSourcePosition("x", value)} />
+              <CommittedNumberField label="y（m）" value={selectedSource.y_m} step="0.01" min="-1.5" max="1.5" testId="source-y" onCommit={(value) => props.onSourcePosition("y", value)} />
+            </div>
           </div>
         </fieldset>
       ) : null}

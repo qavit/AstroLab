@@ -178,9 +178,6 @@
 .mobileTabs { display: none; }
 .sectionHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .sectionHeading h2 { margin: 0; font: 500 20px Georgia, "Noto Serif TC", serif; }
-.inspectorHeadingRow { display: flex; align-items: center; gap: 7px; }
-.selectedSourceDelete { display: inline-grid; place-items: center; width: 32px; min-width: 32px; min-height: 32px !important; padding: 0; border: 1px solid #c78370; border-radius: 6px; color: #86351f; background: #fff8f5; }
-.selectedSourceDelete:hover:not(:disabled) { border-color: #86351f; background: #fce9e2; }
 .controlGroup { margin: 0 0 15px; padding: 11px; border: 1px solid #d3dfe3; border-radius: 7px; }
 .controlGroup legend { padding: 0 6px; color: #355d70; font-size: 13px; font-weight: 700; }
 .controlGroup summary { padding: 0 6px; color: #355d70; font-size: 13px; font-weight: 700; cursor: pointer; }
@@ -208,6 +205,13 @@
 .parameterGrid label { display: grid; gap: 4px; color: #4e6976; font-size: 12px; }
 .parameterGrid input { width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid #b8cbd3; border-radius: 6px; background: #fff; color: #143247; }
 .numberField { align-content: start; }
+.sourceEditorGroup { margin-top: 12px; }
+.sourceEditorGroup > p { margin: 0 0 5px; color: #355d70; font-size: 13px; font-weight: 700; }
+.chargeRow { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: end; gap: 8px; }
+.signToggle { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.signOption { border: 1px solid #b8cbd3; background: #fff; color: #355d70; font-size: 19px; font-weight: 700; }
+.signOptionActive { border: 1px solid #246b82; background: #dceef2; color: #143f58; font-size: 19px; font-weight: 700; box-shadow: inset 0 0 0 1px #246b82; }
+.sourcePositionRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .fieldError { color: #9a3b29; font-size: 11px; line-height: 1.4; }
 .numberField input[aria-invalid="true"] { border-color: #b44d38; background: #fff8f5; }
 .helperText,
@@ -431,7 +435,8 @@
   .probePanel,
   .legend { margin: 0 8px; }
   .sourceList,
-  .parameterGrid { grid-template-columns: 1fr; }
+  .parameterGrid,
+  .sourcePositionRow { grid-template-columns: 1fr; }
   .totalReadout { grid-template-columns: 1fr; }
   .statusStrip { grid-template-columns: 1fr; }
 }

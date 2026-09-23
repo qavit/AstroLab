@@ -204,7 +204,7 @@ test("source tooltip follows the same source while it is dragged", async ({ page
   expect(after.x).toBeGreaterThan(before.x + 40);
 });
 
-test("selected-source trash is lightweight, direct, and never enters persistent delete mode", async ({ page }) => {
+test("source inspector keeps the global delete tool as its only visible delete affordance", async ({ page }) => {
   await openFree(page);
   await page.getByTestId("source-handle-s1").click();
   const toolbarBeforeSettings = await page.getByTestId("add-source").evaluate((addButton) => {
@@ -212,18 +212,57 @@ test("selected-source trash is lightweight, direct, and never enters persistent 
     return Boolean(settings && (addButton.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING));
   });
   expect(toolbarBeforeSettings).toBe(true);
-  const directDelete = page.getByTestId("selected-source-delete");
-  await expect(directDelete).toHaveAccessibleName("刪除這顆源電荷");
-  await expect(directDelete).toHaveAttribute("title", "刪除這顆源電荷");
-  await expect(directDelete).toBeDisabled();
-  await expect(page.getByTestId("remove-source")).toHaveCount(0);
+  await expect(page.getByTestId("selected-source-delete")).toHaveCount(0);
+  await expect(page.getByTestId("context-inspector").getByRole("button", { name: "刪除" })).toHaveCount(1);
+  await expect(page.getByTestId("delete-tool")).toBeVisible();
+});
 
-  await page.getByTestId("add-source").click();
-  await clickWorld(page, { x: 1, y: 0.8 });
-  await expect(directDelete).toBeEnabled();
-  await directDelete.click();
-  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "1");
-  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-tool", "select");
+test("sign toggle changes only sign, including keyboard activation", async ({ page }) => {
+  await openFree(page);
+  const source = page.getByTestId("source-handle-s1");
+  await source.click();
+  const magnitude = page.getByTestId("source-magnitude");
+  const startingMagnitude = await magnitude.inputValue();
+  const positive = page.getByTestId("source-sign-positive");
+  const negative = page.getByTestId("source-sign-negative");
+  await expect(positive).toHaveAttribute("aria-pressed", "true");
+  await expect(negative).toHaveAttribute("aria-pressed", "false");
+
+  await negative.click();
+  await expect(source).toHaveAccessibleName(/−3\.0 nC/);
+  await expect(magnitude).toHaveValue(startingMagnitude);
+  await expect(negative).toHaveAttribute("aria-pressed", "true");
+
+  await positive.focus();
+  await positive.press("Space");
+  await expect(source).toHaveAccessibleName(/\+3\.0 nC/);
+  await expect(magnitude).toHaveValue(startingMagnitude);
+
+  await magnitude.fill("-4");
+  await magnitude.press("Enter");
+  await expect(magnitude).toHaveAttribute("aria-invalid", "true");
+  await expect(source).toHaveAccessibleName(/\+3\.0 nC/);
+});
+
+test("source inspector rows align sign + magnitude and x + y on desktop", async ({ page }) => {
+  await openFree(page);
+  await page.getByTestId("source-handle-s1").click();
+  const sign = await page.getByTestId("source-sign-positive").boundingBox();
+  const magnitude = await page.getByTestId("source-magnitude").boundingBox();
+  const x = await page.getByTestId("source-x").boundingBox();
+  const y = await page.getByTestId("source-y").boundingBox();
+  if (!sign || !magnitude || !x || !y) throw new Error("source inspector controls are not rendered");
+  expect(Math.abs(sign.y - magnitude.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(x.y - y.y)).toBeLessThanOrEqual(1);
+});
+
+test("@mobile source inspector has no horizontal overflow at 320px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await openFree(page);
+  await page.getByTestId("source-handle-s1").click();
+  await expect(page.getByTestId("source-charge-controls")).toBeVisible();
+  await expect(page.getByTestId("source-position-controls")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
 
 test("@mobile touch can place and delete a source at the chosen Canvas point", async ({ page }) => {

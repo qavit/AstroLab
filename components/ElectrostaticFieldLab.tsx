@@ -267,12 +267,6 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
     deleteSourceById(target.id, true);
   };
 
-  const removeSource = () => {
-    if (!selectedSource) return;
-    setTool("select");
-    deleteSourceById(selectedSource.id);
-  };
-
   const toggleSign = () => {
     if (!selectedSource) return;
     commitCandidate({
@@ -647,11 +641,10 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
             </>
           ) : <Controls
             setup={setup}
-            selected={selected}
-            tool={tool}
-            onToolChange={setTool}
-            onRemoveSource={removeSource}
-            onToggleSign={toggleSign}
+        selected={selected}
+        tool={tool}
+        onToolChange={setTool}
+        onToggleSign={toggleSign}
             onMagnitude={setMagnitude}
             onSourcePosition={setSourcePosition}
             onProbePosition={setProbePosition}
