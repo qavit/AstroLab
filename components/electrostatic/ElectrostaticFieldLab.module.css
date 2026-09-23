@@ -4,6 +4,12 @@
   margin: 0 auto;
   padding: 18px clamp(18px, 3vw, 46px) 24px;
   color: #143247;
+  /* Mobile Safari auto-boosts font size on some text blocks (its own column-width heuristic)
+     and not others, which is what made sibling preset cards render at visibly different sizes
+     on a phone despite identical CSS. Opting the whole shell out keeps every computed size
+     exactly what this stylesheet says. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* Compact Desmos-style app bar: product identity is a single row, never competing with the
@@ -17,9 +23,9 @@
   border-bottom: 1px solid #c7d5dc;
 }
 .appBarLeft { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.brandLink { display: inline-flex; align-items: center; gap: 6px; color: #416f89; font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; }
-.brandLink:hover { color: #123b56; }
-.brandLink:focus-visible { outline: 3px solid #e3ad36; outline-offset: 3px; }
+/* .catalog-brand is the repo's global wordmark (app/globals.css) — reused verbatim here so the
+   brand reads identically to the homepage; only wrapped, never restyled. */
+.appBarLeft :global(.catalog-brand):focus-visible { outline: 3px solid #e3ad36; outline-offset: 3px; }
 .appBarDivider { color: #b9cad2; font-size: 14px; }
 .appBarTitle { margin: 0; color: #143247; font: 500 21px/1.2 Georgia, "Noto Serif TC", serif; white-space: nowrap; }
 .statusChip {
@@ -46,6 +52,10 @@
 
 .catalogLink { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 13px; border: 1px solid #b9cad2; border-radius: 7px; color: #214d65; text-decoration: none; background: rgba(250, 253, 254, .82); font-size: 13px; }
 .catalogLink:focus-visible { outline: 3px solid #e3ad36; outline-offset: 3px; }
+/* The one header action that switches between two whole modes (guided task <-> free
+   exploration) reads as a distinct toggle, not another neutral utility button. */
+.modeToggle { border-color: #246b82; background: #e5f2f5; color: #184b5c; }
+.modeToggle:hover { border-color: #17505f; background: #d8ecf0; }
 
 .statusOverlay {
   position: fixed;
@@ -255,6 +265,25 @@
 .speedSelect { width: auto; min-width: 56px; flex: 0 0 auto; }
 .timelineLabel { color: #526f7b; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
 .timelineInput { flex: 1 1 110px; min-width: 90px; }
+.helpPopoverWrap { position: relative; }
+.helpPopoverWrap > summary { list-style: none; cursor: pointer; }
+.helpPopoverWrap > summary::-webkit-details-marker { display: none; }
+.helpPopoverWrap > summary:focus-visible { outline: 3px solid #d9a735; outline-offset: 2px; }
+.helpPopover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(260px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid #c4d3d9;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(16, 48, 66, .18);
+  color: #4f6c79;
+  font-size: 12px;
+  line-height: 1.55;
+}
 .modelNotesGrid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(360px, 1fr); gap: 16px; }
 .modelNotesGrid h2 { margin: 8px 0; font: 500 20px Georgia, "Noto Serif TC", serif; }
 .modelNotesGrid p { color: #536f7b; font-size: 13px; line-height: 1.65; }
@@ -263,12 +292,18 @@
 .presetPopoverWrap > summary { list-style: none; cursor: pointer; }
 .presetPopoverWrap > summary::-webkit-details-marker { display: none; }
 .presetPopoverWrap > summary:focus-visible { outline: 3px solid #e3ad36; outline-offset: 3px; }
+/* Fixed to the viewport rather than anchored to the (often icon-narrow) trigger's own box —
+   an absolute `right:0` anchor made the popover jump far to the left of its trigger once the
+   trigger collapsed to icon-only width on phones. Fixed positioning anchors it to the app bar
+   itself instead, regardless of how wide the trigger is. */
 .presetPopover {
-  position: absolute;
+  position: fixed;
   z-index: 35;
-  top: calc(100% + 8px);
-  right: 0;
+  top: 68px;
+  right: clamp(10px, 4vw, 24px);
   width: min(320px, calc(100vw - 32px));
+  max-height: calc(100vh - 88px);
+  overflow-y: auto;
   padding: 12px;
   border: 1px solid #c4d3d9;
   border-radius: 9px;
@@ -309,7 +344,11 @@
      than wrapping the bar to a second or third line. */
   .appBar { flex-wrap: nowrap; gap: 6px; }
   .appBarDivider { display: none; }
-  .brandLink { gap: 0; padding: 6px 4px; font-size: 0; }
+  /* Collapse the wordmark to just its icon so the bar stays one line; the global
+     .catalog-brand rule itself is left untouched, so it still matches the homepage
+     everywhere the icon+text form is shown. */
+  .appBarLeft :global(.catalog-brand) { gap: 0; font-size: 0; }
+  .appBarLeft :global(.catalog-brand) svg { width: 18px; height: 18px; }
   .appBarTitle { font-size: 16px; }
   .statusChip { padding: 3px 6px; font-size: 9px; }
   .headerActions { flex-wrap: nowrap; gap: 3px; }

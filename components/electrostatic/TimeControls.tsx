@@ -23,8 +23,10 @@ const HELP_TEXT = "空白鍵播放／暫停。時間軸只能回看已經算過�
 /**
  * A compact single dock (Projectile's `.projectile-transport` grammar): one row, ~34px
  * controls, the scrub input taking the remaining width instead of a full-width row of its
- * own. The keyboard-shortcut sentence that used to sit permanently under the row is now
- * sr-only text plus a hover/focus tooltip on the help icon, so it no longer costs page height.
+ * own. The keyboard-shortcut sentence that used to sit permanently under the row is always
+ * available to assistive tech via aria-describedby (never gated behind an interaction), and
+ * separately reachable for sighted/touch users as a tap-to-open disclosure on the help icon —
+ * a native <details> rather than a hover-only tooltip, which does nothing on tap.
  */
 export default function TimeControls(props: TimeControlsProps) {
   const { runtime } = props;
@@ -32,7 +34,7 @@ export default function TimeControls(props: TimeControlsProps) {
   const blocked = runtime.status === "stopped" || runtime.error !== null;
   const current = runtime.macroSteps;
   return (
-    <section className={styles.timeControls} aria-label="時間控制" data-testid="time-controls" data-clock-status={runtime.status}>
+    <section className={styles.timeControls} aria-label="時間控制" aria-describedby={HELP_ID} data-testid="time-controls" data-clock-status={runtime.status}>
       <div className={styles.transportRow}>
         <button
           type="button"
@@ -75,16 +77,12 @@ export default function TimeControls(props: TimeControlsProps) {
         />
         <span className={styles.timelineLabel}>{timeOf(props.maxSimulatedSteps).toFixed(2)}s</span>
 
-        <button
-          type="button"
-          className={styles.iconButton}
-          aria-label="鍵盤操作說明"
-          aria-describedby={HELP_ID}
-          title={HELP_TEXT}
-          data-testid="transport-help"
-        >
-          <HelpCircle size={16} aria-hidden="true" />
-        </button>
+        <details className={styles.helpPopoverWrap}>
+          <summary className={styles.iconButton} aria-label="鍵盤操作說明" data-testid="transport-help">
+            <HelpCircle size={16} aria-hidden="true" />
+          </summary>
+          <div className={styles.helpPopover} role="note">{HELP_TEXT}</div>
+        </details>
       </div>
       <p id={HELP_ID} className={styles.srOnly}>{HELP_TEXT}</p>
     </section>
