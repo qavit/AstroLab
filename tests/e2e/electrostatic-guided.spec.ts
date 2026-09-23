@@ -24,15 +24,24 @@ test("guided entry starts task one with evidence gated and no reason tags", asyn
   await expect(page.locator('[data-testid^="predict-reason-"]')).toHaveCount(0);
   await expect(page.getByText("需要一點提示？")).toBeVisible();
   await expect(page.getByTestId("time-controls")).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "畫布視圖" })).toHaveCSS("flex-direction", "column");
+  await expect(page.getByTestId("canvas-tip")).toHaveCSS("border-top-width", "0px");
+  await expect(page.getByLabel("關閉畫布說明")).toHaveCSS("position", "absolute");
+  await expect(page.locator('[class*="canvasBackdrop"]')).toHaveCSS("cursor", "grab");
+  await expect(page.locator("#field-viewport-title")).toHaveCount(0);
 });
 
 test("feedback compares the learner prediction with model-derived components", async ({ page }) => {
   await commitDirection(page, "E");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "2");
   await page.getByTestId("reveal-next").click();
   await page.getByTestId("reveal-next").click();
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "3");
   await expect(page.getByTestId("prediction-verdict")).toHaveAttribute("data-match", "false");
   await expect(page.getByTestId("feedback-status")).toContainText("和模型不同");
   await expect(page.getByTestId("prediction-verdict")).toContainText("查看模型說明");
+  await page.getByTestId("advance").click();
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "4");
 
   await page.getByTestId("restart-activity").click();
   await commitDirection(page, "S");
@@ -89,6 +98,37 @@ test("task three presents progress, fixed-position readouts, and an explicit evi
   await expect(page.getByTestId("prediction-verdict")).toContainText("查看模型說明");
   await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "1");
   await expect(page.getByTestId("particle-panel")).toHaveCSS("padding-left", "16px");
+});
+
+test("task three keeps charge and mass labels on Canvas and separates v/a learner markers", async ({ page }) => {
+  const viewport = page.getByTestId("field-viewport");
+  await page.getByTestId("activity-C").click();
+  await expect(viewport).toHaveAttribute("data-guided-labels", "source:+Q,particle:+Q,particle:m");
+  const canvasLabels = page.getByTestId("guided-canvas-label");
+  await expect(canvasLabels).toHaveCount(3);
+  await expect(canvasLabels.first()).toHaveCSS("border-top-width", "0px");
+  await expect(canvasLabels.first()).toHaveCSS("font-size", "20px");
+
+  await commitDirection(page, "W");
+  await page.getByTestId("advance").click();
+  await expect(viewport).toHaveAttribute("data-guided-labels", "source:+Q,particle:-Q,particle:m");
+
+  for (const [field, answer] of [["E", "same"], ["F", "reverse"], ["a", "reverse"]] as const) await page.getByTestId(`predict-${field}-${answer}`).check();
+  await page.getByTestId("commit-prediction").click();
+  await page.getByTestId("advance").click();
+  await expect(viewport).toHaveAttribute("data-guided-labels", "source:+Q,particle:+Q,particle:2m");
+
+  for (const [field, answer] of [["E", "same"], ["F", "same"], ["a", "half"]] as const) await page.getByTestId(`predict-${field}-${answer}`).check();
+  await page.getByTestId("commit-prediction").click();
+  await page.getByTestId("advance").click();
+  await expect(viewport).toHaveAttribute("data-guided-labels", "source:+Q,particle:+Q,particle:m");
+
+  await page.getByTestId("predict-velocity-N").check();
+  await page.getByTestId("predict-acceleration-N").check();
+  await page.getByTestId("commit-prediction").click();
+  await expect(viewport).toHaveAttribute("data-prediction-colours", "#f1b95d,#68c9dc");
+  const points = (await viewport.getAttribute("data-prediction-label-points"))!.split(";").map((point) => point.split(",").map(Number));
+  expect(Math.hypot(points[0][0] - points[1][0], points[0][1] - points[1][1])).toBeGreaterThanOrEqual(24);
 });
 
 test("@mobile guided task remains usable at 320px", async ({ page }) => {

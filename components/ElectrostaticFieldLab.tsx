@@ -56,6 +56,7 @@ import {
   type LearningState,
 } from "../models/electrostatic-learning.ts";
 import { attentionCueFor, committedPredictionMarkers, type PredictionMarker } from "./electrostatic/guidedPrediction.ts";
+import { guidedCanvasSemantics } from "./electrostatic/guidedCanvasSemantics.ts";
 
 interface ElectrostaticFieldLabProps {
   readonly share: ShareRouteInput;
@@ -124,6 +125,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   }, [policy]);
   const labRef = useRef<LabState>(lab);
   const { setup, runtime } = lab;
+  const canvasSemantics = useMemo(() => guidedCanvasSemantics(learning, setup), [learning, setup]);
   const [announcement, setAnnouncement] = useState("");
   const [baseline, setBaseline] = useState<ElectrostaticSetup>(initial.setup);
   const [selected, setSelected] = useState<SelectedObject>(null);
@@ -610,10 +612,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
 
       <div className={styles.workspace}>
         <div className={styles.canvasColumn}>
-          <section className={styles.viewportCard} aria-labelledby="field-viewport-title" aria-describedby="field-semantic-summary">
-            <div className={styles.viewportTitle}>
-              <div><h2 id="field-viewport-title">電場</h2></div>
-            </div>
+          <section className={styles.viewportCard} aria-label="電場畫布" aria-describedby="field-semantic-summary">
             <FieldCanvas
               setup={setup}
               runtime={runtime}
@@ -632,6 +631,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               emphasizedSourceId={emphasizedSourceId}
               onSourceHover={setEmphasizedSourceId}
               predictionMarkers={predictionMarkers}
+              guidedSemantics={canvasSemantics}
               attentionCue={attentionCue}
             />
           </section>

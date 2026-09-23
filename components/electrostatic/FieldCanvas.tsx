@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { HelpCircle, House, ZoomIn, ZoomOut, X } from "lucide-react";
+import { Tex } from "../math/MathJax";
 import { sampleFieldGrid } from "../../lib/science/electrostatics/sampling.ts";
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
 import { probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
@@ -12,7 +13,8 @@ import { formatCharge, sourceDisplayName } from "./labels.ts";
 import { TOOL_BANNER, type ToolMode } from "./tools.ts";
 import ElectrostaticLayerDrawer, { INITIAL_ELECTROSTATIC_LAYERS, type ElectrostaticLayerState } from "./ElectrostaticLayerDrawer";
 import { buildVectorConstruction, probeVectorEnvelopeRadius } from "./vectorConstruction.ts";
-import { predictionDisplacement, type PredictionMarker } from "./guidedPrediction.ts";
+import { layoutPredictionMarkers, type PredictionMarker } from "./guidedPrediction.ts";
+import type { GuidedCanvasSemantics } from "./guidedCanvasSemantics.ts";
 import {
   drawDynamicField,
   drawPredictionMarkers,
@@ -48,6 +50,8 @@ interface FieldCanvasProps {
   readonly onSourceHover: (id: string | null) => void;
   /** Guided-only: the learner's own uncommitted-or-committed compass guess(es). Never model evidence. */
   readonly predictionMarkers: readonly PredictionMarker[];
+  /** Learner-facing labels derived from the visible guided setup, never from a model readout. */
+  readonly guidedSemantics: GuidedCanvasSemantics;
   /** Guided-only: a one-shot attention cue; remounted (and replayed) whenever `key` changes. */
   readonly attentionCue: { readonly anchor: "probe" | "particle"; readonly key: string } | null;
 }
@@ -60,7 +64,7 @@ const PREDICTION_ARROW_LENGTH_PX = 40;
 export default function FieldCanvas(props: FieldCanvasProps) {
   const { setup, runtime, policy, selected, onSelect, onMove, onDragStart } = props;
   const { tool, onPlace, onDelete, onExitTool, layersOpen, onLayersOpenChange, layersTriggerRef } = props;
-  const { emphasizedSourceId, onSourceHover, predictionMarkers, attentionCue } = props;
+  const { emphasizedSourceId, onSourceHover, predictionMarkers, guidedSemantics, attentionCue } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -178,13 +182,13 @@ export default function FieldCanvas(props: FieldCanvasProps) {
   }, [probe, showProbe, showContributions, probeTotal, emphasizedSourceId, size.width, size.height, setup.sources]);
 
   /** Guided-only prediction glyphs: resolved anchors, direction-only length, never model evidence. */
-  const predictionGlyphs: readonly PredictionGlyph[] = useMemo(() => predictionMarkers.map((marker) => ({
-    anchor: marker.anchor === "probe"
+  const predictionGlyphs: readonly PredictionGlyph[] = useMemo(() => layoutPredictionMarkers(
+    predictionMarkers,
+    predictionMarkers.map((marker) => marker.anchor === "probe"
       ? worldToScreen({ x: setup.probe.x_m, y: setup.probe.y_m }, camera)
-      : worldToScreen({ x: setup.testParticle.x_m, y: setup.testParticle.y_m }, camera),
-    displacement: predictionDisplacement(marker.compass, PREDICTION_ARROW_LENGTH_PX),
-    label: marker.label,
-  })), [predictionMarkers, camera, setup.probe.x_m, setup.probe.y_m, setup.testParticle.x_m, setup.testParticle.y_m]);
+      : worldToScreen({ x: setup.testParticle.x_m, y: setup.testParticle.y_m }, camera)),
+    PREDICTION_ARROW_LENGTH_PX,
+  ), [predictionMarkers, camera, setup.probe.x_m, setup.probe.y_m, setup.testParticle.x_m, setup.testParticle.y_m]);
 
   const attentionCuePoint = useMemo(() => {
     if (!attentionCue) return null;
@@ -230,6 +234,18 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     }
   }, [showProbe, probeZero, showParticle, camera, particleGlyph, probeScene, selected, setup.probe.x_m, setup.probe.y_m, setup.sources, size, predictionGlyphs]);
 
+  /** MathJax labels are a semantic HTML overlay, so they remain crisp at any device pixel ratio
+   * and follow the live camera / particle position without inventing a second Canvas font system. */
+  const guidedLabelPositions = useMemo(() => guidedSemantics.labels.flatMap((label) => {
+    if (label.target === "source") {
+      const source = setup.sources.find((item) => item.id === label.sourceId);
+      if (!source) return [];
+      return [{ label, point: worldToScreen({ x: source.x_m, y: source.y_m }, camera) }];
+    }
+    if (!showParticle) return [];
+    return [{ label, point: worldToScreen({ x: runtime.particle.x_m, y: runtime.particle.y_m }, camera) }];
+  }), [camera, guidedSemantics.labels, runtime.particle.x_m, runtime.particle.y_m, setup.sources, showParticle]);
+
   return (
     <div
       ref={hostRef}
@@ -246,6 +262,12 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       data-prediction-count={predictionMarkers.length}
       data-prediction-anchors={predictionMarkers.map((marker) => marker.anchor).join(",")}
       data-prediction-labels={predictionMarkers.map((marker) => marker.label ?? "").join(",")}
+      data-prediction-colours={predictionGlyphs.map((glyph) => glyph.colour).join(",")}
+      data-prediction-label-points={predictionGlyphs.map((glyph) => {
+        const end = glyph.displacement === null ? glyph.anchor : { x: glyph.anchor.x + glyph.displacement.x, y: glyph.anchor.y + glyph.displacement.y };
+        return `${(end.x + glyph.labelOffset.x).toFixed(1)},${(end.y + glyph.labelOffset.y).toFixed(1)}`;
+      }).join(";")}
+      data-guided-labels={guidedSemantics.labels.map((label) => `${label.target}:${label.text}`).join(",")}
       data-particle-screen={(() => {
         const p = worldToScreen({ x: runtime.particle.x_m, y: runtime.particle.y_m }, camera);
         return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
@@ -253,12 +275,28 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     >
       <canvas ref={staticCanvasRef} className={styles.canvasLayer} aria-hidden="true" />
       <canvas ref={dynamicCanvasRef} className={styles.canvasLayer} aria-hidden="true" />
+      {guidedLabelPositions.map(({ label, point }) => (
+        <span
+          key={label.target === "source" ? `${label.target}:${label.sourceId}:${label.role}` : `${label.target}:${label.role}`}
+          className={styles.guidedCanvasLabel}
+          data-testid="guided-canvas-label"
+          data-label={label.text}
+          data-role={label.role}
+          style={{
+            left: point.x + 15,
+            top: point.y + (label.role === "charge" ? -17 : 18),
+          }}
+          aria-hidden="true"
+        >
+          <Tex>{label.text}</Tex>
+        </span>
+      ))}
       <div className={styles.viewportToolbar} role="group" aria-label="畫布視圖">
         <button type="button" onClick={() => setView((current) => zoomView(current, 1 / 1.25))} aria-label="縮小" title="縮小" data-testid="zoom-out"><ZoomOut size={18} aria-hidden="true" /></button>
         <button type="button" onClick={() => setView((current) => zoomView(current, 1.25))} aria-label="放大" title="放大" data-testid="zoom-in"><ZoomIn size={18} aria-hidden="true" /></button>
         <button type="button" onClick={() => setView(INITIAL_CAMERA_VIEW)} aria-label="回到完整視圖" title="回到完整視圖" data-testid="view-home"><House size={18} aria-hidden="true" /></button>
       </div>
-      {tipOpen ? <div className={styles.canvasTip} data-testid="canvas-tip"><span>箭頭指出電場方向，明暗與長度表示強弱。</span><button type="button" onClick={() => setTipOpen(false)} aria-label="關閉畫布說明" title="關閉"><X size={15} aria-hidden="true" /></button></div> : <button type="button" className={styles.canvasHelp} onClick={() => setTipOpen(true)} aria-label="開啟畫布說明" title="畫布說明" data-testid="canvas-help"><HelpCircle size={18} aria-hidden="true" /></button>}
+      {tipOpen ? <div className={styles.canvasTip} data-testid="canvas-tip"><span>箭頭指出電場方向，明暗與長度表示強弱。</span><button type="button" className={styles.canvasTipClose} onClick={() => setTipOpen(false)} aria-label="關閉畫布說明" title="關閉"><X size={14} aria-hidden="true" /></button></div> : <button type="button" className={styles.canvasHelp} onClick={() => setTipOpen(true)} aria-label="開啟畫布說明" title="畫布說明" data-testid="canvas-help"><HelpCircle size={18} aria-hidden="true" /></button>}
       <AccessibleObjects
         camera={camera}
         sources={setup.sources}

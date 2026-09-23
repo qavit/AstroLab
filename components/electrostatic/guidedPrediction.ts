@@ -15,6 +15,19 @@ export interface PredictionMarker {
   readonly label?: string;
 }
 
+export interface PredictionGlyphLayout {
+  readonly anchor: Vec2;
+  readonly displacement: Vec2 | null;
+  readonly label?: string;
+  readonly colour: string;
+  /** Offset is measured from the arrow tip (or zero marker) in screen pixels. */
+  readonly labelOffset: Vec2;
+}
+
+export const DIRECTION_PREDICTION_COLOUR = "#b38bf5";
+export const VELOCITY_PREDICTION_COLOUR = "#f1b95d";
+export const ACCELERATION_PREDICTION_COLOUR = "#68c9dc";
+
 const COMPASS_ANGLE_RAD: Partial<Record<Compass, number>> = {
   E: 0, NE: Math.PI / 4, N: Math.PI / 2, NW: (3 * Math.PI) / 4,
   W: Math.PI, SW: (5 * Math.PI) / 4, S: (3 * Math.PI) / 2, SE: (7 * Math.PI) / 4,
@@ -29,6 +42,42 @@ export function predictionDisplacement(compass: Compass, length_px: number): Vec
   if (angle === undefined) return null;
   // Physics angle convention (E=0, N=90deg, y up); screen y is down, flipped once here.
   return { x: Math.cos(angle) * length_px, y: -Math.sin(angle) * length_px };
+}
+
+function add(a: Vec2, b: Vec2): Vec2 { return { x: a.x + b.x, y: a.y + b.y }; }
+
+function staggeredAnchor(anchor: Vec2, displacement: Vec2 | null, side: -1 | 1): Vec2 {
+  if (displacement === null) return { x: anchor.x, y: anchor.y + side * 5 };
+  const length = Math.hypot(displacement.x, displacement.y);
+  if (length < 1e-9) return anchor;
+  // A small perpendicular stagger keeps collinear v/a arrows separately legible without
+  // changing the direction each learner selected.
+  return add(anchor, { x: (-displacement.y / length) * side * 5, y: (displacement.x / length) * side * 5 });
+}
+
+/**
+ * Direction-only learner predictions remain distinct from model evidence. When C4 has both v
+ * and a, their arrow tails are staggered and their labels get opposite vertical anchors, so even
+ * identical, opposite, or near-collinear choices do not collapse into one label.
+ */
+export function layoutPredictionMarkers(
+  markers: readonly PredictionMarker[],
+  anchors: readonly Vec2[],
+  length_px: number,
+): readonly PredictionGlyphLayout[] {
+  const pairedMotion = markers.length === 2 && markers.some((marker) => marker.label === "v") && markers.some((marker) => marker.label === "a");
+  return markers.map((marker, index) => {
+    const displacement = predictionDisplacement(marker.compass, length_px);
+    const isVelocity = marker.label === "v";
+    const isAcceleration = marker.label === "a";
+    return {
+      anchor: pairedMotion && (isVelocity || isAcceleration) ? staggeredAnchor(anchors[index], displacement, isVelocity ? -1 : 1) : anchors[index],
+      displacement,
+      label: marker.label,
+      colour: isVelocity ? VELOCITY_PREDICTION_COLOUR : isAcceleration ? ACCELERATION_PREDICTION_COLOUR : DIRECTION_PREDICTION_COLOUR,
+      labelOffset: pairedMotion && isVelocity ? { x: 7, y: -11 } : pairedMotion && isAcceleration ? { x: 7, y: 13 } : { x: 7, y: 0 },
+    };
+  });
 }
 
 /**

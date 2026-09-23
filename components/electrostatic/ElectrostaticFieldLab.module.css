@@ -101,10 +101,6 @@
   background: #071a27;
   box-shadow: 0 16px 36px rgba(16, 48, 66, .15);
 }
-.viewportTitle { position: absolute; z-index: 5; top: 14px; left: 14px; display: flex; align-items: center; gap: 9px; pointer-events: none; color: #eef5f6; }
-.viewportTitle > span { display: grid; place-items: center; width: 31px; height: 31px; border: 1px solid rgba(255,255,255,.35); border-radius: 50%; font: 700 11px ui-monospace, monospace; }
-.viewportTitle h2 { margin: 0; font: 500 17px Georgia, "Noto Serif TC", serif; }
-.viewportTitle p { margin: 2px 0 0; color: #a8bdc6; font-size: 11px; }
 .canvasHost { position: absolute; inset: 0; overflow: hidden; }
 /* Gate 3 follow-up: the shared Layer Drawer defaults to `top:0`, which overlaps this lab's own
    app bar (and its "視圖圖層" trigger) since the app bar isn't sticky. Docking it below the
@@ -112,24 +108,29 @@
    without touching the shared drawer's positioning default for other labs. */
 :global(.layer-drawer).layerDrawerOffset { top: var(--electro-appbar-h, 64px); }
 .canvasLayer { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
-.viewportToolbar { position: absolute; z-index: 8; top: 12px; right: 12px; display: flex; gap: 5px; }
+.viewportToolbar { position: absolute; z-index: 8; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 5px; }
 .viewportToolbar button,
-.canvasHelp,
-.canvasTip button { display: grid; place-items: center; width: 44px; min-width: 44px; min-height: 44px; padding: 0; border: 1px solid rgba(203,224,232,.55); border-radius: 7px; background: rgba(8,31,46,.9); color: #eef5f6; }
+.canvasHelp { display: grid; place-items: center; width: 44px; min-width: 44px; min-height: 44px; padding: 0; border: 1px solid rgba(203,224,232,.55); border-radius: 7px; background: rgba(8,31,46,.9); color: #eef5f6; }
 .viewportToolbar button:hover,
-.canvasHelp:hover,
-.canvasTip button:hover { border-color: #ffd66f; background: #123d56; }
+.canvasHelp:hover { border-color: #ffd66f; background: #123d56; }
 .viewportToolbar button:focus-visible,
 .canvasHelp:focus-visible,
-.canvasTip button:focus-visible { outline: 3px solid #ffd66f; outline-offset: 2px; }
-.canvasTip { position: absolute; z-index: 8; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 8px; max-width: min(380px, calc(100% - 24px)); padding: 7px 7px 7px 11px; border: 1px solid rgba(203,224,232,.45); border-radius: 8px; background: rgba(8,31,46,.92); color: #e7f1f4; font-size: 12px; line-height: 1.45; }
+.canvasTipClose:focus-visible { outline: 3px solid #ffd66f; outline-offset: 2px; }
+.canvasTip { position: absolute; z-index: 8; right: 12px; bottom: 12px; max-width: min(380px, calc(100% - 24px)); padding: 3px 28px 3px 0; color: #e7f1f4; font-size: 12px; line-height: 1.45; text-shadow: 0 1px 3px #071a27, 0 0 8px #071a27; }
+.canvasTipClose { position: absolute; top: -4px; right: -3px; display: grid; place-items: center; width: 28px; min-width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #e7f1f4; }
+.canvasTipClose:hover { background: rgba(18, 61, 86, .7); color: #ffd66f; }
 .canvasHelp { position: absolute; z-index: 8; right: 12px; bottom: 12px; }
+.guidedCanvasLabel { position: absolute; z-index: 5; pointer-events: none; transform: translateY(-50%); color: #ffe1a0; font-size: 20px; font-weight: 700; line-height: 1; text-shadow: 0 1px 3px #071a27, 0 0 7px #071a27; }
+.guidedCanvasLabel[data-role="mass"] { color: #d8f0f4; }
+.guidedCanvasLabel :global(.formula-inline) { display: inline-block; margin: 0; }
+.guidedCanvasLabel :global(.formula-plain) { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; }
 .objectOverlay { position: absolute; z-index: 4; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .objectHandle { touch-action: none; cursor: grab; }
 .objectHandle:active { cursor: grabbing; }
 .hitTarget { fill: transparent; pointer-events: all; }
 /* Empty canvas is a real target: clicking it clears the selection, or places in add mode. */
-.canvasBackdrop { fill: transparent; pointer-events: all; }
+.canvasBackdrop { fill: transparent; pointer-events: all; cursor: grab; }
+.canvasHost[data-tool="select"] .canvasBackdrop:active { cursor: grabbing; }
 
 /* The active tool is legible from the cursor alone, before anything is clicked. */
 .canvasHost[data-tool="add-source"],

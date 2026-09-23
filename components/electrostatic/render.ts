@@ -37,6 +37,8 @@ export interface PredictionGlyph {
   readonly anchor: Vec2;
   readonly displacement: Vec2 | null;
   readonly label?: string;
+  readonly colour: string;
+  readonly labelOffset: Vec2;
 }
 
 export type SelectedObject =
@@ -390,7 +392,8 @@ export function drawDynamicField(
   context.lineWidth = selected?.kind === "probe" ? 3 : 2;
   context.beginPath(); context.arc(0, 0, 8, 0, 2 * Math.PI); context.fill(); context.stroke();
   context.beginPath(); context.moveTo(-12, 0); context.lineTo(12, 0); context.moveTo(0, -12); context.lineTo(0, 12); context.stroke();
-  context.restore();  if (particle) drawParticle(context, camera, particle, selected?.kind === "particle");
+  context.restore();
+  if (particle) drawParticle(context, camera, particle, selected?.kind === "particle");
 }
 
 function drawTrail(context: CanvasRenderingContext2D, camera: CameraTransform, particle: ParticleGlyph): void {
@@ -456,13 +459,11 @@ export function drawParticle(
   context.restore();
 }
 
-/** Violet/lilac + dashed: clearly not gold/teal contributions, not a white resultant, not orange
- * test charge — a learner's own guess, never model evidence. */
-const PREDICTION_COLOUR = "#b38bf5";
-
-function drawPredictionZero(context: CanvasRenderingContext2D, point: Vec2): void {
+/** Dashed learner markers stay visually separate from solid model evidence. C4 gives v and a
+ * stable individual hues, while all other direction guesses retain the violet grammar. */
+function drawPredictionZero(context: CanvasRenderingContext2D, point: Vec2, colour: string): void {
   context.save();
-  context.strokeStyle = PREDICTION_COLOUR;
+  context.strokeStyle = colour;
   context.lineWidth = 2;
   context.setLineDash([3, 3]);
   context.beginPath();
@@ -471,12 +472,12 @@ function drawPredictionZero(context: CanvasRenderingContext2D, point: Vec2): voi
   context.restore();
 }
 
-function drawPredictionLabel(context: CanvasRenderingContext2D, point: Vec2, text: string): void {
+function drawPredictionLabel(context: CanvasRenderingContext2D, point: Vec2, text: string, colour: string, offset: Vec2): void {
   context.save();
   context.font = "700 12px ui-sans-serif, system-ui, sans-serif";
-  context.fillStyle = PREDICTION_COLOUR;
+  context.fillStyle = colour;
   context.textBaseline = "middle";
-  context.fillText(text, point.x + 7, point.y);
+  context.fillText(text, point.x + offset.x, point.y + offset.y);
   context.restore();
 }
 
@@ -485,12 +486,12 @@ function drawPredictionLabel(context: CanvasRenderingContext2D, point: Vec2, tex
 export function drawPredictionMarkers(context: CanvasRenderingContext2D, markers: readonly PredictionGlyph[]): void {
   for (const marker of markers) {
     if (marker.displacement === null) {
-      drawPredictionZero(context, marker.anchor);
-      if (marker.label) drawPredictionLabel(context, marker.anchor, marker.label);
+      drawPredictionZero(context, marker.anchor, marker.colour);
+      if (marker.label) drawPredictionLabel(context, marker.anchor, marker.label, marker.colour, marker.labelOffset);
       continue;
     }
     const to = { x: marker.anchor.x + marker.displacement.x, y: marker.anchor.y + marker.displacement.y };
-    drawArrowBetween(context, marker.anchor, to, PREDICTION_COLOUR, { outline: true, width: 2.2, headScale: 0.3 });
-    if (marker.label) drawPredictionLabel(context, to, marker.label);
+    drawArrowBetween(context, marker.anchor, to, marker.colour, { outline: true, width: 2.2, headScale: 0.3 });
+    if (marker.label) drawPredictionLabel(context, to, marker.label, marker.colour, marker.labelOffset);
   }
 }

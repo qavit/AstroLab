@@ -265,16 +265,22 @@ function stepLabel(state: LearningState): string {
 }
 
 const ACTIVITY_STAGES: Record<ActivityId, readonly string[]> = {
-  A: ["先預測", "查看證據", "說明分量", "換個情境", "比較結果"],
+  A: ["先預測", "看合成結果", "看分量", "說明原因", "換個情境"],
   B: ["先預測", "查看證據", "動手找規律", "換個情境", "比較結果"],
   C: ["初始加速度", "反轉 q", "質量加倍", "加入初速度"],
 };
 
 function activeStage(state: LearningState): number {
   if (state.activity === "C") return state.step === "complete" ? 4 : Number(state.stage.slice(1));
+  if (state.activity === "A") {
+    if (state.step === "predict") return 1;
+    if (state.step === "observe") return state.reveal >= 3 ? 3 : 2;
+    if (state.step === "explain") return 4;
+    return 5;
+  }
   if (state.step === "predict") return 1;
   if (state.step === "observe") return 2;
-  if (state.step === "explain" || state.step === "manipulate") return 3;
+  if (state.step === "manipulate") return 3;
   if (state.step === "transfer-predict") return 4;
   return 5;
 }
