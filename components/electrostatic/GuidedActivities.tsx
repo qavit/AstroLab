@@ -264,15 +264,29 @@ function stepLabel(state: LearningState): string {
   }[state.step];
 }
 
-const C_STAGE_LABEL = ["初始加速度", "反轉 q", "質量加倍", "加入初速度"] as const;
+const ACTIVITY_STAGES: Record<ActivityId, readonly string[]> = {
+  A: ["先預測", "查看證據", "說明分量", "換個情境", "比較結果"],
+  B: ["先預測", "查看證據", "動手找規律", "換個情境", "比較結果"],
+  C: ["初始加速度", "反轉 q", "質量加倍", "加入初速度"],
+};
+
+function activeStage(state: LearningState): number {
+  if (state.activity === "C") return state.step === "complete" ? 4 : Number(state.stage.slice(1));
+  if (state.step === "predict") return 1;
+  if (state.step === "observe") return 2;
+  if (state.step === "explain" || state.step === "manipulate") return 3;
+  if (state.step === "transfer-predict") return 4;
+  return 5;
+}
 
 function TaskProgress({ state }: { readonly state: LearningState }) {
-  if (state.activity !== "C") return null;
-  const active = state.step === "complete" ? 4 : Number(state.stage.slice(1));
+  const stages = ACTIVITY_STAGES[state.activity];
+  const active = activeStage(state);
+  const taskName = ACTIVITY_TITLE[state.activity].split("｜")[0];
   return (
-    <nav className={styles.taskProgress} aria-label="任務三進度" data-testid="task-c-progress" data-stage={active}>
-      <p>任務三共有 4 步・目前第 {active} 步</p>
-      <ol>{C_STAGE_LABEL.map((label, index) => <li key={label} data-current={index + 1 === active ? "true" : "false"} data-complete={index + 1 < active ? "true" : "false"}>{index + 1} {label}</li>)}</ol>
+    <nav className={styles.taskProgress} aria-label={`${taskName}進度`} data-testid="task-progress" data-activity={state.activity} data-stage={active} data-count={stages.length}>
+      <p>{taskName}共有 {stages.length} 個階段・目前第 {active} 階段</p>
+      <ol style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}>{stages.map((label, index) => <li key={label} data-current={index + 1 === active ? "true" : "false"} data-complete={index + 1 < active ? "true" : "false"}>{index + 1} {label}</li>)}</ol>
     </nav>
   );
 }

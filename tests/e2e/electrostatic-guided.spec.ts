@@ -17,6 +17,8 @@ test.beforeEach(async ({ page }) => openGuided(page));
 test("guided entry starts task one with evidence gated and no reason tags", async ({ page }) => {
   await expect(page.getByTestId("guided-panel")).toHaveAttribute("data-activity", "A");
   await expect(page.locator("#guided-task-heading")).toHaveText("任務一｜兩個電場會往哪裡？");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "5");
+  await expect(page.getByTestId("task-progress")).toContainText("任務一共有 5 個階段");
   await expect(page.getByTestId("probe-panel")).toHaveAttribute("data-probe-state", "gated");
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-field-visible", "false");
   await expect(page.locator('[data-testid^="predict-reason-"]')).toHaveCount(0);
@@ -43,6 +45,8 @@ test("feedback compares the learner prediction with model-derived components", a
 test("task two has a visible natural title without leaking the zero-field answer", async ({ page }) => {
   await page.getByTestId("activity-B").click();
   await expect(page.locator("#guided-task-heading")).toHaveText("任務二｜對稱會留下什麼？");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "5");
+  await expect(page.getByTestId("task-progress")).toContainText("任務二共有 5 個階段");
   const before = await page.getByTestId("guided-panel").innerText();
   expect(before.split("你的方向預測")[0]).not.toContain("零場");
   await commitDirection(page, "zero");
@@ -53,7 +57,8 @@ test("task two has a visible natural title without leaking the zero-field answer
 test("task three reveals E, F and a only after commitment while preserving time gating", async ({ page }) => {
   await page.getByTestId("activity-C").click();
   await expect(page.locator("#guided-task-heading")).toHaveText("任務三｜從電場到運動（1/4）");
-  await expect(page.getByTestId("task-c-progress")).toContainText("任務三共有 4 步");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "4");
+  await expect(page.getByTestId("task-progress")).toContainText("任務三共有 4 個階段");
   await expect(page.getByTestId("particle-field")).toHaveCount(0);
   await commitDirection(page, "W");
   await expect(page.getByTestId("particle-field")).toBeVisible();
@@ -71,7 +76,7 @@ test("guided mode keeps fixed task state out of the share workflow", async ({ pa
 
 test("task three presents progress, fixed-position readouts, and an explicit evidence link", async ({ page }) => {
   await page.getByTestId("activity-C").click();
-  await expect(page.getByTestId("task-c-progress")).toHaveAttribute("data-stage", "1");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "1");
   await expect(page.getByTestId("particle-panel-title")).toHaveText("此位置的測試電荷讀值");
   await expect(page.getByTestId("particle-time")).toHaveCount(0);
   await expect(page.getByTestId("particle-handle")).toHaveAccessibleName(/此任務中位置固定/);
@@ -82,7 +87,7 @@ test("task three presents progress, fixed-position readouts, and an explicit evi
   await expect(page.getByTestId("feedback-status")).toContainText("和模型不同");
   await expect(page.getByTestId("particle-readout-link")).toBeVisible();
   await expect(page.getByTestId("prediction-verdict")).toContainText("查看模型說明");
-  await expect(page.getByTestId("task-c-progress")).toHaveAttribute("data-stage", "1");
+  await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "1");
   await expect(page.getByTestId("particle-panel")).toHaveCSS("padding-left", "16px");
 });
 
