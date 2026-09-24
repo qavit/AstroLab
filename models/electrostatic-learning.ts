@@ -122,6 +122,11 @@ const A_TRANSFER_SETUP = withScene(
 );
 /** B: equal like pair, probe at the midpoint (the like-pair preset geometry). */
 const B_SETUP: ElectrostaticSetup = { ...structuredClone(ELECTROSTATIC_PRESETS["like-pair"]), presetId: null };
+/** B 2-2: symmetry already broken (right source 5 nC), probe still at the old midpoint, so |E| ≠ 0 on entry. */
+const B_MANIPULATE_SETUP: ElectrostaticSetup = {
+  ...B_SETUP,
+  sources: B_SETUP.sources.map((source) => (source.id === "s2" ? { ...source, q_C: 5e-9 } : source)),
+};
 /** B transfer: four equal positive charges at rectangle corners, probe at the centre. */
 const B_TRANSFER_SETUP = withScene(
   [
@@ -146,6 +151,7 @@ export const ACTIVITY_SETUPS = {
   A: A_SETUP,
   "A-transfer": A_TRANSFER_SETUP,
   B: B_SETUP,
+  "B-manipulate": B_MANIPULATE_SETUP,
   "B-transfer": B_TRANSFER_SETUP,
   ...C_SETUPS,
 } as const;
@@ -163,6 +169,7 @@ export function activitySetup(state: LearningState): ElectrostaticSetup {
       ? A_TRANSFER_SETUP : A_SETUP;
   }
   if (state.activity === "B") {
+    if (state.step === "manipulate") return B_MANIPULATE_SETUP;
     return state.step === "transfer-predict" || state.step === "transfer-observe" || state.step === "complete"
       ? B_TRANSFER_SETUP : B_SETUP;
   }
@@ -295,10 +302,12 @@ export function evidencePolicy(state: LearningState | null): EvidencePolicy {
     if (state.step === "observe" || state.step === "transfer-observe") {
       return {
         ...HIDDEN, probeContributions: true, probeTotal: state.reveal >= 2,
-        probeComponents: state.reveal >= 3, globalField: state.reveal >= 3,
+        probeComponents: state.reveal >= 3,
       };
     }
-    if (state.step === "explain" || state.step === "complete") {
+    // The background field is not evidence for the component reasoning; it returns at completion.
+    if (state.step === "explain") return { ...HIDDEN, probeContributions: true, probeTotal: true, probeComponents: true };
+    if (state.step === "complete") {
       return { ...HIDDEN, probeContributions: true, probeTotal: true, probeComponents: true, globalField: true };
     }
     return HIDDEN;

@@ -55,6 +55,7 @@ import {
   type ActivityId,
   type LearningState,
 } from "../models/electrostatic-learning.ts";
+import { guidedProgress } from "./electrostatic/guidedProgress.ts";
 import { guidedFocusFor } from "./electrostatic/guidedFocus.ts";
 import { attentionCueFor, committedPredictionMarkers, type PredictionMarker } from "./electrostatic/guidedPrediction.ts";
 import { guidedCanvasSemantics } from "./electrostatic/guidedCanvasSemantics.ts";
@@ -497,10 +498,10 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
   /** Learning transitions; a step that needs a different canonical setup loads it atomically. */
   const transition = (next: LearningState, message: string) => {
     if (learning === null || next === learning) return;
-    if (activitySetup(next) !== activitySetup(learning)) loadLearning(next, true);
+    if (activitySetup(next) !== activitySetup(learning)) loadLearning(next, guidedProgress(next).current !== guidedProgress(learning).current);
     else {
       setLearning(next);
-      setFocusToken((token) => token + 1);
+      if (guidedProgress(next).current !== guidedProgress(learning).current) setFocusToken((token) => token + 1);
     }
     // The learner's live, uncommitted guess never survives a transition: either it was just
     // committed (the model's own copy in `learning` now takes over) or the step moved on.
@@ -735,6 +736,11 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
                   onEmphasizeSource={setEmphasizedSourceId}
                   focused={focus?.target === "probe-readout"}
                   secondary={learning.activity === "B" && learning.step === "manipulate"}
+                  detail={
+                    learning.activity === "A" && ((learning.step === "observe" || learning.step === "transfer-observe") ? learning.reveal >= 3 : learning.step === "explain")
+                      ? "inline"
+                      : learning.activity === "B" && learning.step === "manipulate" ? "disclosure" : "hidden"
+                  }
                 />}
             </>
           ) : <Controls

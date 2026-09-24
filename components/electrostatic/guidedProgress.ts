@@ -9,7 +9,7 @@ export interface GuidedProgress {
 const STAGES: Readonly<Record<ActivityId, readonly string[]>> = {
   A: ["同號雙電荷", "一正一負"],
   B: ["對稱中點", "改變電量", "四電荷情境"],
-  C: ["初始加速度", "反轉 q", "質量加倍", "加入初速度"],
+  C: ["初始加速度", "反轉測試電荷", "質量加倍", "加入初速度"],
 };
 
 /**
@@ -29,4 +29,11 @@ export function guidedProgress(state: LearningState): GuidedProgress {
   }
   const stages = STAGES[state.activity];
   return { current, total: stages.length, stages };
+}
+
+/** Explicit "n-m｜name" subtask numbering shown as the guided heading. */
+export function subtaskHeading(state: LearningState): string {
+  const { current, stages } = guidedProgress(state);
+  const number = { A: 1, B: 2, C: 3 }[state.activity];
+  return `${number}-${current}｜${stages[current - 1]}`;
 }

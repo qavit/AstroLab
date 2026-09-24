@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Tex } from "@/components/math/MathJax";
 import { probeReadout, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import { SANDBOX_POLICY, type EvidencePolicy } from "../../models/electrostatic-learning.ts";
@@ -20,6 +21,9 @@ interface ProbePanelProps {
   readonly focused?: boolean;
   /** Guided B manipulation shows |E| in the task card, so the detailed table is secondary here. */
   readonly secondary?: boolean;
+  /** How per-source components are offered: a disclosure (free exploration), always visible
+   * (guided step that reasons from them) or not at all (guided steps that do not need them). */
+  readonly detail?: "disclosure" | "inline" | "hidden";
 }
 
 function GatedProbePanel({ setup }: { readonly setup: ElectrostaticSetup }) {
@@ -32,7 +36,19 @@ function GatedProbePanel({ setup }: { readonly setup: ElectrostaticSetup }) {
   );
 }
 
-export default function ProbePanel({ setup, policy = SANDBOX_POLICY, emphasizedSourceId = null, onEmphasizeSource, focused = false, secondary = false }: ProbePanelProps) {
+/** Free exploration keeps the components behind a disclosure; a guided step that reasons from
+ * them shows them directly so the learner never has to open an unexplained door. */
+function Wrapper({ inline, children }: { readonly inline: boolean; readonly children: ReactNode }) {
+  if (inline) return <div className={styles.readoutInline} data-testid="component-evidence">{children}</div>;
+  return (
+    <details className={styles.readoutDetails}>
+      <summary>各來源的電場分量</summary>
+      {children}
+    </details>
+  );
+}
+
+export default function ProbePanel({ setup, policy = SANDBOX_POLICY, emphasizedSourceId = null, onEmphasizeSource, focused = false, secondary = false, detail = "disclosure" }: ProbePanelProps) {
   if (!policy.probeContributions) return <GatedProbePanel setup={setup} />;
   const showTotal = policy.probeTotal;
   const showComponents = policy.probeComponents;
@@ -54,21 +70,20 @@ export default function ProbePanel({ setup, policy = SANDBOX_POLICY, emphasizedS
         <>
           {showTotal && !secondary ? (
             <div className={styles.heroReadout}>
-              <span><Tex>{"|\\vec E|"}</Tex> 電場大小</span>
-              <strong data-testid="total-magnitude">{formatValue(readout.magnitude_N_per_C, "N/C")}</strong>
-              <small data-testid="total-direction">{readout.direction_rad === null ? "合電場為零，因此沒有方向" : `方向 ${(readout.direction_rad * 180 / Math.PI).toFixed(1)}°`}</small>
+              <span>合電場大小</span>
+              <p className={styles.heroLine}><Tex>{"|\\vec E| ="}</Tex> <strong data-testid="total-magnitude">{formatValue(readout.magnitude_N_per_C, "N/C")}</strong></p>
+              <small data-testid="total-direction">{readout.direction_rad === null ? "方向：未定義（合電場為零）" : <>方向　<Tex>{`\\theta = ${(readout.direction_rad * 180 / Math.PI).toFixed(1)}^\\circ`}</Tex></>}</small>
             </div>
           ) : !showTotal ? <p className={styles.helperText}>先比較每顆源電荷造成的電場；下一步才會顯示合電場。</p> : null}
           {/* One advanced disclosure: per-source contributions and the resultant's x/y components
               are the same layer of detail, so they no longer compete as separate summaries. */}
-          <details className={styles.readoutDetails}>
-            <summary>{secondary ? "細節：各來源的貢獻" : "看電場是怎麼由各來源相加而成"}</summary>
+          {detail === "hidden" ? null : <Wrapper inline={detail === "inline"}>
             {readout.contributions.length > 1 ? (
               <p className={styles.helperText}>測量點旁的彩色貢獻向量使用同一線性比例，因此可以直接看它們怎麼相加；背景的小箭頭則是非線性顯示。實際大小請以 N/C 讀值為準。</p>
             ) : null}
             <div className={styles.tableWrap}>
               <table className={styles.probeTable}>
-                <caption>各源電荷對測量點的電場貢獻</caption>
+                <caption>各來源的電場分量</caption>
                 <thead><tr><th scope="col">來源</th><th scope="col">電量</th>{showComponents ? <><th scope="col">Eₓ</th><th scope="col">Eᵧ</th></> : null}<th scope="col">大小</th></tr></thead>
                 <tbody>
                   {readout.contributions.map((item) => {
@@ -97,7 +112,7 @@ export default function ProbePanel({ setup, policy = SANDBOX_POLICY, emphasizedS
               </table>
             </div>
             {showComponents ? <p><Tex dynamic>{`\\vec E = (${formatValue(readout.Ex_N_per_C)},\\ ${formatValue(readout.Ey_N_per_C)})\\ \\mathrm{N/C}`}</Tex></p> : null}
-          </details>
+          </Wrapper>}
         </>
       )}
     </section>

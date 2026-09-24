@@ -41,11 +41,12 @@ test("A uses a native spatial chooser, previews only the learner guess, then rev
   await expect(viewport).toHaveAttribute("data-field-visible", "false");
   await expect(viewport).toHaveAttribute("data-probe-vectors", "2");
   await page.getByTestId("reveal-next").click();
-  await expect(page.getByTestId("reveal-next")).toHaveText("看分量");
+  await expect(page.getByTestId("reveal-next")).toHaveText("看 x、y 分量");
   await expect(viewport).toHaveAttribute("data-field-visible", "false");
   await expect(viewport).toHaveAttribute("data-probe-vectors", "3");
   await page.getByTestId("reveal-next").click();
-  await expect(viewport).toHaveAttribute("data-field-visible", "true");
+  await expect(viewport).toHaveAttribute("data-field-visible", "false");
+  await expect(page.getByTestId("component-evidence")).toContainText("各來源的電場分量");
   await expect(page.getByTestId("prediction-verdict")).toContainText("你的答案");
   await expect(page.getByTestId("prediction-verdict")).toContainText("模型結果");
   await expect(page.getByTestId("feedback-status")).toContainText("和模型不同");
@@ -75,9 +76,10 @@ test("B keeps zero prediction distinct and uses four-source symmetry feedback in
   await expect(viewport).toHaveAttribute("data-prediction-count", "1");
   await expect(viewport).toHaveAttribute("data-prediction-anchors", "probe");
   await page.getByTestId("reveal-next").click();
-  await expect(page.getByTestId("total-direction")).toContainText("合電場為零，因此沒有方向");
+  await expect(page.getByTestId("total-direction")).toContainText("未定義");
 
   await page.getByTestId("advance").click();
+  await page.getByTestId("found-zero").click();
   await page.getByTestId("explain-b-toward-smaller").check();
   await page.getByTestId("submit-explanation").click();
   await expect(page.locator("details p")).toHaveText("觀察對稱位置的源電荷如何成對抵消，再判斷中心的合電場。");

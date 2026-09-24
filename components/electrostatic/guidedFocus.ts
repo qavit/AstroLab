@@ -42,9 +42,9 @@ export function guidedFocusFor(learning: LearningState): GuidedFocus {
       case "transfer-observe":
         if (learning.reveal === 1) return focus("probe-on-canvas", "probe", "先看測量點旁兩顆來源電荷各自造成的電場方向。", key);
         if (learning.reveal === 2) return focus("probe-on-canvas", "probe", "再看兩支箭頭相加後的合電場。", key);
-        return focus("probe-readout", "probe", "最後看測量讀值中的 Eₓ、Eᵧ 與方向，對照你的預測。", key);
+        return focus("probe-readout", "probe", "最後看分量表：每個來源的 Eₓ、Eᵧ，以及相加後的合電場。", key);
       case "explain":
-        return focus("probe-readout", "probe", "對照測量讀值表裡每個來源 Eₓ、Eᵧ 的正負號。", key);
+        return focus("probe-readout", "probe", "對照分量表裡每個來源 Eₓ、Eᵧ 的正負號。", key);
       default:
         return focus("task", null, "任務完成。", key);
     }
@@ -63,7 +63,7 @@ export function guidedFocusFor(learning: LearningState): GuidedFocus {
           : focus("probe-on-canvas", "probe", "再看這些貢獻相加後，測量點還剩下多少合電場。", key);
       }
       case "manipulate":
-        return focus("probe-on-canvas", "probe", "拖曳測量點，找出合電場 |E| 接近 0 的位置；也可以先改變右側電荷大小再找。", key);
+        return focus("probe-on-canvas", "probe", "拖曳測量點，找出合電場 |E| 最接近 0 的位置。", key);
       default:
         return focus("task", null, "任務完成。", key);
     }
@@ -75,7 +75,7 @@ export function guidedFocusFor(learning: LearningState): GuidedFocus {
     if (learning.stage === "c1") return focus("task", "particle", "看畫布上的測試電荷，預測它一開始的加速度方向。", key);
     return focus("task", "particle", "想一想：測試電荷改變後，E、F、a 各會怎麼變？", key);
   }
-  if (learning.stage === "c4") return focus("time-controls", "particle", "按播放，觀察速度方向怎麼改變。", key);
+  if (learning.stage === "c4") return focus("time-controls", "particle", "按播放，觀察速度 v 的方向怎麼改變、路徑怎麼彎。", key);
   if (learning.stage === "c1") return focus("particle-readout", "particle", "比較讀值裡 E、F、a 的方向。", key);
   return focus("particle-readout", "particle", "看比較表與測量讀值：E、F、a 哪個不變、哪個改變？", key);
 }

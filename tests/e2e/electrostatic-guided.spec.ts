@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => openGuided(page));
 
 test("guided entry starts task one with evidence gated and no reason tags", async ({ page }) => {
   await expect(page.getByTestId("guided-panel")).toHaveAttribute("data-activity", "A");
-  await expect(page.locator("#guided-task-heading")).toHaveText("兩個電場會往哪裡？");
+  await expect(page.locator("#guided-task-heading")).toHaveText("1-1｜同號雙電荷");
   await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "2");
   const taskAProgress = page.getByTestId("task-progress").getByRole("listitem");
   await expect(taskAProgress).toHaveCount(2);
@@ -68,7 +68,7 @@ test("feedback compares the learner prediction with model-derived components", a
 
 test("task two has a visible natural title without leaking the zero-field answer", async ({ page }) => {
   await page.getByTestId("activity-B").click();
-  await expect(page.locator("#guided-task-heading")).toHaveText("對稱會留下什麼？");
+  await expect(page.locator("#guided-task-heading")).toHaveText("2-1｜對稱中點");
   await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "3");
   const taskBProgress = page.getByTestId("task-progress").getByRole("listitem");
   await expect(taskBProgress).toHaveCount(3);
@@ -87,7 +87,7 @@ test("task two has a visible natural title without leaking the zero-field answer
   expect(before.split("你的方向預測")[0]).not.toContain("零場");
   await commitDirection(page, "zero");
   await page.getByTestId("reveal-next").click();
-  await expect(page.getByTestId("total-direction")).toContainText("合電場為零，因此沒有方向");
+  await expect(page.getByTestId("total-direction")).toContainText("未定義");
   await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/此任務中位置固定/);
   await page.getByTestId("advance").click();
   await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "2");
@@ -106,6 +106,7 @@ test("task two has a visible natural title without leaking the zero-field answer
   await page.getByTestId("guided-s2-magnitude").fill("5");
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-guided-labels", "source:+3\\,\\mathrm{nC},source:+5\\,\\mathrm{nC}");
   await expect(page.getByTestId("guided-canvas-label").locator("mjx-container")).toHaveCount(2);
+  await page.getByTestId("found-zero").click();
   await page.getByTestId("explain-b-toward-smaller").check();
   await page.getByTestId("submit-explanation").click();
   await expect(page.getByTestId("task-progress")).toHaveAttribute("data-stage", "3");
@@ -115,7 +116,7 @@ test("task two has a visible natural title without leaking the zero-field answer
 
 test("task three reveals E, F and a only after commitment while preserving time gating", async ({ page }) => {
   await page.getByTestId("activity-C").click();
-  await expect(page.locator("#guided-task-heading")).toHaveText("從電場到運動");
+  await expect(page.locator("#guided-task-heading")).toHaveText("3-1｜初始加速度");
   await expect(page.getByTestId("task-progress")).toHaveAttribute("data-count", "4");
   const taskCProgress = page.getByTestId("task-progress").getByRole("listitem");
   await expect(taskCProgress).toHaveCount(4);

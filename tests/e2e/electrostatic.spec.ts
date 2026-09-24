@@ -94,7 +94,7 @@ test("measurement point exposes compact MathJax readout and natural zero/invalid
   await applyPreset(page, "like-pair");
   await page.getByTestId("probe-handle").click();
   await expect(page.getByTestId("probe-panel")).toHaveAttribute("data-probe-state", "zero");
-  await expect(page.getByTestId("total-direction")).toContainText("沒有方向");
+  await expect(page.getByTestId("total-direction")).toContainText("未定義");
 
   await page.keyboard.press("Escape");
   await applyPreset(page, "single-positive");

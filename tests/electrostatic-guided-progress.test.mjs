@@ -51,6 +51,6 @@ test("Task C prediction and result remain in the same four mini-problem stages",
   assert.deepEqual(guidedProgress({ activity: "C", step: "complete", predictions: {} }), {
     current: 4,
     total: 4,
-    stages: ["初始加速度", "反轉 q", "質量加倍", "加入初速度"],
+    stages: ["初始加速度", "反轉測試電荷", "質量加倍", "加入初速度"],
   });
 });

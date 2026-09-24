@@ -115,7 +115,7 @@ test("zero field still reports undefined direction, excluded-core invalid state 
   await applyPreset(page, "like-pair");
   await page.getByTestId("probe-handle").click();
   await expect(page.getByTestId("probe-panel")).toHaveAttribute("data-probe-state", "zero");
-  await expect(page.getByTestId("total-direction")).toContainText("沒有方向");
+  await expect(page.getByTestId("total-direction")).toContainText("未定義");
 
   await applyPreset(page, "single-positive");
   await page.getByTestId("probe-handle").click();

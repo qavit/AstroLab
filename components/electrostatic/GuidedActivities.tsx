@@ -24,9 +24,10 @@ import {
 } from "../../models/electrostatic-learning.ts";
 import { initialRuntime, particleReadout, probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import type { PredictionMarker } from "./guidedPrediction.ts";
-import { guidedProgress } from "./guidedProgress.ts";
+import { guidedProgress, subtaskHeading } from "./guidedProgress.ts";
 import { guidedFocusFor } from "./guidedFocus.ts";
 import { formatValue } from "./ProbePanel";
+import { Tex } from "@/components/math/MathJax";
 import CompassChooser from "./CompassChooser";
 import styles from "./ElectrostaticFieldLab.module.css";
 
@@ -36,20 +37,9 @@ const COMPASS_LABEL: Record<Compass, string> = {
 const CHANGE_LABEL: Record<Change, string> = { same: "不變", reverse: "反向", double: "加倍", half: "減半" };
 const TRAJECTORY_LABEL: Record<TrajectoryTurn, string> = { left: "向左偏轉", straight: "維持直線", right: "向右偏轉" };
 
-const ACTIVITY_TITLE: Record<ActivityId, string> = {
-  A: "兩個電場會往哪裡？",
-  B: "對稱會留下什麼？",
-  C: "從電場到運動",
-};
-const ACTIVITY_TAB: Record<ActivityId, string> = { A: "任務一", B: "任務二", C: "任務三" };
-
-/**
- * Task wording is part of the answer-leak surface: B's own topic ("零場") is one of the options
- * the learner must choose between, so the heading stays neutral until the prediction is committed.
- */
-function taskTitle(state: LearningState): string {
-  return ACTIVITY_TITLE[state.activity];
-}
+const ACTIVITY_TAB: Record<ActivityId, string> = { A: "1 合場方向", B: "2 對稱", C: "3 場與運動" };
+const ACTIVITY_NAME: Record<ActivityId, string> = { A: "合場方向", B: "對稱", C: "場與運動" };
+const ACTIVITY_NUMBER: Record<ActivityId, number> = { A: 1, B: 2, C: 3 };
 
 export interface GuidedHandlers {
   readonly onCommitDirection: (prediction: DirectionPrediction) => void;
@@ -88,7 +78,7 @@ function RadioGroup<T extends string>(props: {
   return (
     <fieldset className={styles.controlGroup}>
       <legend>{props.legend}</legend>
-      <div className={styles.choiceGrid}>
+      <div className={styles.choiceGrid} data-count={props.options.length}>
         {props.options.map((option) => (
           <label key={option} className={styles.choice}>
             <input
@@ -262,6 +252,46 @@ function AExplainForm({ onSubmit }: { readonly onSubmit: (e: AExplanation) => vo
   );
 }
 
+/** 2-2: start from the already-broken symmetry, hunt for the new zero, and only then explain. */
+function BManipulate(props: {
+  readonly field: ReturnType<typeof probeReadout>;
+  readonly setup: ElectrostaticSetup;
+  readonly onSourceMagnitude: (id: string, magnitude_nC: number) => void;
+  readonly onExplainB: (explanation: BExplanation) => void;
+}) {
+  const [explaining, setExplaining] = useState(false);
+  const s1 = props.setup.sources.find((source) => source.id === "s1");
+  const s2 = props.setup.sources.find((source) => source.id === "s2");
+  return (
+    <div className={styles.guidedForm}>
+      <p className={styles.guidedPrompt}>
+        現在左側電荷是 {s1 ? formatValue(s1.q_C / 1e-9, "nC") : "—"}、右側是 {s2 ? formatValue(s2.q_C / 1e-9, "nC") : "—"}，對稱被打破了。
+        拖曳測量點，找出合電場最接近 0 的位置。
+      </p>
+      <LiveMagnitude field={props.field} />
+      {s2 ? (
+        <div className={styles.guidedMagnitudeControl}>
+          <label htmlFor="guided-s2-magnitude">想試試別的？調整右側電荷大小</label>
+          <span className={styles.guidedMagnitudeField}>
+            <input
+              id="guided-s2-magnitude"
+              type="number" min="1" max="5" step="0.5"
+              value={Math.abs(s2.q_C) * 1e9}
+              onChange={(event) => props.onSourceMagnitude("s2", Number(event.target.value))}
+              aria-label="右側電荷大小（nC）"
+              data-testid="guided-s2-magnitude"
+            />
+            <span aria-hidden="true" data-testid="guided-s2-unit">nC</span>
+          </span>
+        </div>
+      ) : null}
+      {explaining
+        ? <BExplainForm onSubmit={props.onExplainB} />
+        : <button type="button" className={styles.shareButton} onClick={() => setExplaining(true)} data-testid="found-zero">我找到了，說明原因</button>}
+    </div>
+  );
+}
+
 function BExplainForm({ onSubmit }: { readonly onSubmit: (e: BExplanation) => void }) {
   const [value, setValue] = useState<BExplanation | null>(null);
   const labels: Record<BExplanation, string> = {
@@ -271,7 +301,7 @@ function BExplainForm({ onSubmit }: { readonly onSubmit: (e: BExplanation) => vo
   };
   return (
     <form className={styles.guidedForm} onSubmit={(event) => { event.preventDefault(); if (value) onSubmit(value); }}>
-      <RadioGroup legend="原本的零場點為什麼不再在中點？" name="explain-b" options={Object.keys(labels) as BExplanation[]} labels={labels} value={value} onChange={setValue} />
+      <RadioGroup legend="原本的中點為什麼不再是零場點？" name="explain-b" options={Object.keys(labels) as BExplanation[]} labels={labels} value={value} onChange={setValue} />
       <button type="submit" className={styles.shareButton} disabled={!value} data-testid="submit-explanation">提交說明，換個情境</button>
     </form>
   );
@@ -280,12 +310,12 @@ function BExplainForm({ onSubmit }: { readonly onSubmit: (e: BExplanation) => vo
 /** Task-card hero for B's manipulation: the model's own |E| for the current probe position. */
 function LiveMagnitude({ field }: { readonly field: ReturnType<typeof probeReadout> }) {
   if (!field.valid) {
-    return <div className={styles.heroReadout} data-testid="guided-live-e" data-state="invalid"><span>|E|</span><small>測量點太靠近源電荷（灰色核心內），移出後才有讀值。</small></div>;
+    return <div className={styles.heroReadout} data-testid="guided-live-e" data-state="invalid"><span>合電場大小</span><small>測量點太靠近源電荷（灰色核心內），移出後才有讀值。</small></div>;
   }
   return (
     <div className={styles.heroReadout} data-testid="guided-live-e" data-state={field.isZero ? "zero" : "nonzero"}>
-      <span>現在測量點的 |E|（合電場大小）</span>
-      <strong data-testid="guided-live-e-value">{formatValue(field.magnitude_N_per_C, "N/C")}</strong>
+      <span>合電場大小</span>
+      <p className={styles.heroLine}><Tex>{"|\\vec E| ="}</Tex> <strong data-testid="guided-live-e-value">{formatValue(field.magnitude_N_per_C, "N/C")}</strong></p>
       <small>{field.isZero ? "已達零場：方向未定義。" : "讓這個數字越接近 0 越好。"}</small>
     </div>
   );
@@ -297,7 +327,7 @@ function stepLabel(state: LearningState): string {
   }
   return {
     predict: "先預測", observe: "看結果", explain: "說明原因", manipulate: "動手找規律",
-    "transfer-predict": "換個情境再預測", "transfer-observe": "換個情境看結果", complete: "完成",
+    "transfer-predict": "先預測", "transfer-observe": "看結果", complete: "完成",
   }[state.step];
 }
 
@@ -305,7 +335,7 @@ function TaskProgress({ state }: { readonly state: LearningState }) {
   const { stages, current, total } = guidedProgress(state);
   const progressKind = state.activity === "C" ? "小題" : "情境";
   return (
-    <nav className={styles.taskProgress} aria-label={`${ACTIVITY_TAB[state.activity]}進度`} data-testid="task-progress" data-activity={state.activity} data-stage={current} data-count={total}>
+    <nav className={styles.taskProgress} aria-label={`任務 ${ACTIVITY_NUMBER[state.activity]}：${ACTIVITY_NAME[state.activity]}進度`} data-testid="task-progress" data-activity={state.activity} data-stage={current} data-count={total}>
       <ol style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}>
         {stages.map((label, index) => {
           const position = index + 1;
@@ -331,10 +361,13 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
   const { learning, setup } = props;
   const headingRef = useRef<HTMLHeadingElement>(null);
   const firstRender = useRef(true);
+  /* Heading focus moves only when a NEW subtask/context starts (tab switch, 1-1 → 1-2, restart),
+   * never for reveals inside the same subtask. */
+  const subtaskKey = `${learning.activity}-${guidedProgress(learning).current}`;
   useEffect(() => {
     if (firstRender.current) { firstRender.current = false; return; }
     headingRef.current?.focus();
-  }, [props.focusToken]);
+  }, [props.focusToken, subtaskKey]);
 
   const focus = guidedFocusFor(learning);
   const formKey = `${learning.activity}-${learning.step}-${"stage" in learning ? learning.stage : ""}`;
@@ -365,7 +398,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
           {learning.reveal < 2 ? (
             <button type="button" onClick={props.onReveal} data-testid="reveal-next">看合電場</button>
           ) : learning.reveal < 3 ? (
-            <button type="button" onClick={props.onReveal} data-testid="reveal-next">看分量</button>
+            <button type="button" onClick={props.onReveal} data-testid="reveal-next">看 x、y 分量</button>
           ) : (
             <>
               <Comparison
@@ -383,7 +416,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
     } else if (learning.step === "explain") {
       body = (
         <>
-          <p className={styles.helperText}>對照測量點表格裡每個來源的 Eₓ、Eᵧ 正負號。</p>
+          <p className={styles.helperText}>對照下方分量表裡每個來源 Eₓ、Eᵧ 的正負號。</p>
           <AExplainForm key={formKey} onSubmit={props.onExplainA} />
         </>
       );
@@ -433,30 +466,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
         </div>
       );
     } else if (learning.step === "manipulate") {
-      const s2 = setup.sources.find((source) => source.id === "s2");
-      body = (
-        <div className={styles.guidedForm}>
-          <p className={styles.guidedPrompt}>拖曳測量點，找出合電場接近 0 的位置。這一步不移動源電荷。</p>
-          <LiveMagnitude field={field} />
-          {s2 ? (
-            <div className={styles.guidedMagnitudeControl}>
-              <label htmlFor="guided-s2-magnitude">右側電荷大小</label>
-              <span className={styles.guidedMagnitudeField}>
-                <input
-                  id="guided-s2-magnitude"
-                  type="number" min="1" max="5" step="0.5"
-                  value={Math.abs(s2.q_C) * 1e9}
-                  onChange={(event) => props.onSourceMagnitude("s2", Number(event.target.value))}
-                  aria-label="右側電荷大小（nC）"
-                  data-testid="guided-s2-magnitude"
-                />
-                <span aria-hidden="true" data-testid="guided-s2-unit">nC</span>
-              </span>
-            </div>
-          ) : null}
-          <BExplainForm key={formKey} onSubmit={props.onExplainB} />
-        </div>
-      );
+      body = <BManipulate key={formKey} field={field} setup={setup} onSourceMagnitude={props.onSourceMagnitude} onExplainB={props.onExplainB} />;
     } else {
       body = <CompletePanel onExplore={props.onExplore} />;
     }
@@ -466,9 +476,6 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
 
   return (
     <section className={styles.guidedPanel} aria-labelledby="guided-task-heading" data-testid="guided-panel" data-activity={learning.activity} data-step={learning.step}>
-      <div className={styles.sectionHeading}>
-        <p>探索任務 · {stepLabel(learning)}</p>
-      </div>
       <nav className={styles.activityTabs} aria-label="引導活動">
         {(["A", "B", "C"] as const).map((id) => (
           <button
@@ -477,11 +484,15 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
             aria-current={learning.activity === id ? "step" : undefined}
             className={learning.activity === id ? styles.activeButton : undefined}
             onClick={() => props.onSwitch(id)}
+            aria-label={`任務 ${ACTIVITY_NUMBER[id]}：${ACTIVITY_NAME[id]}`}
             data-testid={`activity-${id}`}
           >{ACTIVITY_TAB[id]}</button>
         ))}
       </nav>
-      <h2 id="guided-task-heading" ref={headingRef} tabIndex={-1} className={styles.guidedHeading}>{taskTitle(learning)}</h2>
+      <div className={styles.headingRow}>
+        <h2 id="guided-task-heading" ref={headingRef} tabIndex={-1} className={styles.guidedHeading} data-testid="guided-subtask">{subtaskHeading(learning)}</h2>
+        <span className={styles.phaseChip} data-testid="guided-phase">{stepLabel(learning)}</span>
+      </div>
       <TaskProgress state={learning} />
       <p className={styles.focusInstruction} data-testid="guided-focus" data-focus-target={focus.target} data-focus-key={focus.key}>
         <span className={styles.focusBadge}>現在看這裡</span>{focus.instruction}
@@ -617,14 +628,30 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
       </>
     );
   }
+  const CObservePrompt: Record<"c1" | "c2" | "c3", string> = {
+    c1: "用測量讀值比較 E、F、a 的方向。",
+    c2: "和上一個設定相比，E、F、a 哪個不變、哪個反向？",
+    c3: "和上一個設定相比，E、F、a 哪個不變、哪個改變？",
+  };
+  if (stage === "c4") {
+    /* 3-4 is about v, a and the bending path: play first, then compare with the prediction. */
+    const played = props.runtime.macroSteps > 0;
+    return (
+      <div className={styles.guidedForm}>
+        <p className={styles.guidedPrompt}>v 決定現在往哪走；a 改變 v；所以路徑會逐漸彎曲。</p>
+        {played ? verdict : <p className={styles.helperText} data-testid="c4-play-first">按播放（或 +0.1s）看看軌跡，再和你的預測比較。</p>}
+        {played ? (
+          <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">完成任務三</button>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <div className={styles.guidedForm}>
-      <p className={styles.guidedPrompt}>用測量讀值比較 E、F、a：E 由來源與位置決定；F 依賴 q；a 依賴 q/m。</p>
+      <p className={styles.guidedPrompt}>{CObservePrompt[stage]}</p>
       <ParticleReadoutLink />
       {verdict}
-      <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">
-        {stage === "c4" ? "完成任務三" : "下一步"}
-      </button>
+      <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">下一步</button>
     </div>
   );
 }
