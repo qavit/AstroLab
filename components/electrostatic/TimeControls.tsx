@@ -19,12 +19,14 @@ interface TimeControlsProps {
   readonly onSeek: (macroSteps: number) => void;
   readonly onStepForward: () => void;
   readonly onResetRuntime: () => void;
+  /** Guided: playback is the current observation target. */
+  readonly focused?: boolean;
 }
 
 const SPEEDS = [0.25, 0.5, 1, 2] as const;
 const timeOf = (steps: number) => steps / 960;
 const HELP_ID = "electrostatic-transport-help";
-const HELP_TEXT = "空白鍵播放／暫停。拖曳時間軸可回看已經模擬過的部分（淺色區段）；按播放會從目前位置繼續，追上最新狀態後再往前模擬。";
+const HELP_TEXT = "空白鍵播放／暫停。拖曳時間軸可回看已經模擬過的部分；按播放會從目前位置繼續，追上最新狀態後再往前模擬。";
 
 /**
  * A compact single dock (Projectile's `.projectile-transport` grammar): one row, ~34px
@@ -61,7 +63,7 @@ export default function TimeControls(props: TimeControlsProps) {
   };
 
   return (
-    <section className={styles.timeControls} aria-label="時間控制" aria-describedby={HELP_ID} data-testid="time-controls" data-clock-status={runtime.status}>
+    <section className={`${styles.timeControls} ${props.focused ? styles.focusedPanel : ""}`} data-focus={props.focused ? "true" : "false"} aria-label="時間控制" aria-describedby={HELP_ID} data-testid="time-controls" data-clock-status={runtime.status}>
       <div className={styles.transportRow}>
         <button
           type="button"

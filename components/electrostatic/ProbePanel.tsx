@@ -16,6 +16,10 @@ interface ProbePanelProps {
   /** Transient Canvas<->row linkage only; never selection, physics or history. */
   readonly emphasizedSourceId?: string | null;
   readonly onEmphasizeSource?: (id: string | null) => void;
+  /** Guided: this readout is the current observation target. */
+  readonly focused?: boolean;
+  /** Guided B manipulation shows |E| in the task card, so the detailed table is secondary here. */
+  readonly secondary?: boolean;
 }
 
 function GatedProbePanel({ setup }: { readonly setup: ElectrostaticSetup }) {
@@ -28,7 +32,7 @@ function GatedProbePanel({ setup }: { readonly setup: ElectrostaticSetup }) {
   );
 }
 
-export default function ProbePanel({ setup, policy = SANDBOX_POLICY, emphasizedSourceId = null, onEmphasizeSource }: ProbePanelProps) {
+export default function ProbePanel({ setup, policy = SANDBOX_POLICY, emphasizedSourceId = null, onEmphasizeSource, focused = false, secondary = false }: ProbePanelProps) {
   if (!policy.probeContributions) return <GatedProbePanel setup={setup} />;
   const showTotal = policy.probeTotal;
   const showComponents = policy.probeComponents;
@@ -37,7 +41,8 @@ export default function ProbePanel({ setup, policy = SANDBOX_POLICY, emphasizedS
   const state = !readout.valid ? "invalid-core" : !showTotal ? "contributions" : readout.isZero ? "zero" : "valid";
   const emphasize = onEmphasizeSource ?? (() => {});
   return (
-    <section className={styles.readoutPanel} aria-labelledby="probe-panel-title" data-testid="probe-panel" data-probe-state={state}>
+    <section className={`${styles.readoutPanel} ${focused ? styles.focusedPanel : ""}`} aria-labelledby="probe-panel-title" data-testid="probe-panel" data-probe-state={state} data-focus={focused ? "true" : "false"}>
+      {focused ? <span className={styles.focusBadge}>現在看這裡</span> : null}
       <h3 id="probe-panel-title">這裡的電場</h3>
       <p className={styles.probePosition} data-testid="probe-position">x = {setup.probe.x_m.toFixed(3)} m　y = {setup.probe.y_m.toFixed(3)} m</p>
       {!readout.valid ? (
@@ -47,19 +52,19 @@ export default function ProbePanel({ setup, policy = SANDBOX_POLICY, emphasizedS
         </div>
       ) : (
         <>
-          {showTotal ? (
+          {showTotal && !secondary ? (
             <div className={styles.heroReadout}>
               <span><Tex>{"|\\vec E|"}</Tex> 電場大小</span>
               <strong data-testid="total-magnitude">{formatValue(readout.magnitude_N_per_C, "N/C")}</strong>
               <small data-testid="total-direction">{readout.direction_rad === null ? "合電場為零，因此沒有方向" : `方向 ${(readout.direction_rad * 180 / Math.PI).toFixed(1)}°`}</small>
             </div>
-          ) : <p className={styles.helperText}>先比較每顆源電荷造成的電場；下一步才會顯示合電場。</p>}
+          ) : !showTotal ? <p className={styles.helperText}>先比較每顆源電荷造成的電場；下一步才會顯示合電場。</p> : null}
           {/* One advanced disclosure: per-source contributions and the resultant's x/y components
               are the same layer of detail, so they no longer compete as separate summaries. */}
           <details className={styles.readoutDetails}>
-            <summary>看電場是怎麼由各來源相加而成</summary>
+            <summary>{secondary ? "細節：各來源的貢獻" : "看電場是怎麼由各來源相加而成"}</summary>
             {readout.contributions.length > 1 ? (
-              <p className={styles.helperText}>畫布上的向量以同一比例縮放，方便比較相加關係；實際大小請以 N/C 讀值為準。</p>
+              <p className={styles.helperText}>測量點旁的彩色貢獻向量使用同一線性比例，因此可以直接看它們怎麼相加；背景的小箭頭則是非線性顯示。實際大小請以 N/C 讀值為準。</p>
             ) : null}
             <div className={styles.tableWrap}>
               <table className={styles.probeTable}>

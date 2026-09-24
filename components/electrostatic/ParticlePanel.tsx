@@ -8,6 +8,8 @@ interface ParticlePanelProps {
   readonly setup: ElectrostaticSetup;
   readonly runtime: ElectrostaticRuntime;
   readonly policy?: EvidencePolicy;
+  /** Guided: this readout is the current observation target. */
+  readonly focused?: boolean;
 }
 
 function vectorRow(name: string, symbol: string, unit: string, x: number, y: number, testId: string) {
@@ -18,14 +20,15 @@ function vectorRow(name: string, symbol: string, unit: string, x: number, y: num
   );
 }
 
-export default function ParticlePanel({ setup, runtime, policy = SANDBOX_POLICY }: ParticlePanelProps) {
+export default function ParticlePanel({ setup, runtime, policy = SANDBOX_POLICY, focused = false }: ParticlePanelProps) {
   const readout = particleReadout(setup, runtime);
   const anyEvidence = policy.particleField || policy.particleForce || policy.particleAcceleration;
   const motionAvailable = policy.timeControls;
   const { particle } = runtime;
   return (
     <section
-      className={styles.readoutPanel}
+      className={`${styles.readoutPanel} ${focused ? styles.focusedPanel : ""}`}
+      data-focus={focused ? "true" : "false"}
       aria-labelledby="particle-panel-title"
       data-testid="particle-panel"
       data-t-s={particle.t_s}
@@ -36,6 +39,7 @@ export default function ParticlePanel({ setup, runtime, policy = SANDBOX_POLICY 
       data-macro-steps={runtime.macroSteps}
       data-clock-status={runtime.status}
     >
+      {focused ? <span className={styles.focusBadge}>現在看這裡</span> : null}
       <h3 id="particle-panel-title" data-testid="particle-panel-title">{motionAvailable ? "測試電荷的運動讀值" : "此位置的測試電荷讀值"}</h3>
       {motionAvailable ? (
         <dl className={styles.statusStrip}>

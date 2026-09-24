@@ -53,6 +53,8 @@ interface FieldCanvasProps {
   /** Learner-facing labels derived from the visible guided setup, never from a model readout. */
   readonly guidedSemantics: GuidedCanvasSemantics;
   /** Guided-only: a one-shot attention cue; remounted (and replayed) whenever `key` changes. */
+  /** Persistent, static halo on the guided observation target (never animated). */
+  readonly focusAnchor: "probe" | "particle" | null;
   readonly attentionCue: { readonly anchor: "probe" | "particle"; readonly key: string } | null;
 }
 
@@ -67,7 +69,7 @@ const FIXED_HINT = "此任務中位置固定";
 export default function FieldCanvas(props: FieldCanvasProps) {
   const { setup, runtime, policy, selected, onSelect, onMove, onDragStart } = props;
   const { tool, onPlace, onDelete, onExitTool, layersOpen, onLayersOpenChange, layersTriggerRef } = props;
-  const { emphasizedSourceId, onSourceHover, predictionMarkers, guidedSemantics, attentionCue } = props;
+  const { emphasizedSourceId, onSourceHover, predictionMarkers, guidedSemantics, attentionCue, focusAnchor } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -197,6 +199,13 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     PREDICTION_ARROW_LENGTH_PX,
   ), [predictionMarkers, camera, setup.probe.x_m, setup.probe.y_m, setup.testParticle.x_m, setup.testParticle.y_m]);
 
+  const focusHaloPoint = useMemo(() => {
+    if (!focusAnchor) return null;
+    return focusAnchor === "probe"
+      ? worldToScreen({ x: setup.probe.x_m, y: setup.probe.y_m }, camera)
+      : worldToScreen({ x: setup.testParticle.x_m, y: setup.testParticle.y_m }, camera);
+  }, [focusAnchor, camera, setup.probe.x_m, setup.probe.y_m, setup.testParticle.x_m, setup.testParticle.y_m]);
+
   const attentionCuePoint = useMemo(() => {
     if (!attentionCue) return null;
     return attentionCue.anchor === "probe"
@@ -319,7 +328,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         <button type="button" onClick={() => setView((current) => zoomView(current, 1.25))} aria-label="放大" title="放大" data-testid="zoom-in"><ZoomIn size={18} aria-hidden="true" /></button>
         <button type="button" onClick={() => setView(INITIAL_CAMERA_VIEW)} aria-label="回到完整視圖" title="回到完整視圖" data-testid="view-home"><House size={18} aria-hidden="true" /></button>
       </div>
-      {tipOpen ? <div className={styles.canvasTip} data-testid="canvas-tip"><span>箭頭指出電場方向，明暗與長度表示強弱。</span><button type="button" className={styles.canvasTipClose} onClick={() => setTipOpen(false)} aria-label="關閉畫布說明" title="關閉"><X size={14} aria-hidden="true" /></button></div> : <button type="button" className={styles.canvasHelp} onClick={() => setTipOpen(true)} aria-label="開啟畫布說明" title="畫布說明" data-testid="canvas-help"><HelpCircle size={18} aria-hidden="true" /></button>}
+      {tipOpen ? <div className={styles.canvasTip} data-testid="canvas-tip"><span>箭頭指出電場方向；背景箭頭的明暗與長度是非線性的強弱示意。</span><button type="button" className={styles.canvasTipClose} onClick={() => setTipOpen(false)} aria-label="關閉畫布說明" title="關閉"><X size={14} aria-hidden="true" /></button></div> : <button type="button" className={styles.canvasHelp} onClick={() => setTipOpen(true)} aria-label="開啟畫布說明" title="畫布說明" data-testid="canvas-help"><HelpCircle size={18} aria-hidden="true" /></button>}
       <AccessibleObjects
         camera={camera}
         sources={setup.sources}
@@ -363,6 +372,9 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       {/* One-shot attention cue: remounted (key = attentionCue.key) whenever new evidence appears,
           so the CSS animation replays; prefers-reduced-motion turns the animation off in CSS,
           leaving the evidence itself unaffected. */}
+      {focusAnchor && focusHaloPoint && (focusAnchor === "probe" ? showProbe : showParticle) ? (
+        <div className={styles.focusHalo} data-testid="guided-focus-halo" data-focus-anchor={focusAnchor} style={{ left: focusHaloPoint.x, top: focusHaloPoint.y }} aria-hidden="true" />
+      ) : null}
       {attentionCue && attentionCuePoint ? (
         <div
           key={attentionCue.key}

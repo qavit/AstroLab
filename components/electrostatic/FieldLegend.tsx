@@ -7,7 +7,7 @@ export default function FieldLegend() {
         <p>畫面圖例</p>
         <h2 id="field-legend-title">怎麼看箭頭</h2>
       </div>
-      <p className={styles.legendScale}>方向看箭頭；長度與明暗用同一套尺度表示強弱。測量數值不會被截斷。</p>
+      <p className={styles.legendScale}>背景的小箭頭使用非線性顯示尺度，方便同時看見強場與弱場；方向才是重點。測量數值不會被截斷。</p>
       <ul className={styles.legendList}>
         <li><span className={`${styles.legendGlyph} ${styles.zeroGlyph}`} aria-hidden="true">＋</span><span><strong>零場／近零場</strong><small>方向未定義</small></span></li>
         <li><span className={`${styles.legendGlyph} ${styles.lowGlyph}`} aria-hidden="true">⇢</span><span><strong>很弱的電場</strong><small>用空心虛線箭頭提醒</small></span></li>

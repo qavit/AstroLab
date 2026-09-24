@@ -55,6 +55,7 @@ import {
   type ActivityId,
   type LearningState,
 } from "../models/electrostatic-learning.ts";
+import { guidedFocusFor } from "./electrostatic/guidedFocus.ts";
 import { attentionCueFor, committedPredictionMarkers, type PredictionMarker } from "./electrostatic/guidedPrediction.ts";
 import { guidedCanvasSemantics } from "./electrostatic/guidedCanvasSemantics.ts";
 
@@ -541,6 +542,25 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
    * carries the answer, so the Canvas keeps showing it through the compare/observe steps too. */
   const predictionMarkers = livePreview.length > 0 ? livePreview : learning ? committedPredictionMarkers(learning) : [];
   const attentionCue = learning ? attentionCueFor(learning) : null;
+  const focus = learning ? guidedFocusFor(learning) : null;
+  const focusKey = focus?.key ?? null;
+  const focusTarget = focus?.target ?? null;
+
+  /** On a guided transition, bring the newly relevant region into view — only when it is off
+   * screen (`nearest`), only when the step changes, and never on the first render. */
+  const previousFocusKey = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = previousFocusKey.current;
+    previousFocusKey.current = focusKey;
+    if (previous === null || focusKey === null || previous === focusKey) return;
+    if (typeof window === "undefined" || !window.matchMedia("(max-width: 900px)").matches) return;
+    const selector = focusTarget === "probe-readout" ? '[data-testid="probe-panel"]'
+      : focusTarget === "particle-readout" ? '[data-testid="particle-panel"]'
+        : focusTarget === "time-controls" ? '[data-testid="time-controls"]'
+          : focusTarget === "probe-on-canvas" || focusTarget === "particle-on-canvas" ? '[data-testid="field-viewport"]'
+            : '[data-testid="guided-panel"]';
+    document.querySelector(selector)?.scrollIntoView({ block: "nearest" });
+  }, [focusKey, focusTarget]);
 
   const shareSetup = async () => {
     const result = createShareUrl(setup, window.location.href);
@@ -646,6 +666,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               predictionMarkers={predictionMarkers}
               guidedSemantics={canvasSemantics}
               attentionCue={attentionCue}
+              focusAnchor={focus?.canvasAnchor ?? null}
             />
           </section>
 
@@ -661,6 +682,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
                 onSeek={seekTo}
                 onStepForward={stepForward}
                 onResetRuntime={resetRuntime}
+                focused={focus?.target === "time-controls"}
               />
             : null}
         </div>
@@ -705,8 +727,15 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               onPreview={setLivePreview}
             />
             {learning.activity === "C"
-              ? <ParticlePanel setup={setup} runtime={runtime} policy={policy} />
-              : <ProbePanel setup={setup} policy={policy} emphasizedSourceId={emphasizedSourceId} onEmphasizeSource={setEmphasizedSourceId} />}
+              ? <ParticlePanel setup={setup} runtime={runtime} policy={policy} focused={focus?.target === "particle-readout"} />
+              : <ProbePanel
+                  setup={setup}
+                  policy={policy}
+                  emphasizedSourceId={emphasizedSourceId}
+                  onEmphasizeSource={setEmphasizedSourceId}
+                  focused={focus?.target === "probe-readout"}
+                  secondary={learning.activity === "B" && learning.step === "manipulate"}
+                />}
             </>
           ) : <Controls
             setup={setup}
@@ -734,7 +763,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       {modelInfoOpen ? <ModelInfoOverlay onClose={() => setModelInfoOpen(false)} /> : null}
 
       <footer className={styles.footer}>
-        {learning ? null : <span>schema v1 · 分享只保存起始物理設定</span>}
+        {learning ? null : <span>分享連結只保存起始設定</span>}
         <span>點電荷模型只在每顆電荷的灰色核心之外使用</span>
       </footer>
     </main></MathProvider>

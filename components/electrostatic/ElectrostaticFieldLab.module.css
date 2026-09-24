@@ -601,3 +601,21 @@
   .labShell *::before,
   .labShell *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
+
+/* Guided attention: a persistent, static "look here" treatment. Nothing here animates, so
+   prefers-reduced-motion keeps exactly the same cue. */
+.focusInstruction { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin: 10px 0; padding: 9px 12px; border-left: 4px solid #d9a735; border-radius: 0 7px 7px 0; background: #fff8e6; color: #3d3418; font-size: 14px; line-height: 1.55; }
+.focusBadge { display: inline-block; padding: 1px 8px; border-radius: 999px; background: #d9a735; color: #2b2410; font-size: 11px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+.focusedPanel { border-left: 4px solid #d9a735; background: #fffcf3; }
+.focusHalo {
+  position: absolute;
+  z-index: 5;
+  width: 40px;
+  height: 40px;
+  margin-left: -20px;
+  margin-top: -20px;
+  border-radius: 50%;
+  border: 3px solid #ffd66f;
+  box-shadow: 0 0 0 2px rgba(20, 38, 50, .55);
+  pointer-events: none;
+}

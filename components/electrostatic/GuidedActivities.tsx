@@ -25,6 +25,8 @@ import {
 import { initialRuntime, particleReadout, probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import type { PredictionMarker } from "./guidedPrediction.ts";
 import { guidedProgress } from "./guidedProgress.ts";
+import { guidedFocusFor } from "./guidedFocus.ts";
+import { formatValue } from "./ProbePanel";
 import CompassChooser from "./CompassChooser";
 import styles from "./ElectrostaticFieldLab.module.css";
 
@@ -219,7 +221,7 @@ function Comparison(props: { readonly answer: string; readonly model: string | n
   const match = model !== null && answer === model;
   return (
     <section className={styles.comparisonCard} data-testid="prediction-verdict" data-match={match ? "true" : "false"}>
-      <FeedbackStatus match={match} matchMessage="你的選擇和模型一致。" mismatchMessage={mismatchGuidance ?? "先比較你的選擇和模型結果。"} />
+      <FeedbackStatus match={match} matchMessage="你的選擇和模型一致。" mismatchMessage={mismatchGuidance ?? "看下面兩欄：你的方向和模型的方向差在哪裡？"} />
       <dl className={styles.comparisonGrid}>
       <div><dt>你的答案</dt><dd>{answer}</dd></div>
       <div><dt>模型結果</dt><dd>{model ?? "未定義"}</dd></div>
@@ -231,7 +233,7 @@ function Comparison(props: { readonly answer: string; readonly model: string | n
 }
 
 function ParticleReadoutLink() {
-  return <a className={styles.readoutLink} href="#particle-panel-title" data-testid="particle-readout-link">查看下方讀值：E、F、a</a>;
+  return <a className={styles.readoutLink} href="#particle-panel-title" data-testid="particle-readout-link">查看測量讀值：E、F、a</a>;
 }
 
 const VERDICT_WORD: Record<ComponentVerdict, string> = { cancel: "部分抵消", add: "同向相加" };
@@ -272,6 +274,20 @@ function BExplainForm({ onSubmit }: { readonly onSubmit: (e: BExplanation) => vo
       <RadioGroup legend="原本的零場點為什麼不再在中點？" name="explain-b" options={Object.keys(labels) as BExplanation[]} labels={labels} value={value} onChange={setValue} />
       <button type="submit" className={styles.shareButton} disabled={!value} data-testid="submit-explanation">提交說明，換個情境</button>
     </form>
+  );
+}
+
+/** Task-card hero for B's manipulation: the model's own |E| for the current probe position. */
+function LiveMagnitude({ field }: { readonly field: ReturnType<typeof probeReadout> }) {
+  if (!field.valid) {
+    return <div className={styles.heroReadout} data-testid="guided-live-e" data-state="invalid"><span>|E|</span><small>測量點太靠近源電荷（灰色核心內），移出後才有讀值。</small></div>;
+  }
+  return (
+    <div className={styles.heroReadout} data-testid="guided-live-e" data-state={field.isZero ? "zero" : "nonzero"}>
+      <span>現在測量點的 |E|（合電場大小）</span>
+      <strong data-testid="guided-live-e-value">{formatValue(field.magnitude_N_per_C, "N/C")}</strong>
+      <small>{field.isZero ? "已達零場：方向未定義。" : "讓這個數字越接近 0 越好。"}</small>
+    </div>
   );
 }
 
@@ -320,6 +336,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
     headingRef.current?.focus();
   }, [props.focusToken]);
 
+  const focus = guidedFocusFor(learning);
   const formKey = `${learning.activity}-${learning.step}-${"stage" in learning ? learning.stage : ""}`;
   const field = probeReadout(setup);
   const modelDirection = probeCompass(field);
@@ -344,7 +361,7 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
       const predicted = learning.step === "observe" ? learning.prediction : learning.transferPrediction;
       body = (
         <div className={styles.guidedForm}>
-          <p className={styles.guidedPrompt}>你的預測是{COMPASS_LABEL[predicted.direction]}。現在逐層查看畫布上的證據。</p>
+          <p className={styles.guidedPrompt}>你的預測是{COMPASS_LABEL[predicted.direction]}。</p>
           {learning.reveal < 2 ? (
             <button type="button" onClick={props.onReveal} data-testid="reveal-next">看合電場</button>
           ) : learning.reveal < 3 ? (
@@ -419,7 +436,8 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
       const s2 = setup.sources.find((source) => source.id === "s2");
       body = (
         <div className={styles.guidedForm}>
-          <p className={styles.guidedPrompt}>把右側電荷的大小改變，再移動測量點尋找新的零場點。這一步先不移動源電荷。</p>
+          <p className={styles.guidedPrompt}>拖曳測量點，找出合電場接近 0 的位置。這一步不移動源電荷。</p>
+          <LiveMagnitude field={field} />
           {s2 ? (
             <div className={styles.guidedMagnitudeControl}>
               <label htmlFor="guided-s2-magnitude">右側電荷大小</label>
@@ -465,6 +483,9 @@ export default function GuidedActivities(props: GuidedActivitiesProps) {
       </nav>
       <h2 id="guided-task-heading" ref={headingRef} tabIndex={-1} className={styles.guidedHeading}>{taskTitle(learning)}</h2>
       <TaskProgress state={learning} />
+      <p className={styles.focusInstruction} data-testid="guided-focus" data-focus-target={focus.target} data-focus-key={focus.key}>
+        <span className={styles.focusBadge}>現在看這裡</span>{focus.instruction}
+      </p>
       {body}
       <div className={styles.guidedActions}>
         <button type="button" onClick={props.onRestart} data-testid="restart-activity" className={styles.iconButton}>
@@ -527,7 +548,7 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
         answer={COMPASS_LABEL[learning.predictions.c1]}
         model={accel ? COMPASS_LABEL[accel] : null}
         explanation="正測試電荷位於正源電荷左側；該處電場由源電荷向外，因此初始電力與加速度都向左。"
-        mismatchGuidance="先看下方讀值：正測試電荷的電力與加速度會跟電場同方向嗎？"
+        mismatchGuidance="先看測量讀值：正測試電荷的電力與加速度會跟電場同方向嗎？"
       />
     );
   } else if ((stage === "c2" || stage === "c3") && comparisonSetup && readout.valid) {
@@ -544,7 +565,7 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
           <FeedbackStatus
             match={rows.every((row) => predicted[row.key] === row.change)}
             matchMessage="你的三個判斷都和模型一致。"
-            mismatchMessage="先比較下方讀值：哪個量不變？哪個量反向？"
+            mismatchMessage="先比較測量讀值：哪個量不變？哪個量反向？"
           />
           <table className={styles.probeTable} data-testid="change-verdict">
             <caption>和上一個設定相比（由模型讀值判定）</caption>
@@ -598,7 +619,7 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
   }
   return (
     <div className={styles.guidedForm}>
-      <p className={styles.guidedPrompt}>用下方讀值比較 E、F、a：E 由來源與位置決定；F 依賴 q；a 依賴 q/m。</p>
+      <p className={styles.guidedPrompt}>用測量讀值比較 E、F、a：E 由來源與位置決定；F 依賴 q；a 依賴 q/m。</p>
       <ParticleReadoutLink />
       {verdict}
       <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">
