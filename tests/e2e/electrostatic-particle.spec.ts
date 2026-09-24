@@ -89,6 +89,8 @@ test("test-charge initial edits invalidate history and invalid drafts retain the
 
 test("Space provides keyboard parity for play and pause", async ({ page }) => {
   await page.getByTestId("field-viewport").click({ position: { x: 20, y: 20 } });
+  // A focused Canvas object owns Space by design; release focus so the global shortcut applies.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.press("Space");
   await expect(page.getByTestId("time-controls")).toHaveAttribute("data-clock-status", "running");
   await page.keyboard.press("Space");

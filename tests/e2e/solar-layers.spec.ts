@@ -5,7 +5,7 @@ test("Solar consumes the shared layer drawer with keyboard-close and working tog
   await page.goto("/solar");
   const layers = page.getByRole("button", { name: "圖層" });
   await layers.click();
-  const drawer = page.getByRole("dialog", { name: "視圖圖層" });
+  const drawer = page.getByRole("dialog", { name: "視圖圖層", includeHidden: true });
   await expect(drawer).toHaveAttribute("aria-hidden", "false");
   const sphere = drawer.getByLabel("天球外框");
   const before = await sphere.isChecked();
@@ -18,8 +18,8 @@ test("Solar consumes the shared layer drawer with keyboard-close and working tog
 test("Solar shared Layers drawer returns focus and hides closed controls from Tab", async ({ page }) => {
   await page.goto("/solar");
   const trigger = page.getByRole("button", { name: "圖層" });
-  const drawer = page.getByRole("dialog", { name: "視圖圖層" });
-  const close = drawer.getByRole("button", { name: "關閉圖層" });
+  const drawer = page.getByRole("dialog", { name: "視圖圖層", includeHidden: true });
+  const close = drawer.getByRole("button", { name: "關閉圖層", includeHidden: true });
 
   await trigger.focus();
   await trigger.press("Enter");

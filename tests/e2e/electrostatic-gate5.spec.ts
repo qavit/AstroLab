@@ -19,7 +19,7 @@ test("single source: no construction-scale sentence, and vectors don't fabricate
   await openFree(page);
   await page.getByTestId("probe-handle").click();
   await page.getByTestId("probe-panel").locator("summary").click();
-  await expect(page.getByTestId("probe-panel")).not.toContainText("畫布上的向量以同一比例縮放");
+  await expect(page.getByTestId("probe-panel")).not.toContainText("使用同一線性比例");
   // One source: contribution === resultant, so at most 2 draws (they may coincide), never more.
   const count = Number(await page.getByTestId("field-viewport").getAttribute("data-probe-vectors"));
   expect(count).toBeLessThanOrEqual(2);
@@ -30,7 +30,7 @@ test("two sources: shared-scale sentence appears, and both contributions plus th
   await applyPreset(page, "dipole");
   await page.getByTestId("probe-handle").click();
   await page.getByTestId("probe-panel").locator("summary").click();
-  await expect(page.getByTestId("probe-panel")).toContainText("畫布上的向量以同一比例縮放");
+  await expect(page.getByTestId("probe-panel")).toContainText("使用同一線性比例");
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-probe-vectors", "3");
 });
 

@@ -146,10 +146,23 @@ pauses, restores the latest checkpoint at or before the target, then replays pos
 targets beyond `maxSimulatedSteps` are rejected. Playback speed changes wall-clock scheduling only.
 Source or test-charge initial edits invalidate this history; measurement-point edits do not.
 
+Playback distinguishes a cursor from the simulated extent. Behind the live edge, Play replays the
+already-simulated trajectory with the same forward-only fixed steps (nothing is recorded); at the
+live edge it extends the simulation and history. ±0.1 s forward steps use existing history first.
+Physics never runs backward, a terminal event fixes the end of the timeline, and the scrubber's
+track is a growing 5 s window so the thumb visibly advances instead of pinning to the right edge.
+
+`/electrostatics/notes` serves the same `components/electrostatic/TheoryNotes.tsx` that the in-lab
+「理論與計算」overlay renders (Projectile pattern: one content component, no second copy). The
+overlay is a modal: focus moves in, Tab is contained, Escape closes and focus returns to the button.
+
 `/electrostatics` opens with an intent choice between a guided task and free exploration. Once a
 guided task begins, evidence is withheld until the learner commits a prediction. Gating is a
 presentation decision only — `models/electrostatic-learning.ts` chooses what is visible, never
-what a value is, and every number still comes from `lib/science/electrostatics`. Any present `s`
+what a value is, and every number still comes from `lib/science/electrostatics`. The guided
+hierarchy is activity (`1 合場方向` / `2 對稱` / `3 場與運動`) → subtask heading (`n-m｜name`,
+from `guidedProgress`) → phase chip; `guidedFocusFor` derives the single "look here" target and
+sentence for each step, purely as presentation. Any present `s`
 parameter bypasses the choice and opens free-exploration
 semantics instead; schema v1 carries the **physical initial setup only** (sources, probe, test
 particle, domain, singularity, integrator, field scale), never the runtime, the trail or any

@@ -88,7 +88,7 @@ test("measurement point exposes compact MathJax readout and natural zero/invalid
   await page.getByTestId("probe-handle").click();
   await expect(page.getByTestId("probe-panel")).toBeVisible();
   await expect(page.getByTestId("total-magnitude")).toContainText("N/C");
-  await expect(page.getByTestId("probe-panel")).toContainText("看電場是怎麼由各來源相加而成");
+  await expect(page.getByTestId("probe-panel")).toContainText("各來源的電場分量");
 
   await page.keyboard.press("Escape");
   await applyPreset(page, "like-pair");

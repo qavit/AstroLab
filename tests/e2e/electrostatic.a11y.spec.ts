@@ -80,9 +80,28 @@ test("status notices never move the Canvas: overlay appears without shifting lay
   await magnitude.press("ControlOrMeta+A");
   await magnitude.pressSequentially("999");
   await magnitude.press("Enter");
-  await expect(page.getByTestId("setup-notice")).toBeVisible();
+  // Out-of-envelope drafts are reported inline on the field (no Canvas-shifting notice).
+  await expect(magnitude).toHaveAttribute("aria-invalid", "true");
 
   const canvasAfter = await page.getByTestId("field-viewport").boundingBox();
   expect(canvasAfter?.y).toBe(canvasBefore?.y);
   expect(canvasAfter?.x).toBe(canvasBefore?.x);
+});
+
+test("@a11y theory modal moves focus in, contains Tab, and returns focus to its button", async ({ page }) => {
+  await page.goto("/electrostatics");
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  await page.getByTestId("choose-sandbox").click();
+  const toggle = page.getByTestId("model-info-toggle");
+  await toggle.click();
+  const dialog = page.getByRole("dialog", { name: "靜電場的理論、模型與計算" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "關閉" })).toBeFocused();
+  for (let i = 0; i < 12; i += 1) {
+    await page.keyboard.press("Tab");
+    expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+  }
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(toggle).toBeFocused();
 });

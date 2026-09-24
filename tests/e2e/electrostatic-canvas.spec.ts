@@ -59,15 +59,15 @@ test("layers are display-only, gated, and viewport Home preserves the physical s
   const source = page.getByTestId("source-handle-s1");
   const sourceName = await source.getAttribute("aria-label");
   await page.getByTestId("layers-toggle").click();
-  await expect(page.getByRole("dialog", { name: "視圖圖層" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "視圖圖層", includeHidden: true })).toBeVisible();
   await page.getByTestId("layers-toggle").click();
-  await expect(page.getByRole("dialog", { name: "視圖圖層" })).toHaveAttribute("aria-hidden", "true");
+  await expect(page.getByRole("dialog", { name: "視圖圖層", includeHidden: true })).toHaveAttribute("aria-hidden", "true");
   await page.getByTestId("layers-toggle").click();
   await page.getByTestId("layer-field").uncheck();
   await expect(viewport).toHaveAttribute("data-field-visible", "false");
   await expect(source).toHaveAttribute("aria-label", sourceName ?? "");
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "視圖圖層" })).toHaveAttribute("aria-hidden", "true");
+  await expect(page.getByRole("dialog", { name: "視圖圖層", includeHidden: true })).toHaveAttribute("aria-hidden", "true");
 
   await page.getByTestId("zoom-in").click();
   await expect(viewport).toHaveAttribute("data-camera-zoom", "1.250");
@@ -79,8 +79,8 @@ test("layers are display-only, gated, and viewport Home preserves the physical s
 test("shared Layers drawer returns focus and keeps its closed controls out of Tab order", async ({ page }) => {
   await openFree(page);
   const trigger = page.getByTestId("layers-toggle");
-  const drawer = page.getByRole("dialog", { name: "視圖圖層" });
-  const close = drawer.getByRole("button", { name: "關閉圖層" });
+  const drawer = page.getByRole("dialog", { name: "視圖圖層", includeHidden: true });
+  const close = drawer.getByRole("button", { name: "關閉圖層", includeHidden: true });
 
   await trigger.focus();
   await trigger.press("Enter");
@@ -204,8 +204,10 @@ test("keyboard tool shortcuts, Escape, exact Arrow movement, and focus affordanc
 
   await source.press("a");
   await expect(viewport).toHaveAttribute("data-tool", "add-source");
+  // The default scene has one source, so delete is refused with a notice rather than armed.
   await source.press("d");
-  await expect(viewport).toHaveAttribute("data-tool", "delete-source");
+  await expect(page.getByTestId("setup-notice")).toContainText("至少要保留一顆");
+  await expect(viewport).toHaveAttribute("data-tool", "select");
   await source.press("a");
   await expect(viewport).toHaveAttribute("data-tool", "add-source");
   await page.keyboard.press("Escape");
