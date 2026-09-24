@@ -115,6 +115,63 @@ account of the one curve that is not a closed form: why quadratic drag has none,
 scheme and step size are, and how the integrator is calibrated against the exact solution it
 generalizes. It follows the `/about` page's pattern, which until now the solar model alone used.
 
+## The electrostatics model
+
+`/electrostatics` (catalogue number 09, still `experimental` in the registry) is the
+platform's first model that pairs a spatial field instrument with a deterministic stepped
+particle, and its assumptions are deliberately narrow.
+
+The sources are **ideal point charges at rest in a plane, and the field is the ordinary
+three-dimensional inverse-square Coulomb field sampled on that plane** — not the logarithmic
+potential of genuinely two-dimensional electrostatics. Sources never move in response to anything,
+and the test particle does not back-react on them, so the field is a fixed function of position;
+that is what makes velocity Verlet a legitimate integrator here rather than a convenience.
+
+The point-charge model has no value at a source, and the product says so instead of hiding it.
+Every source carries a 0.12 m **excluded core**: inside it a field query returns a typed invalid
+result, the probe reports that the model is undefined, and a particle whose step would cross into
+the core stops at the first intersection with the event recorded. Nothing is clamped, softened or
+silently displaced. The world boundary works the same way — first intersection, no bounce, no wrap.
+
+Dynamics are fixed-step and deterministic: a 1/960 s macro step with 1, 2 or 4 bounded substeps
+chosen from the state at the start of the step. The browser only measures elapsed wall time; the
+model converts it into whole macro steps, and a tick owing more than 64 of them auto-pauses as
+behind-realtime rather than enlarging a step or discarding physics time. Simulation time therefore
+only ever advances by steps that actually ran.
+
+The learner transport deliberately hides that numerical step. Its visible ±0.1 s controls map to
+exactly 96 macro steps, while sparse checkpoints are captured every 0.5 s (480 macro steps).
+History is bounded, keeps the initial checkpoint, and never serializes into schema v1. A seek first
+pauses, restores the latest checkpoint at or before the target, then replays positive fixed steps;
+targets beyond `maxSimulatedSteps` are rejected. Playback speed changes wall-clock scheduling only.
+Source or test-charge initial edits invalidate this history; measurement-point edits do not.
+
+Playback distinguishes a cursor from the simulated extent. Behind the live edge, Play replays the
+already-simulated trajectory with the same forward-only fixed steps (nothing is recorded); at the
+live edge it extends the simulation and history. ±0.1 s forward steps use existing history first.
+Physics never runs backward, a terminal event fixes the end of the timeline, and the scrubber's
+track is a growing 5 s window so the thumb visibly advances instead of pinning to the right edge.
+
+`/electrostatics/notes` serves the same `components/electrostatic/TheoryNotes.tsx` that the in-lab
+「理論與計算」overlay renders (Projectile pattern: one content component, no second copy). The
+overlay is a modal: focus moves in, Tab is contained, Escape closes and focus returns to the button.
+
+`/electrostatics` opens with an intent choice between a guided task and free exploration. Once a
+guided task begins, evidence is withheld until the learner commits a prediction. Gating is a
+presentation decision only — `models/electrostatic-learning.ts` chooses what is visible, never
+what a value is, and every number still comes from `lib/science/electrostatics`. The guided
+hierarchy is activity (`1 合場方向` / `2 對稱` / `3 場與運動`) → subtask heading (`n-m｜name`,
+from `guidedProgress`) → phase chip; `guidedFocusFor` derives the single "look here" target and
+sentence for each step, purely as presentation. Any present `s`
+parameter bypasses the choice and opens free-exploration
+semantics instead; schema v1 carries the **physical initial setup only** (sources, probe, test
+particle, domain, singularity, integrator, field scale), never the runtime, the trail or any
+learning state, and an undecodable payload fails closed to a safe preset.
+
+The electrostatics readouts reuse the same self-hosted MathJax provider as the projectile model.
+The implementation now lives at `components/math/MathJax.tsx`; the old projectile module is only a
+compatibility re-export, so there is one provider and no second math runtime.
+
 ## Kakau Lab integration (Stage 0)
 
 This repo (`qavit/AstroLab`) is the technical foundation of **Kakau Lab**, the product's
@@ -129,7 +186,8 @@ machine-readable data. It must never import React, Three.js, or `lucide-react` �
 details (icons, card art, preview images) are stored as string keys, and the mapping from a key
 like `"orbit"` to the actual `Orbit` icon component lives in `components/ModelCatalog.tsx`, the
 one layer allowed to combine data with rendering. `ModelCatalog.tsx` renders entirely from
-`publishedLabs()`; there is no second, hard-coded model list anywhere in the app.
+`publishedLabs()` and, only when a server-side preview flag is enabled, a separate
+`experimentalLabs()` section; there is no second, hard-coded model list anywhere in the app.
 
 The registry also distinguishes *which app* implements a lab. `implementation.app` is either:
 

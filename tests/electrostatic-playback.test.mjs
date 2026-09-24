@@ -17,6 +17,15 @@ import {
 import { decodeSetup } from "../models/electrostatic-serialization.ts";
 import { createShareUrl } from "../components/electrostatic/share.ts";
 import { TRAIL_LIMIT, trailPoint } from "../models/electrostatic-trail.ts";
+import {
+  CHECKPOINT_INTERVAL_STEPS,
+  LEARNER_SEEK_STEPS,
+  MAX_CHECKPOINTS,
+  checkpointCollector,
+  createPlaybackHistory,
+  recordPlayback,
+  seekRuntime,
+} from "../models/electrostatic-history.ts";
 
 const single = ELECTROSTATIC_PRESETS["single-positive"];
 const dipole = ELECTROSTATIC_PRESETS.dipole;
@@ -73,6 +82,65 @@ test("N-02 true render schedules: 30, 60 and 120 Hz over the same 1 s wall time 
     assert.deepEqual(runtime.particle, reference, `${hz} Hz matches ${n} direct stepMacro calls bitwise`);
     assert.ok(runtime.accumulator_s < 1e-12, `${hz} Hz remainder is floating-point only`);
   }
+});
+
+test("D-10 records exact sparse checkpoints and deterministically seeks within maxSimulated history", () => {
+  const setup = { ...ELECTROSTATIC_PRESETS["like-pair"], testParticle: { ...ELECTROSTATIC_PRESETS["like-pair"].testParticle, x_m: 0, y_m: -0.8, vy_mps: 0, q_C: -2.5e-10 } };
+  let runtime = playRuntime(initialRuntime(setup));
+  let history = createPlaybackHistory(runtime);
+  while (runtime.macroSteps < 960) {
+    const candidates = [];
+    runtime = advancePlayback(setup, runtime, 64 * MACRO_DT_S, checkpointCollector(candidates));
+    history = recordPlayback(history, runtime, candidates);
+  }
+  assert.equal(CHECKPOINT_INTERVAL_STEPS, 480);
+  assert.equal(LEARNER_SEEK_STEPS, 96);
+  assert.deepEqual(history.checkpoints.map((item) => item.macroSteps), [0, 480, 960]);
+  assert.equal(history.maxSimulatedSteps, 960);
+
+  for (const target of [0, 96, 479, 480, 777, 960]) {
+    const sought = seekRuntime(setup, history, target);
+    assert.equal(sought.ok, true);
+    if (!sought.ok) continue;
+    assert.equal(sought.runtime.status, "paused");
+    assert.equal(sought.runtime.macroSteps, target);
+    assert.deepEqual(sought.runtime.particle, pureSteps(setup, target));
+  }
+  assert.deepEqual(seekRuntime(setup, history, 961), { ok: false, reason: "outside-history" });
+  assert.deepEqual(seekRuntime(setup, history, -1), { ok: false, reason: "outside-history" });
+});
+
+test("D-10 checkpoint storage is bounded while checkpoint zero remains available", () => {
+  const initial = initialRuntime(single);
+  let history = createPlaybackHistory(initial);
+  for (let index = 1; index <= MAX_CHECKPOINTS + 20; index += 1) {
+    const runtime = { ...initial, macroSteps: index * CHECKPOINT_INTERVAL_STEPS, particle: { ...initial.particle, t_s: index / 2 } };
+    history = recordPlayback(history, runtime, [runtime]);
+  }
+  assert.equal(history.checkpoints.length, MAX_CHECKPOINTS);
+  assert.equal(history.checkpoints[0].macroSteps, 0);
+  assert.equal(history.checkpoints.at(-1).macroSteps, (MAX_CHECKPOINTS + 20) * CHECKPOINT_INTERVAL_STEPS);
+});
+
+test("D-10 terminal events become the exact history boundary", () => {
+  const setup = { ...single, testParticle: { ...single.testParticle, x_m: -0.5, y_m: 0, vx_mps: 1, vy_mps: 0, q_C: -2.5e-10 } };
+  let runtime = playRuntime(initialRuntime(setup));
+  let history = createPlaybackHistory(runtime);
+  while (runtime.status === "running") {
+    const candidates = [];
+    runtime = advancePlayback(setup, runtime, 32 * MACRO_DT_S, checkpointCollector(candidates));
+    history = recordPlayback(history, runtime, candidates);
+  }
+  assert.equal(history.terminalSteps, runtime.macroSteps);
+  assert.equal(history.maxSimulatedSteps, runtime.macroSteps);
+  const terminal = seekRuntime(setup, history, runtime.macroSteps);
+  assert.equal(terminal.ok, true);
+  if (terminal.ok) {
+    assert.equal(terminal.runtime.status, "stopped");
+    assert.deepEqual(terminal.runtime.particle, runtime.particle);
+    assert.deepEqual(terminal.runtime.stop, runtime.stop);
+  }
+  assert.deepEqual(seekRuntime(setup, history, runtime.macroSteps + 1), { ok: false, reason: "outside-history" });
 });
 
 test("D-08 boundary: 64 due steps all run; 65 due runs zero and pauses behind-realtime", () => {
@@ -265,4 +333,100 @@ test("reversing test charge flips F and a but not E; doubling mass halves a", as
   assert.equal(b.acceleration_mps2.y, -a.acceleration_mps2.y);
   assert.deepEqual(c.force_N, a.force_N);
   assert.ok(Math.abs(c.acceleration_mps2.x - a.acceleration_mps2.x / 2) <= 1e-12 * Math.abs(a.acceleration_mps2.x));
+});
+
+/* Gate 7: learner timeline semantics. */
+import {
+  advanceTimeline,
+  stepTimelineForward,
+  timelineHorizonSteps,
+} from "../models/electrostatic-history.ts";
+
+function liveRun(setup, steps) {
+  let runtime = playRuntime(initialRuntime(setup));
+  let history = createPlaybackHistory(runtime);
+  while (runtime.status === "running" && runtime.macroSteps < steps) {
+    ({ runtime, history } = advanceTimeline(setup, history, runtime, 32 * MACRO_DT_S));
+  }
+  return { runtime, history };
+}
+
+test("G7 rewind restores an earlier valid state; replay reuses history and does not extend it", () => {
+  const { runtime, history } = liveRun(dipole, 1000);
+  const rewound = seekRuntime(dipole, history, 300);
+  assert.equal(rewound.ok, true);
+  assert.deepEqual(rewound.runtime.particle, pureSteps(dipole, 300));
+
+  let replay = playRuntime(rewound.runtime);
+  let h = history;
+  while (replay.macroSteps + 16 < history.maxSimulatedSteps) {
+    const before = replay.macroSteps;
+    ({ runtime: replay, history: h } = advanceTimeline(dipole, h, replay, 16 * MACRO_DT_S));
+    assert.ok(replay.macroSteps > before);
+    assert.equal(h, history, "replay never touches history");
+    assert.deepEqual(replay.particle, pureSteps(dipole, replay.macroSteps));
+  }
+  ({ runtime: replay, history: h } = advanceTimeline(dipole, h, replay, (history.maxSimulatedSteps - replay.macroSteps) * MACRO_DT_S));
+  assert.equal(replay.macroSteps, history.maxSimulatedSteps);
+  assert.deepEqual(replay.particle, runtime.particle, "replay lands on the identical stored state");
+});
+
+test("G7 replay hands over to live simulation at the live edge", () => {
+  const { history } = liveRun(dipole, 500);
+  const rewound = seekRuntime(dipole, history, history.maxSimulatedSteps - 10).runtime;
+  const { runtime: after, history: h } = advanceTimeline(dipole, history, playRuntime(rewound), 40 * MACRO_DT_S);
+  assert.ok(after.macroSteps > history.maxSimulatedSteps);
+  assert.equal(h.maxSimulatedSteps, after.macroSteps);
+  assert.deepEqual(after.particle, pureSteps(dipole, after.macroSteps));
+});
+
+test("G7 forward step replays history first, then extends at the live edge", () => {
+  const { history } = liveRun(dipole, 300);
+  const start = seekRuntime(dipole, history, history.maxSimulatedSteps - 40).runtime;
+  const { runtime, history: h } = stepTimelineForward(dipole, history, start);
+  assert.equal(runtime.macroSteps, start.macroSteps + LEARNER_SEEK_STEPS);
+  assert.equal(h.maxSimulatedSteps, runtime.macroSteps);
+  assert.deepEqual(runtime.particle, pureSteps(dipole, runtime.macroSteps));
+  const inside = stepTimelineForward(dipole, history, seekRuntime(dipole, history, 0).runtime);
+  assert.equal(inside.history, history, "stepping inside history does not extend it");
+});
+
+test("G7 reset returns to t = 0 with no stale future history", () => {
+  const { history } = liveRun(dipole, 400);
+  assert.ok(history.maxSimulatedSteps >= 400);
+  const fresh = createPlaybackHistory(initialRuntime(dipole));
+  assert.equal(fresh.maxSimulatedSteps, 0);
+  assert.equal(fresh.terminalSteps, null);
+  assert.deepEqual(seekRuntime(dipole, fresh, 96), { ok: false, reason: "outside-history" });
+  assert.equal(timelineHorizonSteps(fresh) > 0, true);
+});
+
+test("G7 playback speed scales wall time only: 0.25x/2x reach the same trajectory", () => {
+  const trajectory = (speed) => {
+    let runtime = playRuntime(initialRuntime(dipole));
+    let history = createPlaybackHistory(runtime);
+    const wallSeconds = 480 * MACRO_DT_S / speed;
+    for (let i = 0; i < 40; i += 1) ({ runtime, history } = advanceTimeline(dipole, history, runtime, (wallSeconds / 40) * speed));
+    return runtime;
+  };
+  const a = trajectory(0.25), b = trajectory(2);
+  assert.equal(a.macroSteps, b.macroSteps);
+  assert.deepEqual(a.particle, b.particle);
+  assert.deepEqual(a.particle, pureSteps(dipole, a.macroSteps));
+});
+
+test("G7 terminal state stops forward simulation but earlier history stays inspectable", () => {
+  const setup = { ...single, testParticle: { ...single.testParticle, x_m: -0.5, y_m: 0, vx_mps: 1, vy_mps: 0, q_C: -2.5e-10 } };
+  const { runtime, history } = liveRun(setup, 1e9);
+  assert.equal(runtime.status, "stopped");
+  assert.equal(timelineHorizonSteps(history), history.terminalSteps);
+  const stuck = stepTimelineForward(setup, history, runtime);
+  assert.equal(stuck.runtime.macroSteps, runtime.macroSteps);
+  const earlier = seekRuntime(setup, history, Math.floor(runtime.macroSteps / 2));
+  assert.equal(earlier.ok, true);
+  assert.equal(earlier.runtime.status, "paused");
+  const replayed = advanceTimeline(setup, history, playRuntime(earlier.runtime), 5);
+  assert.equal(replayed.runtime.status, "stopped");
+  assert.deepEqual(replayed.runtime.particle, runtime.particle);
+  assert.equal(replayed.history, history);
 });

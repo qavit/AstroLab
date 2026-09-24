@@ -1,3 +1,4 @@
+import { Tex } from "@/components/math/MathJax";
 import { particleReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import { SANDBOX_POLICY, type EvidencePolicy } from "../../models/electrostatic-learning.ts";
 import { formatValue } from "./ProbePanel";
@@ -7,33 +8,27 @@ interface ParticlePanelProps {
   readonly setup: ElectrostaticSetup;
   readonly runtime: ElectrostaticRuntime;
   readonly policy?: EvidencePolicy;
+  /** Guided: this readout is the current observation target. */
+  readonly focused?: boolean;
 }
 
-function vectorRow(label: string, unit: string, x: number, y: number, testId: string) {
+function vectorRow(name: string, symbol: string, unit: string, x: number, y: number, testId: string) {
   return (
     <tr data-testid={testId} data-x={x} data-y={y}>
-      <th scope="row">{label}</th>
-      <td>{formatValue(x)}</td>
-      <td>{formatValue(y)}</td>
-      <td>{formatValue(Math.hypot(x, y))}</td>
-      <td>{unit}</td>
+      <th scope="row">{name}</th><td><Tex>{symbol}</Tex></td><td>{formatValue(Math.hypot(x, y))}</td><td>{unit}</td>
     </tr>
   );
 }
 
-const INVALID_TEXT: Record<string, string> = {
-  "inside-source-core": "粒子位於來源 excluded core 邊界上；點電荷模型在此未定義，不顯示 E／F／a。",
-  "non-finite-input": "粒子狀態不是有限值；不顯示 E／F／a。",
-  "no-sources": "沒有來源電荷；不顯示 E／F／a。",
-};
-
-export default function ParticlePanel({ setup, runtime, policy = SANDBOX_POLICY }: ParticlePanelProps) {
+export default function ParticlePanel({ setup, runtime, policy = SANDBOX_POLICY, focused = false }: ParticlePanelProps) {
   const readout = particleReadout(setup, runtime);
   const anyEvidence = policy.particleField || policy.particleForce || policy.particleAcceleration;
+  const motionAvailable = policy.timeControls;
   const { particle } = runtime;
   return (
     <section
-      className={styles.probePanel}
+      className={`${styles.readoutPanel} ${focused ? styles.focusedPanel : ""}`}
+      data-focus={focused ? "true" : "false"}
       aria-labelledby="particle-panel-title"
       data-testid="particle-panel"
       data-t-s={particle.t_s}
@@ -44,39 +39,36 @@ export default function ParticlePanel({ setup, runtime, policy = SANDBOX_POLICY 
       data-macro-steps={runtime.macroSteps}
       data-clock-status={runtime.status}
     >
-      <div className={styles.sectionHeading}>
-        <p>MODEL-DERIVED PARTICLE EVIDENCE</p>
-        <h2 id="particle-panel-title">測試粒子讀值</h2>
-      </div>
-      <dl className={styles.totalReadout}>
-        <div><dt>t</dt><dd data-testid="particle-time">{particle.t_s.toFixed(4)} s</dd></div>
-        <div><dt>位置</dt><dd data-testid="particle-position">x = {particle.x_m.toFixed(3)} m　y = {particle.y_m.toFixed(3)} m</dd></div>
-        <div><dt>狀態</dt><dd data-testid="particle-status">{runtime.status === "running" ? "播放中" : runtime.status === "stopped" ? "已停止" : "暫停"}</dd></div>
-      </dl>
+      {focused ? <span className={styles.focusBadge}>現在看這裡</span> : null}
+      <h3 id="particle-panel-title" data-testid="particle-panel-title">{motionAvailable ? "測試電荷的運動讀值" : "此位置的測試電荷讀值"}</h3>
+      {motionAvailable ? (
+        <dl className={styles.statusStrip}>
+          <div><dt>時間</dt><dd data-testid="particle-time">{particle.t_s.toFixed(3)} s</dd></div>
+          <div><dt>位置</dt><dd data-testid="particle-position">({particle.x_m.toFixed(2)}, {particle.y_m.toFixed(2)}) m</dd></div>
+          <div><dt>狀態</dt><dd data-testid="particle-status">{runtime.status === "running" ? "運動中" : runtime.status === "stopped" ? "已停下" : "暫停"}</dd></div>
+        </dl>
+      ) : <p className={styles.readoutIntro}>位置固定時的即時物理量；完成後續步驟可觀察運動。</p>}
       <div className={styles.tableWrap}>
         <table className={styles.probeTable}>
-          <caption>目前位置的速度、電場、力與加速度（皆由模型計算）</caption>
-          <thead><tr><th scope="col">量</th><th scope="col">x</th><th scope="col">y</th><th scope="col">大小</th><th scope="col">單位</th></tr></thead>
+          <caption>測試電荷的向量讀值</caption>
+          <thead><tr><th scope="col">物理量</th><th scope="col">符號</th><th scope="col">大小</th><th scope="col">單位</th></tr></thead>
           <tbody>
-            {vectorRow("v", "m/s", particle.vx_mps, particle.vy_mps, "particle-velocity")}
-            {readout.valid ? (
-              <>
-                {policy.particleField ? vectorRow("E", "N/C", readout.field.x, readout.field.y, "particle-field") : null}
-                {policy.particleForce ? vectorRow("F", "N", readout.force_N.x, readout.force_N.y, "particle-force") : null}
-                {policy.particleAcceleration
-                  ? vectorRow("a", "m/s²", readout.acceleration_mps2.x, readout.acceleration_mps2.y, "particle-acceleration")
-                  : null}
-              </>
-            ) : null}
+            {vectorRow("速度", "|\\vec v|", "m/s", particle.vx_mps, particle.vy_mps, "particle-velocity")}
+            {readout.valid && policy.particleField ? vectorRow("所在位置的電場", "|\\vec E|", "N/C", readout.field.x, readout.field.y, "particle-field") : null}
+            {readout.valid && policy.particleForce ? vectorRow("受到的電力", "|\\vec F|", "N", readout.force_N.x, readout.force_N.y, "particle-force") : null}
+            {readout.valid && policy.particleAcceleration ? vectorRow("加速度", "|\\vec a|", "m/s²", readout.acceleration_mps2.x, readout.acceleration_mps2.y, "particle-acceleration") : null}
           </tbody>
         </table>
       </div>
-      {!anyEvidence ? <p className={styles.helperText} data-testid="particle-gated">先送出你的預測，才會顯示 E、F、a。</p> : null}
-      {anyEvidence && !readout.valid ? (
-        <div className={styles.invalidReadout} data-testid="particle-readout-invalid">
-          <strong>E／F／a 未定義</strong>
-          <span>{INVALID_TEXT[readout.reason] ?? "模型在此位置未定義。"}</span>
-        </div>
+      {!anyEvidence ? <p className={styles.helperText} data-testid="particle-gated">先送出你的預測，再核對電場、力與加速度。</p> : null}
+      {anyEvidence && !readout.valid ? <div className={styles.invalidReadout} data-testid="particle-readout-invalid"><strong>這裡無法計算運動</strong><span>測試電荷太靠近源電荷；回到有效位置後再開始。</span></div> : null}
+      {anyEvidence && readout.valid ? (
+        <details className={styles.readoutDetails}>
+          <summary>為什麼三個方向可能不同？</summary>
+          <p><Tex>{"\\vec F = q\\vec E"}</Tex>：電荷為負時，力與電場反向。</p>
+          <p><Tex>{"\\vec a = \\vec F / m"}</Tex>：質量越大，同一個力造成的加速度越小。</p>
+          <p>分量：v = ({formatValue(particle.vx_mps)}, {formatValue(particle.vy_mps)}) m/s；E = ({formatValue(readout.field.x)}, {formatValue(readout.field.y)}) N/C。</p>
+        </details>
       ) : null}
     </section>
   );

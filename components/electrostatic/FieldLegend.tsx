@@ -4,16 +4,16 @@ export default function FieldLegend() {
   return (
     <section className={styles.legend} aria-labelledby="field-legend-title" data-testid="field-legend">
       <div className={styles.sectionHeading}>
-        <p>FIELD SCALE</p>
-        <h2 id="field-legend-title">場強圖例</h2>
+        <p>畫面圖例</p>
+        <h2 id="field-legend-title">怎麼看箭頭</h2>
       </div>
-      <p className={styles.legendScale}>固定對數尺度：1–5,000 N/C；探針數值不截斷。</p>
+      <p className={styles.legendScale}>背景的小箭頭使用非線性顯示尺度，方便同時看見強場與弱場；方向才是重點。測量數值不會被截斷。</p>
       <ul className={styles.legendList}>
         <li><span className={`${styles.legendGlyph} ${styles.zeroGlyph}`} aria-hidden="true">＋</span><span><strong>零場／近零場</strong><small>方向未定義</small></span></li>
-        <li><span className={`${styles.legendGlyph} ${styles.lowGlyph}`} aria-hidden="true">⇢</span><span><strong>低截斷</strong><small>&lt; 1 N/C，空心虛線箭頭</small></span></li>
-        <li><span className={`${styles.legendGlyph} ${styles.normalGlyph}`} aria-hidden="true">→</span><span><strong>正常尺度</strong><small>長度與明度共同編碼</small></span></li>
-        <li><span className={`${styles.legendGlyph} ${styles.highGlyph}`} aria-hidden="true">⊣</span><span><strong>高截斷</strong><small>&gt; 5,000 N/C，封頂箭頭</small></span></li>
-        <li><span className={`${styles.legendGlyph} ${styles.coreGlyph}`} aria-hidden="true" /><span><strong>Excluded core</strong><small>點電荷模型未定義</small></span></li>
+        <li><span className={`${styles.legendGlyph} ${styles.lowGlyph}`} aria-hidden="true">⇢</span><span><strong>很弱的電場</strong><small>用空心虛線箭頭提醒</small></span></li>
+        <li><span className={`${styles.legendGlyph} ${styles.normalGlyph}`} aria-hidden="true">→</span><span><strong>可比較的範圍</strong><small>越長、越深代表越強</small></span></li>
+        <li><span className={`${styles.legendGlyph} ${styles.highGlyph}`} aria-hidden="true">⊣</span><span><strong>非常強的電場</strong><small>箭頭尾端加上封頂記號</small></span></li>
+        <li><span className={`${styles.legendGlyph} ${styles.coreGlyph}`} aria-hidden="true" /><span><strong>灰色核心</strong><small>太靠近來源，不使用點電荷模型</small></span></li>
       </ul>
       <p className={styles.chargeLegend}><span className={styles.positiveMark}>＋</span> 正電荷為圓形　<span className={styles.negativeMark}>−</span> 負電荷為菱形</p>
     </section>

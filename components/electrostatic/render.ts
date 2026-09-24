@@ -2,13 +2,43 @@ import type { FieldGrid, GlyphClass } from "../../lib/science/electrostatics/sam
 import type { SourceCharge, Vec2 } from "../../lib/science/electrostatics/types.ts";
 import type { CameraTransform } from "./viewport.ts";
 import { worldToScreen } from "./viewport.ts";
+import type { VectorSegment } from "./vectorConstruction.ts";
 
-export interface ProbeVectorGlyph {
+/** One already-scaled contribution arrow (screen px, relative to the probe point). */
+export interface ProbeVectorItem {
   readonly sourceId: string | null;
-  readonly ux: number;
-  readonly uy: number;
-  readonly strength: number;
-  readonly kind: "contribution" | "total";
+  readonly displacement: Vec2;
+  /** Same sign convention as the source glyph (gold = positive, teal = negative). */
+  readonly positive: boolean;
+  readonly emphasized: boolean;
+  /** Another contribution is emphasized; this one recedes rather than competing with it. */
+  readonly quiet: boolean;
+}
+
+/**
+ * Everything needed to draw the vector-addition evidence at the probe point, already built
+ * through one shared linear scale (see vectorConstruction.ts) — the renderer only draws what
+ * it is given, it never re-scales or re-normalizes anything here.
+ */
+export interface ProbeVectorScene {
+  readonly contributions: readonly ProbeVectorItem[];
+  /** Parallelogram construction segments; only for exactly two contributions (see vectorConstruction.ts). */
+  readonly chain: readonly VectorSegment[];
+  /** null when the resultant isn't shown yet (gated) or is (numerically) zero. */
+  readonly resultant: Vec2 | null;
+}
+
+/**
+ * One learner compass guess, already resolved to a screen anchor. `displacement` is fixed-length
+ * and direction-only (see guidedPrediction.ts) — never the Gate 5 physical vector scale, and
+ * `null` only for a dedicated "zero" marker, never a degenerate zero-length arrow.
+ */
+export interface PredictionGlyph {
+  readonly anchor: Vec2;
+  readonly displacement: Vec2 | null;
+  readonly label?: string;
+  readonly colour: string;
+  readonly labelOffset: Vec2;
 }
 
 export type SelectedObject =
@@ -102,6 +132,61 @@ function drawArrow(
     context.stroke();
   }
   context.restore();
+}
+
+/**
+ * A true tail-to-head arrow between two screen points (unlike `drawArrow`, which centers on
+ * `origin`). Used for the probe's vector-addition evidence, where each arrow's actual start and
+ * end point is the thing being demonstrated.
+ *
+ * `casing`: contrast against the background field arrows is arrow-local (a wider dark casing
+ * drawn first, the real colour on top of it), not a large dimmed circular patch behind everything.
+ */
+function drawArrowBetween(
+  context: CanvasRenderingContext2D,
+  from: Vec2,
+  to: Vec2,
+  colour: string,
+  options: { outline?: boolean; width?: number; headScale?: number; casing?: boolean } = {},
+): void {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 0.75) return;
+  const ux = dx / length;
+  const uy = dy / length;
+  const nx = -uy;
+  const ny = ux;
+  const baseWidth = options.width ?? 1.6;
+  const baseHeadScale = options.headScale ?? 0.24;
+  const passes = options.casing
+    ? [
+        { colour: "rgba(4, 13, 20, 0.88)", width: baseWidth + 2.6, headScale: baseHeadScale * 1.2 },
+        { colour, width: baseWidth, headScale: baseHeadScale },
+      ]
+    : [{ colour, width: baseWidth, headScale: baseHeadScale }];
+  for (const pass of passes) {
+    const head = Math.max(3, Math.min(8, length * pass.headScale));
+    context.save();
+    context.strokeStyle = pass.colour;
+    context.fillStyle = pass.colour;
+    context.lineWidth = pass.width;
+    context.lineCap = "round";
+    context.setLineDash(options.outline ? [4, 3] : []);
+    context.beginPath();
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
+    context.stroke();
+    context.setLineDash([]);
+    context.beginPath();
+    context.moveTo(to.x, to.y);
+    context.lineTo(to.x - ux * head + nx * head * 0.58, to.y - uy * head + ny * head * 0.58);
+    context.lineTo(to.x - ux * head - nx * head * 0.58, to.y - uy * head - ny * head * 0.58);
+    context.closePath();
+    if (options.outline) context.stroke();
+    else context.fill();
+    context.restore();
+  }
 }
 
 function drawZero(context: CanvasRenderingContext2D, point: Vec2): void {
@@ -218,12 +303,31 @@ export function drawStaticField(
   context.restore();
 }
 
+/** Source charge envelope (Gate 4A, unchanged here): magnitude is validated to 1-5 nC. */
+const SOURCE_MIN_NC = 1;
+const SOURCE_MAX_NC = 5;
+/** Sign colour convention shared by the source glyph and its field-contribution vector. */
+const POSITIVE_COLOUR = "#f6c85f";
+const NEGATIVE_COLOUR = "#76c8d5";
+
+/**
+ * Magnitude reads as ring weight, never as core radius: the core stays a fixed-size circle or
+ * diamond (its real hit target and on-screen position), so a bigger halo never reads as "this
+ * charge is physically bigger" the way a scaled radius would.
+ */
 function drawSource(context: CanvasRenderingContext2D, source: SourceCharge, camera: CameraTransform, selected: boolean): void {
   const point = worldToScreen({ x: source.x_m, y: source.y_m }, camera);
   const positive = source.q_C > 0;
+  const magnitude_nC = Math.abs(source.q_C) * 1e9;
+  const t = Math.min(1, Math.max(0, (magnitude_nC - SOURCE_MIN_NC) / (SOURCE_MAX_NC - SOURCE_MIN_NC)));
   context.save();
   context.translate(point.x, point.y);
-  context.fillStyle = positive ? "#f6c85f" : "#76c8d5";
+  context.strokeStyle = positive ? "rgba(246, 200, 95, 0.85)" : "rgba(118, 200, 213, 0.85)";
+  context.lineWidth = 1 + 2.5 * t;
+  context.beginPath();
+  context.arc(0, 0, 16.5 + 1.5 * t, 0, 2 * Math.PI);
+  context.stroke();
+  context.fillStyle = positive ? POSITIVE_COLOUR : NEGATIVE_COLOUR;
   context.strokeStyle = selected ? "#ffffff" : "#092232";
   context.lineWidth = selected ? 3 : 1.5;
   context.beginPath();
@@ -241,12 +345,20 @@ function drawSource(context: CanvasRenderingContext2D, source: SourceCharge, cam
   context.restore();
 }
 
+/** Contribution vectors read by the same sign colour as their source, not one generic hue. */
+function contributionColour(item: ProbeVectorItem): string {
+  const [r, g, b] = item.positive ? [246, 200, 95] : [118, 200, 213];
+  if (item.emphasized) return item.positive ? "#ffedbf" : "#c9edf2";
+  const alpha = item.quiet ? 0.35 : 0.95;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export function drawDynamicField(
   context: CanvasRenderingContext2D,
   camera: CameraTransform,
   sources: readonly SourceCharge[],
   probe: Vec2,
-  probeVectors: readonly ProbeVectorGlyph[],
+  probeScene: ProbeVectorScene,
   selected: SelectedObject,
   particle: ParticleGlyph | null = null,
   options: DynamicLayerOptions = { showProbe: true, probeZero: false },
@@ -260,17 +372,18 @@ export function drawDynamicField(
     return;
   }
   const probePoint = worldToScreen(probe, camera);
-  for (const vector of probeVectors) {
-    const length = vector.kind === "total" ? 28 + 40 * vector.strength : 18 + 22 * vector.strength;
-    drawArrow(
-      context,
-      probePoint,
-      vector.ux,
-      -vector.uy,
-      length,
-      vector.kind === "total" ? "#ffffff" : "rgba(180, 213, 222, 0.68)",
-      { outline: vector.kind === "contribution", width: vector.kind === "total" ? 2.5 : 1.25 },
-    );
+  const add = (delta: Vec2): Vec2 => ({ x: probePoint.x + delta.x, y: probePoint.y + delta.y });
+  // Construction first, underneath the real vectors: visually secondary, dashed and translucent.
+  for (const segment of probeScene.chain) {
+    drawArrowBetween(context, add(segment.from), add(segment.to), "rgba(196, 226, 235, 0.4)", { outline: true, width: 1.3, headScale: 0.3 });
+  }
+  for (const item of probeScene.contributions) {
+    const colour = contributionColour(item);
+    drawArrowBetween(context, probePoint, add(item.displacement), colour, { width: item.emphasized ? 2.6 : 1.9, casing: true });
+  }
+  if (probeScene.resultant) {
+    // Always its own colour/weight so it never reads as "the emphasized source's vector".
+    drawArrowBetween(context, probePoint, add(probeScene.resultant), "#ffffff", { width: 3, casing: true });
   }
   context.save();
   context.translate(probePoint.x, probePoint.y);
@@ -279,7 +392,8 @@ export function drawDynamicField(
   context.lineWidth = selected?.kind === "probe" ? 3 : 2;
   context.beginPath(); context.arc(0, 0, 8, 0, 2 * Math.PI); context.fill(); context.stroke();
   context.beginPath(); context.moveTo(-12, 0); context.lineTo(12, 0); context.moveTo(0, -12); context.lineTo(0, 12); context.stroke();
-  context.restore();  if (particle) drawParticle(context, camera, particle, selected?.kind === "particle");
+  context.restore();
+  if (particle) drawParticle(context, camera, particle, selected?.kind === "particle");
 }
 
 function drawTrail(context: CanvasRenderingContext2D, camera: CameraTransform, particle: ParticleGlyph): void {
@@ -332,7 +446,9 @@ export function drawParticle(
   if (particle.positive) {
     context.arc(0, 0, 7, 0, 2 * Math.PI);
   } else {
-    context.rect(-7, -7, 14, 14);
+    // Same sign grammar as source charges (circle = positive, diamond = negative); the distinct
+    // orange fill (vs. source gold/teal) still reads as a different role, the test charge.
+    context.moveTo(0, -8); context.lineTo(8, 0); context.lineTo(0, 8); context.lineTo(-8, 0); context.closePath();
   }
   context.fill(); context.stroke();
   context.strokeStyle = "#102631";
@@ -341,4 +457,30 @@ export function drawParticle(
   if (particle.positive) { context.moveTo(0, -3.5); context.lineTo(0, 3.5); }
   context.stroke();
   context.restore();
+}
+
+/** Dashed learner markers stay visually separate from solid model evidence. C4 gives v and a
+ * stable individual hues, while all other direction guesses retain the violet grammar. */
+function drawPredictionZero(context: CanvasRenderingContext2D, point: Vec2, colour: string): void {
+  context.save();
+  context.strokeStyle = colour;
+  context.lineWidth = 2;
+  context.setLineDash([3, 3]);
+  context.beginPath();
+  context.arc(point.x, point.y, 13, 0, 2 * Math.PI);
+  context.stroke();
+  context.restore();
+}
+
+/** Draws every learner compass guess: a dashed violet arrow (direction only), or a dedicated
+ * dashed ring for "zero" — never a degenerate zero-length arrow, never model evidence styling. */
+export function drawPredictionMarkers(context: CanvasRenderingContext2D, markers: readonly PredictionGlyph[]): void {
+  for (const marker of markers) {
+    if (marker.displacement === null) {
+      drawPredictionZero(context, marker.anchor, marker.colour);
+      continue;
+    }
+    const to = { x: marker.anchor.x + marker.displacement.x, y: marker.anchor.y + marker.displacement.y };
+    drawArrowBetween(context, marker.anchor, to, marker.colour, { outline: true, width: 2.2, headScale: 0.3 });
+  }
 }

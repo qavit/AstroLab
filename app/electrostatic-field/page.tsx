@@ -1,28 +1,16 @@
-import type { Metadata } from "next";
-import ElectrostaticFieldLab from "@/components/ElectrostaticFieldLab";
-import type { ShareRouteInput } from "@/components/electrostatic/share";
-
-export const metadata: Metadata = {
-  title: "靜電場工作室｜Kakau Lab",
-  description: "建立點電荷配置、觀察向量疊加，並用空間探針讀取每個來源與總電場。",
-  openGraph: {
-    title: "靜電場工作室｜Kakau Lab",
-    description: "用可分享的物理設定探索多電荷電場與向量疊加。",
-  },
-};
+import { permanentRedirect } from "next/navigation";
 
 type PageProps = {
-  searchParams: Promise<{ s?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-/** Presence of `s` decides guided vs sandbox; the payload only decides which setup loads. */
-function shareInput(s: string | string[] | undefined): ShareRouteInput {
-  if (s === undefined) return { present: false };
-  if (Array.isArray(s)) return s.length === 1 ? { present: true, encoded: s[0] } : { present: true, repeated: true };
-  return { present: true, encoded: s };
-}
-
-export default async function ElectrostaticFieldPage({ searchParams }: PageProps) {
-  const { s } = await searchParams;
-  return <ElectrostaticFieldLab share={shareInput(s)} />;
+/** Legacy identity only. Re-emit every query value without interpreting the share payload. */
+export default async function LegacyElectrostaticFieldPage({ searchParams }: PageProps) {
+  const current = await searchParams;
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(current)) {
+    if (Array.isArray(value)) value.forEach((item) => query.append(key, item));
+    else if (value !== undefined) query.append(key, value);
+  }
+  permanentRedirect(`/electrostatics${query.size > 0 ? `?${query.toString()}` : ""}`);
 }

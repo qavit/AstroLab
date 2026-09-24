@@ -9,7 +9,7 @@ import {
   changeOf,
   commitChange,
   commitDirection,
-  commitVelocity,
+  commitTrajectory,
   componentVerdicts,
   evidencePolicy,
   explainA,
@@ -18,6 +18,7 @@ import {
   revealNext,
   SANDBOX_POLICY,
   startActivity,
+  trajectoryTurn,
 } from "../models/electrostatic-learning.ts";
 import { applySetupEdit, initialRuntime, particleReadout, probeReadout } from "../models/electrostatic.ts";
 import { validateSetup } from "../models/electrostatic-validation.ts";
@@ -44,6 +45,38 @@ test("every activity setup is a complete schema-v1 setup accepted by the same va
 test("sandbox policy reveals every instrument", () => {
   assert.equal(evidencePolicy(null), SANDBOX_POLICY);
   for (const value of Object.values(SANDBOX_POLICY)) assert.ok(value === true || value === null);
+});
+
+test("guided movement is fixed except for Task B's manipulate-stage probe", () => {
+  const aStates = [
+    { activity: "A", step: "predict" },
+    { activity: "A", step: "observe", prediction: { direction: "S", reason: "components" }, reveal: 1 },
+    { activity: "A", step: "observe", prediction: { direction: "S", reason: "components" }, reveal: 2 },
+    { activity: "A", step: "observe", prediction: { direction: "S", reason: "components" }, reveal: 3 },
+    { activity: "A", step: "explain", prediction: { direction: "S", reason: "components" } },
+    { activity: "A", step: "transfer-predict", prediction: { direction: "S", reason: "components" }, explanation: { x: "cancel", y: "add", revise: "kept" } },
+    { activity: "A", step: "transfer-observe", prediction: { direction: "S", reason: "components" }, explanation: { x: "cancel", y: "add", revise: "kept" }, transferPrediction: { direction: "E", reason: "sign" }, reveal: 3 },
+    { activity: "A", step: "complete", prediction: { direction: "S", reason: "components" }, transferPrediction: { direction: "E", reason: "sign" } },
+  ];
+  for (const state of aStates) assert.equal(evidencePolicy(state).probeMovable, false, `A ${state.step}`);
+
+  const bStates = [
+    [{ activity: "B", step: "predict" }, false],
+    [{ activity: "B", step: "observe", prediction: "zero", reveal: 1 }, false],
+    [{ activity: "B", step: "manipulate", prediction: "zero" }, true],
+    [{ activity: "B", step: "transfer-predict", prediction: "zero", explanation: "toward-smaller" }, false],
+    [{ activity: "B", step: "transfer-observe", prediction: "zero", explanation: "toward-smaller", transferPrediction: "zero", reveal: 2 }, false],
+    [{ activity: "B", step: "complete", prediction: "zero", transferPrediction: "zero" }, false],
+  ];
+  for (const [state, movable] of bStates) assert.equal(evidencePolicy(state).probeMovable, movable, `B ${state.step}`);
+
+  for (const stage of ["c1", "c2", "c3", "c4"]) {
+    assert.equal(evidencePolicy({ activity: "C", step: "predict", stage, predictions: {} }).setupControls, false, `${stage} predict`);
+    assert.equal(evidencePolicy({ activity: "C", step: "observe", stage, predictions: {} }).setupControls, false, `${stage} observe`);
+  }
+  assert.equal(evidencePolicy({ activity: "C", step: "complete", predictions: {} }).setupControls, false);
+  assert.equal(evidencePolicy(null).probeMovable, true);
+  assert.equal(evidencePolicy(null).setupControls, true);
 });
 
 // ---- Activity A --------------------------------------------------------------------
@@ -77,6 +110,13 @@ test("A: a committed prediction cannot be silently overwritten", () => {
 });
 
 test("A: model answer is S with x cancelling and y adding; transfer flips to E with a fresh prediction", () => {
+  const [left, right] = ACTIVITY_SETUPS.A.sources;
+  assert.equal(left.q_C, right.q_C, "the two canonical sources have equal magnitude");
+  assert.equal(left.x_m, -right.x_m, "the sources mirror across the vertical centreline");
+  assert.equal(left.y_m, right.y_m, "the sources share the same height");
+  const [transferLeft, transferRight] = ACTIVITY_SETUPS["A-transfer"].sources;
+  assert.equal(transferLeft.q_C, -transferRight.q_C, "transfer keeps equal magnitudes while reversing one sign");
+  assert.equal(transferLeft.x_m, -transferRight.x_m, "transfer preserves the mirrored geometry");
   const field = probeReadout(ACTIVITY_SETUPS.A);
   assert.equal(probeCompass(field), "S");
   assert.deepEqual(componentVerdicts(field), { x: "cancel", y: "add" });
@@ -197,7 +237,7 @@ test("C: charge flip keeps E and reverses F and a; mass doubling keeps E, F and 
   assert.equal(state.predictions.c2.F, "reverse");
 });
 
-test("C: initial velocity does not change E/F/a; velocity and acceleration directions differ", () => {
+test("C: upward initial velocity with left acceleration predicts a left-turning trajectory", () => {
   const c1 = readout("c1");
   const c4 = readout("c4");
   assert.deepEqual(c4.field, c1.field);
@@ -205,6 +245,12 @@ test("C: initial velocity does not change E/F/a; velocity and acceleration direc
   assert.deepEqual(c4.acceleration_mps2, c1.acceleration_mps2);
   assert.equal(accelerationCompass(c4), "W");
   assert.equal(ACTIVITY_SETUPS.c4.testParticle.vy_mps, 1, "velocity points N");
+  assert.equal(trajectoryTurn(
+    { x: ACTIVITY_SETUPS.c4.testParticle.vx_mps, y: ACTIVITY_SETUPS.c4.testParticle.vy_mps },
+    c4.acceleration_mps2,
+  ), "left");
+  assert.equal(trajectoryTurn({ x: 0, y: 1 }, { x: 0, y: -1 }), "straight", "parallel-axis acceleration does not initially turn the path");
+  assert.equal(trajectoryTurn({ x: 0, y: 1 }, { x: 1, y: 0 }), "right");
 
   let state = startActivity("C");
   state = advance(commitDirection(state, { direction: "W", reason: "sign" }));
@@ -212,7 +258,8 @@ test("C: initial velocity does not change E/F/a; velocity and acceleration direc
   state = advance(commitChange(state, { E: "same", F: "same", a: "half" }));
   assert.equal(state.stage, "c4");
   assertAllHidden(state, "C c4 predict");
-  state = commitVelocity(state, { velocity: "N", acceleration: "W" });
+  state = commitTrajectory(state, { trajectory: "left", acceleration: "W" });
+  assert.deepEqual(state.predictions.c4, { trajectory: "left", acceleration: "W" });
   const policy = evidencePolicy(state);
   assert.equal(policy.trajectory, true);
   assert.equal(policy.timeControls, true);

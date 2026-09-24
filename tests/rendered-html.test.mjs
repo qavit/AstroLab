@@ -66,7 +66,26 @@ test("server-renders the Kakau Lab model catalog", async () => {
   assert.match(html, /雙點波源干涉/);
   assert.match(html, /08 interactive models/);
   assert.match(html, /href="https:\/\/kakau\.tw\/lab\/interference"/);
+  assert.doesNotMatch(html, /data-testid="experimental-catalog"|靜電學/);
   assert.doesNotMatch(html, /同步控制台/);
+});
+
+test("server-side preview flag renders model 09 in a separate experimental section", async () => {
+  const previous = process.env.KAKAU_EXPERIMENTAL_PREVIEW;
+  process.env.KAKAU_EXPERIMENTAL_PREVIEW = "1";
+  try {
+    const response = await render("/");
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /data-testid="experimental-catalog"/);
+    assert.match(html, /實驗中/);
+    assert.match(html, /href="\/electrostatics"/);
+    assert.match(html, /靜電學/);
+    assert.match(html, /08 interactive models/);
+  } finally {
+    if (previous === undefined) delete process.env.KAKAU_EXPERIMENTAL_PREVIEW;
+    else process.env.KAKAU_EXPERIMENTAL_PREVIEW = previous;
+  }
 });
 
 test("resolves Open Graph image URLs against the production origin", async () => {
@@ -84,47 +103,59 @@ test("server-renders the model explanation page", async () => {
   assert.match(html, /返回模型/);
 });
 
-test("server-renders guided Activity A by default with no target evidence in the HTML", async () => {
-  const response = await render("/electrostatic-field");
+test("server-renders the D-05 intent choice when no share parameter is present", async () => {
+  const response = await render("/electrostatics");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /<title>靜電場工作室｜Kakau Lab<\/title>/);
-  assert.match(html, /Activity A｜先判斷合場方向/);
-  assert.match(html, /直接探索/);
-  assert.match(html, /data-probe-state="gated"/);
-  assert.match(html, /data-field-visible="false"/);
-  assert.doesNotMatch(html, /data-testid="total-|data-testid="contribution-|data-probe-state="(zero|valid)"/);
-  assert.doesNotMatch(html, /時間控制|測試粒子讀值|Sandbox 設定/);
+  assert.match(html, /<title>靜電學｜Kakau Lab<\/title>/);
+  assert.match(html, /data-mode="intent"/);
+  assert.match(html, /data-testid="intent-choice"/);
+  assert.match(html, /探索任務/);
+  assert.match(html, /自由探索/);
+  assert.match(html, /任務二　對稱會留下什麼？/);
+  assert.doesNotMatch(html, /data-testid="guided-panel"|data-testid="time-controls"/);
   assert.doesNotMatch(html, /等位線|電位/);
 });
 
-test("server-renders a schema-v1 share URL with sandbox semantics", async () => {
+test("server-renders a schema-v1 share URL with free-exploration semantics", async () => {
   const { encodeSetup } = await import("../models/electrostatic-serialization.ts");
   const { ELECTROSTATIC_PRESETS } = await import("../models/electrostatic.ts");
   const encoded = encodeSetup(ELECTROSTATIC_PRESETS.dipole);
-  const response = await render(`/electrostatic-field?s=${encoded.encoded}`);
+  const response = await render(`/electrostatics?s=${encoded.encoded}`);
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Sandbox 設定/);
-  assert.match(html, /探針讀值/);
-  assert.match(html, /場強圖例/);
-  assert.match(html, /schema v1/);
+  assert.match(html, /data-mode="sandbox"/);
+  assert.match(html, /data-testid="context-inspector"/);
+  assert.match(html, /自由探索/);
+  assert.match(html, /data-testid="model-info-toggle"/);
+  assert.match(html, /分享連結只保存起始設定/);
+  assert.doesNotMatch(html, /schema v1/);
   assert.match(html, /時間控制/);
-  assert.match(html, /測試粒子讀值/);
-  assert.match(html, /重設粒子／模擬/);
-  assert.doesNotMatch(html, /Activity A｜/);
+  assert.match(html, /重新開始/);
+  assert.doesNotMatch(html, /data-testid="intent-choice"|data-testid="guided-panel"/);
 });
 
 test("share-parameter presence, not payload validity, decides sandbox vs guided (SSR)", async () => {
   for (const [label, query] of [["empty", "?s="], ["repeated", "?s=a&s=b"], ["malformed", "?s=not!base64"]]) {
-    const response = await render(`/electrostatic-field${query}`);
+    const response = await render(`/electrostatics${query}`);
     assert.equal(response.status, 200, label);
     const html = await response.text();
-    assert.match(html, /Sandbox 設定/, `${label} opens sandbox`);
-    assert.doesNotMatch(html, /Activity A｜|用對稱性做預測/, `${label} must not open guided`);
+    assert.match(html, /data-mode="sandbox"/, `${label} opens free exploration`);
+    assert.match(html, /data-testid="context-inspector"/, `${label} renders the free-exploration inspector`);
+    assert.doesNotMatch(html, /data-testid="intent-choice"|data-testid="guided-panel"/, `${label} bypasses intent and guided mode`);
     assert.match(html, /已載入安全的單電荷設定/, `${label} warns and fails closed`);
     assert.match(html, /data-source-count="1"/, `${label} loads the safe preset`);
   }
+});
+
+test("legacy electrostatic-field route permanently redirects and preserves the complete query", async () => {
+  const response = await render("/electrostatic-field?s=&s=second&utm_source=legacy");
+  assert.equal(response.status, 308);
+  const location = response.headers.get("location") ?? "";
+  const redirected = new URL(location, "http://localhost");
+  assert.equal(redirected.pathname, "/electrostatics");
+  assert.deepEqual(redirected.searchParams.getAll("s"), ["", "second"]);
+  assert.equal(redirected.searchParams.get("utm_source"), "legacy");
 });
 
 test("keeps the learning layer free of physics, rendering and browser APIs", async () => {
@@ -167,7 +198,7 @@ test("keeps the M3 fixed clock pure: RAF only at the component boundary, no dyna
     assert.doesNotMatch(source, /requestAnimationFrame|performance\.now|Date\.now|document\.|from "react"/);
   }
   assert.match(lab, /requestAnimationFrame/);
-  assert.match(lab, /advancePlayback/);
+  assert.match(lab, /advanceTimeline/);
   for (const source of [lab, panel, renderer, time]) {
     assert.doesNotMatch(source, /stepMacro|accelerationFromField|forceFromField|mass_kg\s*\)|\* *q_C|q_C *\*/);
   }
@@ -426,7 +457,7 @@ test("keeps projectile motion analytic, with the drag integrator quarantined", a
 
 test("re-typesets only changing projectile formulas in production", async () => {
   const [mathjax, view] = await Promise.all([
-    readFile(new URL("../components/projectile/mathjax.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/math/MathJax.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/ProjectileLab.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(mathjax, /dynamic = false/);
@@ -435,4 +466,18 @@ test("re-typesets only changing projectile formulas in production", async () => 
   assert.match(view, /<Tex dynamic>\{line\.equation\}<\/Tex>/, "state-dependent chart equations must re-typeset");
   assert.match(view, /<Tex dynamic>\{`n = .*\$\{model\.horizontalStep\}`\}<\/Tex>/, "state-dependent staircase result must re-typeset");
   assert.match(view, /<Tex>\{"n"\}<\/Tex>/, "fixed formulas must stay non-dynamic");
+});
+
+test("server-renders the shared electrostatics theory notes at /electrostatics/notes", async () => {
+  const response = await render("/electrostatics/notes");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<title>靜電場：理論、模型與計算｜Kakau Lab<\/title>/);
+  assert.match(html, /data-testid="electrostatic-theory"/);
+  assert.match(html, /三維庫侖定律/);
+  assert.match(html, /模型有效性的邊界/);
+  assert.match(html, /返回模型/);
+  const { readFile } = await import("node:fs/promises");
+  const overlay = await readFile(new URL("../components/electrostatic/ModelInfoOverlay.tsx", import.meta.url), "utf8");
+  assert.match(overlay, /import TheoryNotes from "\.\/TheoryNotes"/);
 });

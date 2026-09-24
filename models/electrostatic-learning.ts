@@ -68,9 +68,10 @@ export type ActivityBState =
 // ---- Activity C｜E、F、a -------------------------------------------------------------
 
 export type Change = "same" | "reverse" | "double" | "half";
+export type TrajectoryTurn = "left" | "straight" | "right";
 
 export interface CFlipPrediction { readonly E: Change; readonly F: Change; readonly a: Change }
-export interface CVelocityPrediction { readonly velocity: Compass; readonly acceleration: Compass }
+export interface CTrajectoryPrediction { readonly trajectory: TrajectoryTurn; readonly acceleration: Compass }
 
 export type CStage = "c1" | "c2" | "c3" | "c4";
 
@@ -78,7 +79,7 @@ export interface CPredictions {
   readonly c1?: Compass;
   readonly c2?: CFlipPrediction;
   readonly c3?: CFlipPrediction;
-  readonly c4?: CVelocityPrediction;
+  readonly c4?: CTrajectoryPrediction;
 }
 
 export type ActivityCState =
@@ -109,18 +110,23 @@ function withScene(
   };
 }
 
-/** A: two unequal positive sources above the target; x partly cancels, y adds. */
+/** A: equal positive sources mirror across the target's vertical centreline; x cancels and y adds. */
 const A_SETUP = withScene(
-  [{ id: "s1", x_m: -0.6, y_m: 0.45, q_C: 3e-9 }, { id: "s2", x_m: 0.6, y_m: 0.45, q_C: 2e-9 }],
+  [{ id: "s1", x_m: -0.6, y_m: 0.45, q_C: 3e-9 }, { id: "s2", x_m: 0.6, y_m: 0.45, q_C: 3e-9 }],
   { x: 0, y: 0 },
 );
-/** A transfer: the same geometry with s2 reversed. */
+/** A transfer: the same mirrored geometry with the right-hand source reversed. */
 const A_TRANSFER_SETUP = withScene(
-  [{ id: "s1", x_m: -0.6, y_m: 0.45, q_C: 3e-9 }, { id: "s2", x_m: 0.6, y_m: 0.45, q_C: -2e-9 }],
+  [{ id: "s1", x_m: -0.6, y_m: 0.45, q_C: 3e-9 }, { id: "s2", x_m: 0.6, y_m: 0.45, q_C: -3e-9 }],
   { x: 0, y: 0 },
 );
 /** B: equal like pair, probe at the midpoint (the like-pair preset geometry). */
 const B_SETUP: ElectrostaticSetup = { ...structuredClone(ELECTROSTATIC_PRESETS["like-pair"]), presetId: null };
+/** B 2-2: symmetry already broken (right source 5 nC), probe still at the old midpoint, so |E| ≠ 0 on entry. */
+const B_MANIPULATE_SETUP: ElectrostaticSetup = {
+  ...B_SETUP,
+  sources: B_SETUP.sources.map((source) => (source.id === "s2" ? { ...source, q_C: 5e-9 } : source)),
+};
 /** B transfer: four equal positive charges at rectangle corners, probe at the centre. */
 const B_TRANSFER_SETUP = withScene(
   [
@@ -145,6 +151,7 @@ export const ACTIVITY_SETUPS = {
   A: A_SETUP,
   "A-transfer": A_TRANSFER_SETUP,
   B: B_SETUP,
+  "B-manipulate": B_MANIPULATE_SETUP,
   "B-transfer": B_TRANSFER_SETUP,
   ...C_SETUPS,
 } as const;
@@ -162,6 +169,7 @@ export function activitySetup(state: LearningState): ElectrostaticSetup {
       ? A_TRANSFER_SETUP : A_SETUP;
   }
   if (state.activity === "B") {
+    if (state.step === "manipulate") return B_MANIPULATE_SETUP;
     return state.step === "transfer-predict" || state.step === "transfer-observe" || state.step === "complete"
       ? B_TRANSFER_SETUP : B_SETUP;
   }
@@ -204,7 +212,7 @@ export function commitChange(state: LearningState, prediction: CFlipPrediction):
   return { ...state, step: "observe", predictions: { ...state.predictions, [state.stage]: prediction } };
 }
 
-export function commitVelocity(state: LearningState, prediction: CVelocityPrediction): LearningState {
+export function commitTrajectory(state: LearningState, prediction: CTrajectoryPrediction): LearningState {
   if (state.activity !== "C" || state.step !== "predict" || state.stage !== "c4") return state;
   return { ...state, step: "observe", predictions: { ...state.predictions, c4: prediction } };
 }
@@ -293,12 +301,14 @@ export function evidencePolicy(state: LearningState | null): EvidencePolicy {
   if (state.activity === "A") {
     if (state.step === "observe" || state.step === "transfer-observe") {
       return {
-        ...HIDDEN, probeMovable: true, probeContributions: true, probeTotal: state.reveal >= 2,
-        probeComponents: state.reveal >= 3, globalField: state.reveal >= 3,
+        ...HIDDEN, probeContributions: true, probeTotal: state.reveal >= 2,
+        probeComponents: state.reveal >= 3,
       };
     }
-    if (state.step === "explain" || state.step === "complete") {
-      return { ...HIDDEN, probeMovable: true, probeContributions: true, probeTotal: true, probeComponents: true, globalField: true };
+    // The background field is not evidence for the component reasoning; it returns at completion.
+    if (state.step === "explain") return { ...HIDDEN, probeContributions: true, probeTotal: true, probeComponents: true };
+    if (state.step === "complete") {
+      return { ...HIDDEN, probeContributions: true, probeTotal: true, probeComponents: true, globalField: true };
     }
     return HIDDEN;
   }
@@ -315,7 +325,7 @@ export function evidencePolicy(state: LearningState | null): EvidencePolicy {
       };
     }
     if (state.step === "complete") {
-      return { ...HIDDEN, probeMovable: true, probeContributions: true, probeTotal: true, probeComponents: true, globalField: true };
+      return { ...HIDDEN, probeContributions: true, probeTotal: true, probeComponents: true, globalField: true };
     }
     return HIDDEN;
   }
@@ -344,6 +354,15 @@ export function probeCompass(field: FieldResult): Compass | null {
 export function accelerationCompass(readout: ParticleReadout): Compass | null {
   if (!readout.valid) return null;
   return compassOf(readout.acceleration_mps2, false);
+}
+
+/** Qualitative initial curvature relative to the current direction of travel. Parallel or
+ * antiparallel acceleration changes speed but does not turn the path at that instant. */
+export function trajectoryTurn(velocity: Vec2, acceleration: Vec2): TrajectoryTurn {
+  const cross = velocity.x * acceleration.y - velocity.y * acceleration.x;
+  const scale = Math.hypot(velocity.x, velocity.y) * Math.hypot(acceleration.x, acceleration.y);
+  if (scale === 0 || Math.abs(cross) <= 1e-12 * scale) return "straight";
+  return cross > 0 ? "left" : "right";
 }
 
 /** Per-axis verdict from the model's own contributions: opposite signs cancel, same signs add. */

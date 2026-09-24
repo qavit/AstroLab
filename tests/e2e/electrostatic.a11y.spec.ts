@@ -2,22 +2,23 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 test("@a11y electrostatic sandbox has no serious or critical axe violations", async ({ page }) => {
-  await page.goto("/electrostatic-field");
+  await page.goto("/electrostatics");
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
-  await page.getByTestId("direct-explore").click();
+  await page.getByTestId("choose-sandbox").click();
   const results = await new AxeBuilder({ page }).analyze();
   const blocking = results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
   expect(blocking, blocking.map((violation) => `${violation.id}: ${violation.help}`).join("\n")).toEqual([]);
-  await expect(page.getByRole("button", { name: /來源電荷 s1/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /正電荷 1/ })).toBeVisible();
   await expect(page.getByTestId("probe-handle")).toHaveRole("button");
-  await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/電場探針/);
+  await expect(page.getByTestId("probe-handle")).toHaveAccessibleName(/測量點/);
 });
 
 test("@a11y running and stopped particle states have no serious or critical axe violations", async ({ page }) => {
   await page.clock.install();
-  await page.goto("/electrostatic-field");
+  await page.goto("/electrostatics");
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
-  await page.getByTestId("direct-explore").click();
+  await page.getByTestId("choose-sandbox").click();
+  await page.getByTestId("particle-handle").click();
   await page.getByTestId("play-toggle").click();
   await page.clock.runFor(300);
   const scan = async () => {
@@ -31,4 +32,76 @@ test("@a11y running and stopped particle states have no serious or critical axe 
   expect(stopped, stopped.map((v) => `${v.id}: ${v.help}`).join("\n")).toEqual([]);
   await expect(page.getByTestId("play-toggle")).toHaveAccessibleName(/播放|暫停/);
   await expect(page.getByTestId("particle-handle")).toHaveRole("button");
+});
+
+test("@a11y model-info panel opens and closes with Escape, no serious or critical axe violations", async ({ page }) => {
+  await page.goto("/electrostatics");
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  await page.getByTestId("choose-sandbox").click();
+
+  const toggle = page.getByTestId("model-info-toggle");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const dialog = page.getByRole("dialog", { name: "靜電場的理論、模型與計算" });
+  await expect(dialog).toBeVisible();
+
+  const results = await new AxeBuilder({ page }).analyze();
+  const blocking = results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
+  expect(blocking, blocking.map((v) => `${v.id}: ${v.help}`).join("\n")).toEqual([]);
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+});
+
+test("@a11y open shared Layers drawer is non-modal and has no serious or critical axe violations", async ({ page }) => {
+  await page.goto("/electrostatics");
+  await page.getByTestId("choose-sandbox").click();
+  const trigger = page.getByTestId("layers-toggle");
+  await trigger.click();
+  const drawer = page.getByRole("dialog", { name: "視圖圖層" });
+  await expect(drawer).toHaveAttribute("aria-hidden", "false");
+  await expect(drawer).not.toHaveAttribute("aria-modal", "true");
+
+  const results = await new AxeBuilder({ page }).analyze();
+  const blocking = results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
+  expect(blocking, blocking.map((violation) => `${violation.id}: ${violation.help}`).join("\n")).toEqual([]);
+});
+
+test("status notices never move the Canvas: overlay appears without shifting layout", async ({ page }) => {
+  await page.goto("/electrostatics");
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  await page.getByTestId("choose-sandbox").click();
+
+  const canvasBefore = await page.getByTestId("field-viewport").boundingBox();
+  await page.getByTestId("source-handle-s1").click();
+  const magnitude = page.getByTestId("source-magnitude");
+  await magnitude.click();
+  await magnitude.press("ControlOrMeta+A");
+  await magnitude.pressSequentially("999");
+  await magnitude.press("Enter");
+  // Out-of-envelope drafts are reported inline on the field (no Canvas-shifting notice).
+  await expect(magnitude).toHaveAttribute("aria-invalid", "true");
+
+  const canvasAfter = await page.getByTestId("field-viewport").boundingBox();
+  expect(canvasAfter?.y).toBe(canvasBefore?.y);
+  expect(canvasAfter?.x).toBe(canvasBefore?.x);
+});
+
+test("@a11y theory modal moves focus in, contains Tab, and returns focus to its button", async ({ page }) => {
+  await page.goto("/electrostatics");
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
+  await page.getByTestId("choose-sandbox").click();
+  const toggle = page.getByTestId("model-info-toggle");
+  await toggle.click();
+  const dialog = page.getByRole("dialog", { name: "靜電場的理論、模型與計算" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "關閉" })).toBeFocused();
+  for (let i = 0; i < 12; i += 1) {
+    await page.keyboard.press("Tab");
+    expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+  }
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(toggle).toBeFocused();
 });

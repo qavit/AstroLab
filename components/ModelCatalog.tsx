@@ -10,9 +10,10 @@ import {
   Target,
   Waves,
   Wind,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
-import { publishedLabs, type LabManifest, type LabSubject } from "@/lib/labs/registry";
+import { experimentalLabs, publishedLabs, type LabManifest, type LabSubject } from "@/lib/labs/registry";
 
 /** Maps the registry's string icon keys to actual components. The registry itself stays free of React/lucide. */
 const icons: Record<string, LucideIcon> = {
@@ -24,6 +25,7 @@ const icons: Record<string, LucideIcon> = {
   "rotate-cw": RotateCw,
   target: Target,
   waves: Waves,
+  zap: Zap,
 };
 
 const subjectLabels: Record<LabSubject, string> = {
@@ -91,7 +93,7 @@ function CardArt({ lab }: { lab: LabManifest }) {
   return null;
 }
 
-function ModelCard({ lab }: { lab: LabManifest }) {
+function ModelCard({ lab, experimental = false }: { lab: LabManifest; experimental?: boolean }) {
   const Icon = lab.presentation?.icon ? icons[lab.presentation.icon] : undefined;
   const href = labHref(lab);
   const isExternal = lab.implementation.app !== "kakau-lab";
@@ -107,7 +109,7 @@ function ModelCard({ lab }: { lab: LabManifest }) {
       <div className="model-card-body">
         <div className="model-card-meta">
           <span>{Icon ? <Icon size={14} /> : null} {subjectLabels[lab.subject]}</span>
-          <ArrowUpRight size={17} />
+          {experimental ? <strong className="experimental-badge">實驗中</strong> : <ArrowUpRight size={17} />}
         </div>
         <h3>{lab.title}</h3>
         <p>{lab.description}</p>
@@ -130,8 +132,9 @@ function ModelCard({ lab }: { lab: LabManifest }) {
   );
 }
 
-export default function ModelCatalog() {
+export default function ModelCatalog({ showExperimental = process.env.KAKAU_EXPERIMENTAL_PREVIEW === "1" }: { showExperimental?: boolean }) {
   const labs = publishedLabs();
+  const previews = showExperimental ? experimentalLabs() : [];
 
   return (
     <main className="catalog-shell">
@@ -150,6 +153,18 @@ export default function ModelCatalog() {
         </div>
         <aside className="catalog-principle"><span>Kakau Lab</span><strong>看見關係<br />再理解公式</strong></aside>
       </section>
+
+      {previews.length > 0 ? (
+        <section className="catalog-section experimental-section" aria-labelledby="experimental-title" data-testid="experimental-catalog">
+          <div className="catalog-section-heading">
+            <p>OWNER PREVIEW</p>
+            <div><h2 id="experimental-title">實驗中</h2><small>尚未對 production catalog 發布</small></div>
+          </div>
+          <div className="model-card-grid">
+            {previews.map((lab) => <ModelCard lab={lab} experimental key={lab.id} />)}
+          </div>
+        </section>
+      ) : null}
 
       <section className="catalog-section" aria-labelledby="catalog-title">
         <div className="catalog-section-heading"><p>模型目錄</p><h2 id="catalog-title">選擇一個主題開始探索</h2></div>

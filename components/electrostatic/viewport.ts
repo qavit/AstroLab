@@ -17,6 +17,17 @@ export interface CameraTransform {
   readonly worldHeight_px: number;
 }
 
+/** Transient view-only camera state. It never enters setup, runtime, or share payloads. */
+export interface CameraView {
+  readonly zoom: number;
+  readonly panX_px: number;
+  readonly panY_px: number;
+}
+
+export const INITIAL_CAMERA_VIEW: CameraView = { zoom: 1, panX_px: 0, panY_px: 0 };
+const MIN_ZOOM = 0.6;
+const MAX_ZOOM = 4;
+
 /** Fit the complete physical domain without changing it; spare pixels become letterbox space. */
 export function fitCamera(domain: Domain, size: ViewportSize, padding_px = 12): CameraTransform {
   const usableWidth = Math.max(1, size.width - 2 * padding_px);
@@ -39,6 +50,33 @@ export function fitCamera(domain: Domain, size: ViewportSize, padding_px = 12): 
     worldWidth_px: worldWidth,
     worldHeight_px: worldHeight,
   };
+}
+
+export function cameraForView(domain: Domain, size: ViewportSize, view: CameraView): CameraTransform {
+  const fit = fitCamera(domain, size);
+  const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number.isFinite(view.zoom) ? view.zoom : 1));
+  const panX = Number.isFinite(view.panX_px) ? view.panX_px : 0;
+  const panY = Number.isFinite(view.panY_px) ? view.panY_px : 0;
+  const scale = fit.scale_px_per_m * zoom;
+  const originX = fit.originX_px + panX;
+  const originY = fit.originY_px + panY;
+  return {
+    ...fit,
+    scale_px_per_m: scale,
+    originX_px: originX,
+    originY_px: originY,
+    // The world frame must be derived from this exact transform. Reusing the
+    // unzoomed fit-frame here made the border stay behind while the field
+    // samples moved, which looked like a displaced field after zooming out.
+    worldLeft_px: originX + domain.xmin * scale,
+    worldTop_px: originY - domain.ymax * scale,
+    worldWidth_px: (domain.xmax - domain.xmin) * scale,
+    worldHeight_px: (domain.ymax - domain.ymin) * scale,
+  };
+}
+
+export function zoomView(view: CameraView, factor: number): CameraView {
+  return { ...view, zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.zoom * factor)) };
 }
 
 export function worldToScreen(point: Vec2, camera: CameraTransform): Vec2 {
