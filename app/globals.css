@@ -499,3 +499,9 @@ code.formula-plain { display:inline; padding:1px 5px; border-left:none; border-r
   .guided-phase { padding:13px; }
   .guided-measures { grid-template-columns:1fr 1fr; }
 }
+
+.theory-body .theory-advanced { margin:22px 0; padding:2px 16px; border:1px solid #cbd7dd; border-radius:6px; background:rgba(233,240,243,.4); }
+.theory-body .theory-advanced > summary { padding:10px 0; color:#1d445c; font-weight:600; font-size:15px; cursor:pointer; }
+.theory-body .theory-advanced[open] > summary { border-bottom:1px solid #cbd7dd; margin-bottom:6px; }
+.theory-body .theory-advanced > summary:focus-visible { outline:3px solid #d9a735; outline-offset:2px; }
+.theory-body .theory-advanced h3 { margin-top:18px; }
