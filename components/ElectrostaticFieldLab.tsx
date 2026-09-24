@@ -651,6 +651,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               setup={setup}
               runtime={runtime}
               policy={policy}
+              freeExploration={!entryPending && learning === null}
               selected={selected}
               onSelect={setSelected}
               onMove={moveObject}

@@ -1,4 +1,4 @@
-import type { FieldGrid, GlyphClass } from "../../lib/science/electrostatics/sampling.ts";
+import { normalizedStrength, type FieldGrid, type GlyphClass } from "../../lib/science/electrostatics/sampling.ts";
 import type { SourceCharge, Vec2 } from "../../lib/science/electrostatics/types.ts";
 import type { CameraTransform } from "./viewport.ts";
 import { worldToScreen } from "./viewport.ts";
@@ -80,6 +80,14 @@ function mixChannel(a: number, b: number, amount: number): number {
 function fieldColour(strength: number): string {
   const t = 0.18 + 0.82 * strength;
   return `rgb(${mixChannel(FIELD_NORMAL_DARK[0], FIELD_NORMAL_LIGHT[0], t)} ${mixChannel(FIELD_NORMAL_DARK[1], FIELD_NORMAL_LIGHT[1], t)} ${mixChannel(FIELD_NORMAL_DARK[2], FIELD_NORMAL_LIGHT[2], t)})`;
+}
+
+/** Restrained sequential scale: lightness rises with |E|, so it remains ordered in grayscale. */
+export function fieldStrengthMapColour(magnitude_N_per_C: number): string {
+  const strength = normalizedStrength(magnitude_N_per_C);
+  const low = [17, 57, 75] as const;
+  const high = [212, 164, 77] as const;
+  return `rgb(${mixChannel(low[0], high[0], strength)} ${mixChannel(low[1], high[1], strength)} ${mixChannel(low[2], high[2], strength)})`;
 }
 
 function arrowLength(glyph: GlyphClass): number {
@@ -259,7 +267,10 @@ export function drawStaticField(
   grid: FieldGrid,
   sources: readonly SourceCharge[],
   rCore_m: number,
+  options: { readonly showArrows?: boolean; readonly showStrengthMap?: boolean } = {},
 ): void {
+  const showArrows = options.showArrows ?? true;
+  const showStrengthMap = options.showStrengthMap ?? false;
   context.fillStyle = FIELD_BACKGROUND;
   context.fillRect(0, 0, camera.width, camera.height);
   context.fillStyle = WORLD_BACKGROUND;
@@ -279,7 +290,22 @@ export function drawStaticField(
   }
   context.restore();
 
-  if (grid.ok) {
+  if (grid.ok && showStrengthMap) {
+    const cellWidth = camera.worldWidth_px / grid.cols;
+    const cellHeight = camera.worldHeight_px / grid.rows;
+    // Each valid sample is one world-grid cell. Invalid core samples remain transparent and the
+    // authoritative hatched core drawn below masks any interpolation at its boundary.
+    for (let index = 0; index < grid.samples.length; index += 1) {
+      const sample = grid.samples[index];
+      if (sample.magnitude_N_per_C === null) continue;
+      const column = index % grid.cols;
+      const row = Math.floor(index / grid.cols);
+      context.fillStyle = fieldStrengthMapColour(sample.magnitude_N_per_C);
+      context.fillRect(camera.worldLeft_px + column * cellWidth, camera.worldTop_px + row * cellHeight, cellWidth + 0.5, cellHeight + 0.5);
+    }
+  }
+
+  if (grid.ok && showArrows) {
     for (const sample of grid.samples) {
       const point = worldToScreen({ x: sample.x_m, y: sample.y_m }, camera);
       if (sample.glyph.kind === "core") continue;

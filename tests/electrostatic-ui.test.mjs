@@ -6,6 +6,8 @@ import { probeReadout, ELECTROSTATIC_PRESETS, initialRuntime, applySetupEdit } f
 import { cameraForView, fitCamera, screenToWorld, worldToScreen } from "../components/electrostatic/viewport.ts";
 import { createShareUrl, initialStateFromShare, retainFieldSceneReferences } from "../components/electrostatic/share.ts";
 import { encodeSetup } from "../models/electrostatic-serialization.ts";
+import { INITIAL_ELECTROSTATIC_LAYERS } from "../components/electrostatic/layers.ts";
+import { fieldStrengthMapColour } from "../components/electrostatic/render.ts";
 
 test("viewport coordinate transform round-trips across the 4×3 m world", () => {
   const domain = ELECTROSTATIC_PRESETS["single-positive"].domain;
@@ -83,6 +85,19 @@ test("fixed scale maps and classifies all five visual semantic states", () => {
   assert.equal(classifyField(valid(5001))?.kind, "high-clip");
 });
 
+test("field-strength map is presentation-only, defaults off, and uses the established log scale", () => {
+  assert.equal(INITIAL_ELECTROSTATIC_LAYERS.field, true);
+  assert.equal(INITIAL_ELECTROSTATIC_LAYERS.fieldStrengthMap, false);
+  assert.notEqual(
+    { ...INITIAL_ELECTROSTATIC_LAYERS, field: false, fieldStrengthMap: true }.field,
+    { ...INITIAL_ELECTROSTATIC_LAYERS, field: false, fieldStrengthMap: true }.fieldStrengthMap,
+    "arrows and map have independent layer state",
+  );
+  assert.equal(fieldStrengthMapColour(1), "rgb(17 57 75)");
+  assert.equal(fieldStrengthMapColour(5000), "rgb(212 164 77)");
+  assert.equal(fieldStrengthMapColour(50000), fieldStrengthMapColour(5000), "only the visual colour clips");
+});
+
 test("schema v1 URL helper round-trips setup and fails closed on malformed input", () => {
   const setup = ELECTROSTATIC_PRESETS.dipole;
   const shared = createShareUrl(
@@ -124,6 +139,24 @@ test("probe-only edits retain field-scene references and the desktop grid stays 
   assert.equal(grid.ok, true);
   if (grid.ok) assert.equal(grid.samples.length, 1200);
   assert.ok(Number.isFinite(elapsed));
+});
+
+test("magnitude-map samples preserve sign-independent |E| and invalid cores", () => {
+  const domain = { xmin: -1, xmax: 1, ymin: -1, ymax: 1 };
+  const positive = [{ id: "s1", x_m: 0, y_m: 0, q_C: 3e-9 }];
+  const negative = [{ ...positive[0], q_C: -3e-9 }];
+  const plus = sampleFieldGrid(positive, domain, 5, 5, 0.12);
+  const minus = sampleFieldGrid(negative, domain, 5, 5, 0.12);
+  assert.equal(plus.ok, true);
+  assert.equal(minus.ok, true);
+  if (!plus.ok || !minus.ok) return;
+  assert.deepEqual(plus.samples.map((sample) => sample.magnitude_N_per_C), minus.samples.map((sample) => sample.magnitude_N_per_C));
+  const core = sampleFieldGrid(positive, domain, 1, 1, 0.12);
+  assert.equal(core.ok, true);
+  if (core.ok) {
+    assert.equal(core.samples[0].glyph.kind, "core");
+    assert.equal(core.samples[0].magnitude_N_per_C, null, "core is invalid, never painted as a maximum");
+  }
 });
 
 test("share route input separates parameter presence from payload validity", () => {

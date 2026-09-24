@@ -35,6 +35,9 @@ for (const { width, height } of VIEWPORTS) {
 test("source drag paints within the 100 ms p95 interaction budget", async ({ page }) => {
   await open(page, 1440, 1000);
   await page.getByTestId("choose-sandbox").click();
+  await page.getByTestId("layers-toggle").click();
+  await page.getByTestId("layer-fieldStrengthMap").check();
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-field-strength-map-visible", "true");
   const handle = page.getByTestId("source-handle-s1");
   await handle.click();
   const metrics = await page.evaluate(async () => {
@@ -49,8 +52,27 @@ test("source drag paints within the 100 ms p95 interaction budget", async ({ pag
     durations.sort((a, b) => a - b);
     return { p95: durations[Math.floor(durations.length * 0.95)], samples: durations.length };
   });
+  console.info(`field-strength-map drag p95: ${metrics.p95.toFixed(1)} ms (${metrics.samples} samples)`);
   expect(metrics.samples).toBe(20);
   expect(metrics.p95).toBeLessThan(100);
+});
+
+test("field-strength map is independent in free exploration and unavailable in guided activities", async ({ page }) => {
+  await open(page, 1440, 1000);
+  await page.getByTestId("choose-sandbox").click();
+  await page.getByTestId("layers-toggle").click();
+  const map = page.getByTestId("layer-fieldStrengthMap");
+  await expect(map).not.toBeChecked();
+  await map.check();
+  await page.getByTestId("layer-field").uncheck();
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-field-strength-map-visible", "true");
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-field-visible", "false");
+  await expect(page.getByTestId("field-strength-map-legend")).toBeVisible();
+
+  await page.getByTestId("direct-explore").click();
+  await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-field-strength-map-visible", "false");
+  await page.getByTestId("layers-toggle").click();
+  await expect(page.getByTestId("layer-fieldStrengthMap")).toHaveCount(0);
 });
 
 test("capture the 12 Owner-review UX states", async ({ page }) => {
