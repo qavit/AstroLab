@@ -202,7 +202,7 @@ export const labRegistry: readonly LabManifest[] = [
     representations: ["vector-field", "spatial-probe", "per-source-contributions"],
     level: ["high-school"],
     implementation: { app: "kakau-lab", route: "/electrostatics" },
-    status: "experimental",
+    status: "published",
     presentation: { tone: "electrostatic", icon: "zap" },
   },
 ];
