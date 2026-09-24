@@ -605,7 +605,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
               aria-expanded={modelInfoOpen}
               data-testid="model-info-toggle"
             >
-              <Info size={16} aria-hidden="true" />模型說明
+              <Info size={16} aria-hidden="true" />理論與計算
             </button>
           ) : null}
         </div>

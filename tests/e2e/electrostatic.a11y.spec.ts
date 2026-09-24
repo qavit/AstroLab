@@ -43,7 +43,7 @@ test("@a11y model-info panel opens and closes with Escape, no serious or critica
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  const dialog = page.getByRole("dialog", { name: "這個模型畫的是什麼？" });
+  const dialog = page.getByRole("dialog", { name: "靜電場的理論、模型與計算" });
   await expect(dialog).toBeVisible();
 
   const results = await new AxeBuilder({ page }).analyze();

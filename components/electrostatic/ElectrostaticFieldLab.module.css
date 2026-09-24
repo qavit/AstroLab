@@ -489,9 +489,6 @@
   font-size: 12px;
   line-height: 1.55;
 }
-.modelNotesGrid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(360px, 1fr); gap: 16px; }
-.modelNotesGrid h2 { margin: 8px 0; font: 500 20px Georgia, "Noto Serif TC", serif; }
-.modelNotesGrid p { color: #536f7b; font-size: 13px; line-height: 1.65; }
 
 .presetPopoverWrap { position: relative; }
 .presetPopoverWrap > summary { list-style: none; cursor: pointer; }
@@ -575,7 +572,6 @@
   .mobileTabs button { min-height: 44px; border-radius: 8px; }
   .mobileTabs button[aria-pressed="true"] { border-color: #246b82; background: #dceef2; }
   .labShell { padding-bottom: 80px; }
-  .modelNotesGrid { grid-template-columns: 1fr; }
   .timelineInput { flex-basis: 100%; }
 }
 

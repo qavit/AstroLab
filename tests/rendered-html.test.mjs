@@ -466,3 +466,17 @@ test("re-typesets only changing projectile formulas in production", async () => 
   assert.match(view, /<Tex dynamic>\{`n = .*\$\{model\.horizontalStep\}`\}<\/Tex>/, "state-dependent staircase result must re-typeset");
   assert.match(view, /<Tex>\{"n"\}<\/Tex>/, "fixed formulas must stay non-dynamic");
 });
+
+test("server-renders the shared electrostatics theory notes at /electrostatics/notes", async () => {
+  const response = await render("/electrostatics/notes");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<title>靜電場：理論、模型與計算｜Kakau Lab<\/title>/);
+  assert.match(html, /data-testid="electrostatic-theory"/);
+  assert.match(html, /三維庫侖定律/);
+  assert.match(html, /模型有效性的邊界/);
+  assert.match(html, /返回模型/);
+  const { readFile } = await import("node:fs/promises");
+  const overlay = await readFile(new URL("../components/electrostatic/ModelInfoOverlay.tsx", import.meta.url), "utf8");
+  assert.match(overlay, /import TheoryNotes from "\.\/TheoryNotes"/);
+});
