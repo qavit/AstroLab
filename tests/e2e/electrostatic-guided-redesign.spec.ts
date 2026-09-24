@@ -122,6 +122,10 @@ test("C anchors predictions at the particle and C4 compares trajectory with init
   await expect(viewport).toHaveAttribute("data-prediction-count", "2");
   await expect(viewport).toHaveAttribute("data-prediction-anchors", "particle,particle");
   await expect(viewport).toHaveAttribute("data-prediction-labels", "v,a");
+  await expect(page.getByTestId("c4-play-first")).toBeVisible();
+  await expect(page.getByTestId("prediction-verdict")).toHaveCount(0);
+  await page.getByTestId("seek-forward").click();
+  await expect(page.getByTestId("prediction-verdict")).toBeVisible();
   await expect(page.getByTestId("feedback-status")).toContainText("答對了");
   await expect(page.getByTestId("prediction-verdict")).toContainText("軌跡：你的／模型");
   await expect(page.getByTestId("prediction-verdict")).toContainText("初始 a：你的／模型");

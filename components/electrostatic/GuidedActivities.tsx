@@ -638,7 +638,7 @@ function ActivityCBody(props: GuidedActivitiesProps & { readonly formKey: string
     const played = props.runtime.macroSteps > 0;
     return (
       <div className={styles.guidedForm}>
-        <p className={styles.guidedPrompt}>v 決定現在往哪走；a 改變 v；所以路徑會逐漸彎曲。</p>
+        <p className={styles.guidedPrompt}>v 決定當下往哪走；a 會持續改變 v。播放看看，軌跡接下來會怎麼變。</p>
         {played ? verdict : <p className={styles.helperText} data-testid="c4-play-first">按播放（或 +0.1s）看看軌跡，再和你的預測比較。</p>}
         {played ? (
           <button type="button" className={styles.shareButton} onClick={props.onAdvance} data-testid="advance">完成任務三</button>

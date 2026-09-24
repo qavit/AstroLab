@@ -189,6 +189,10 @@ test("task three keeps charge and mass labels on Canvas and separates v/a learne
   await page.getByTestId("predict-acceleration-W").check();
   await page.getByTestId("commit-prediction").click();
   await expect(viewport).toHaveAttribute("data-prediction-colours", "#f1b95d,#68c9dc");
+  await expect(page.getByTestId("c4-play-first")).toBeVisible();
+  await expect(page.getByTestId("prediction-verdict")).toHaveCount(0);
+  await page.getByTestId("seek-forward").click();
+  await expect(page.getByTestId("prediction-verdict")).toBeVisible();
   const vectorLabels = page.getByTestId("prediction-canvas-label");
   await expect(vectorLabels).toHaveCount(2);
   await expect(vectorLabels.locator("mjx-container")).toHaveCount(2);
