@@ -64,24 +64,23 @@ test("server-renders the Kakau Lab model catalog", async () => {
   assert.match(html, /科氏力效應/);
   assert.match(html, /風場粒子/);
   assert.match(html, /雙點波源干涉/);
-  assert.match(html, /08 interactive models/);
+  assert.match(html, /靜電學/);
+  assert.match(html, /09 interactive models/);
   assert.match(html, /href="https:\/\/kakau\.tw\/lab\/interference"/);
-  assert.doesNotMatch(html, /data-testid="experimental-catalog"|靜電學/);
+  assert.doesNotMatch(html, /data-testid="experimental-catalog"/);
   assert.doesNotMatch(html, /同步控制台/);
 });
 
-test("server-side preview flag renders model 09 in a separate experimental section", async () => {
+test("server-side preview flag adds no experimental section while no model is experimental", async () => {
   const previous = process.env.KAKAU_EXPERIMENTAL_PREVIEW;
   process.env.KAKAU_EXPERIMENTAL_PREVIEW = "1";
   try {
     const response = await render("/");
     assert.equal(response.status, 200);
     const html = await response.text();
-    assert.match(html, /data-testid="experimental-catalog"/);
-    assert.match(html, /實驗中/);
+    assert.doesNotMatch(html, /data-testid="experimental-catalog"/);
     assert.match(html, /href="\/electrostatics"/);
-    assert.match(html, /靜電學/);
-    assert.match(html, /08 interactive models/);
+    assert.match(html, /09 interactive models/);
   } finally {
     if (previous === undefined) delete process.env.KAKAU_EXPERIMENTAL_PREVIEW;
     else process.env.KAKAU_EXPERIMENTAL_PREVIEW = previous;

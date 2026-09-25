@@ -23,8 +23,8 @@ test("registry numbers 01 through 09 are all present", () => {
   }
 });
 
-test("published count is 8", () => {
-  assert.equal(publishedLabs().length, 8);
+test("published count is 9", () => {
+  assert.equal(publishedLabs().length, 9);
 });
 
 test("models 01-07 are internal kakau-lab routes", () => {
@@ -45,16 +45,16 @@ test("model 08 is the external kakau-web interference lab", () => {
   assert.equal(model08.status, "published");
 });
 
-test("model 09 is the experimental local electrostatics route", () => {
+test("model 09 is the published local electrostatics route", () => {
   const model09 = labRegistry.find((lab) => lab.number === "09");
   assert.ok(model09);
   assert.equal(model09.id, "electrostatics");
   assert.equal(model09.title, "靜電學");
   assert.equal(model09.implementation.app, "kakau-lab");
   assert.equal(model09.implementation.route, "/electrostatics");
-  assert.equal(model09.status, "experimental");
-  assert.equal(publishedLabs().includes(model09), false);
-  assert.deepEqual(experimentalLabs(), [model09]);
+  assert.equal(model09.status, "published");
+  assert.equal(publishedLabs().includes(model09), true);
+  assert.deepEqual(experimentalLabs(), []);
 });
 
 test("every manifest carries the required fields", () => {
