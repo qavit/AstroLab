@@ -7,7 +7,7 @@ import { cameraForView, fitCamera, screenToWorld, worldToScreen } from "../compo
 import { createShareUrl, initialStateFromShare, retainFieldSceneReferences } from "../components/electrostatic/share.ts";
 import { encodeSetup } from "../models/electrostatic-serialization.ts";
 import { INITIAL_ELECTROSTATIC_LAYERS } from "../components/electrostatic/layers.ts";
-import { fieldStrengthMapColour } from "../components/electrostatic/render.ts";
+import { fieldGridScreenCell, fieldStrengthMapColour } from "../components/electrostatic/render.ts";
 
 test("viewport coordinate transform round-trips across the 4×3 m world", () => {
   const domain = ELECTROSTATIC_PRESETS["single-positive"].domain;
@@ -96,6 +96,11 @@ test("field-strength map is presentation-only, defaults off, and uses the establ
   assert.equal(fieldStrengthMapColour(1), "rgb(17 57 75)");
   assert.equal(fieldStrengthMapColour(5000), "rgb(212 164 77)");
   assert.equal(fieldStrengthMapColour(50000), fieldStrengthMapColour(5000), "only the visual colour clips");
+});
+
+test("field-strength map flips sampled physics rows into Canvas screen rows", () => {
+  assert.deepEqual(fieldGridScreenCell(0, 40, 30), { column: 0, row: 29 }, "lowest physics y belongs at the Canvas bottom");
+  assert.deepEqual(fieldGridScreenCell(1199, 40, 30), { column: 39, row: 0 }, "highest physics y belongs at the Canvas top");
 });
 
 test("schema v1 URL helper round-trips setup and fails closed on malformed input", () => {

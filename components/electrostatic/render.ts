@@ -90,6 +90,11 @@ export function fieldStrengthMapColour(magnitude_N_per_C: number): string {
   return `rgb(${mixChannel(low[0], high[0], strength)} ${mixChannel(low[1], high[1], strength)} ${mixChannel(low[2], high[2], strength)})`;
 }
 
+/** Sampling is bottom-to-top in physics coordinates; Canvas rows increase downward. */
+export function fieldGridScreenCell(index: number, cols: number, rows: number): { column: number; row: number } {
+  return { column: index % cols, row: rows - 1 - Math.floor(index / cols) };
+}
+
 function arrowLength(glyph: GlyphClass): number {
   if (glyph.kind === "low-clip") return 6;
   if (glyph.kind === "high-clip") return 19;
@@ -298,8 +303,7 @@ export function drawStaticField(
     for (let index = 0; index < grid.samples.length; index += 1) {
       const sample = grid.samples[index];
       if (sample.magnitude_N_per_C === null) continue;
-      const column = index % grid.cols;
-      const row = Math.floor(index / grid.cols);
+      const { column, row } = fieldGridScreenCell(index, grid.cols, grid.rows);
       context.fillStyle = fieldStrengthMapColour(sample.magnitude_N_per_C);
       context.fillRect(camera.worldLeft_px + column * cellWidth, camera.worldTop_px + row * cellHeight, cellWidth + 0.5, cellHeight + 0.5);
     }
