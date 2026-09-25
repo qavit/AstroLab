@@ -4,6 +4,7 @@ import type { SourceCharge, Vec2 } from "../../lib/science/electrostatics/types.
 import type { CameraTransform } from "./viewport.ts";
 import { worldToScreen } from "./viewport.ts";
 import type { VectorSegment } from "./vectorConstruction.ts";
+import type { FieldLineScene } from "./fieldLineDisplay.ts";
 
 /** One already-scaled contribution arrow (screen px, relative to the probe point). */
 export interface ProbeVectorItem {
@@ -327,6 +328,53 @@ function drawCore(
   context.restore();
 }
 
+/**
+ * One restrained neutral style for every field line: stroke never encodes |E| (the map and the
+ * arrows do). A thin dark casing keeps it legible over the bright end of the strength map.
+ */
+const FIELD_LINE_STROKE = "rgba(214, 236, 244, 0.72)";
+const FIELD_LINE_CASING = "rgba(6, 24, 36, 0.42)";
+
+function drawFieldLines(context: CanvasRenderingContext2D, camera: CameraTransform, scene: FieldLineScene): void {
+  context.save();
+  context.lineJoin = "round";
+  context.lineCap = "round";
+  for (const [style, width] of [[FIELD_LINE_CASING, 3], [FIELD_LINE_STROKE, 1.25]] as const) {
+    context.strokeStyle = style;
+    context.lineWidth = width;
+    for (const line of scene.lines) {
+      context.beginPath();
+      line.points.forEach((point, index) => {
+        const screen = worldToScreen(point, camera);
+        if (index === 0) context.moveTo(screen.x, screen.y);
+        else context.lineTo(screen.x, screen.y);
+      });
+      context.stroke();
+    }
+  }
+  // Arrowheads follow the +E ordering of the line; physics y is up, screen y is down.
+  for (const line of scene.lines) {
+    for (const head of line.arrowheads) {
+      const tip = worldToScreen(head.point, camera);
+      const ux = head.direction.x;
+      const uy = -head.direction.y;
+      const length = 7;
+      const half = 3.6;
+      context.beginPath();
+      context.moveTo(tip.x + ux * length * 0.5, tip.y + uy * length * 0.5);
+      context.lineTo(tip.x - ux * length * 0.5 - uy * half, tip.y - uy * length * 0.5 + ux * half);
+      context.lineTo(tip.x - ux * length * 0.5 + uy * half, tip.y - uy * length * 0.5 - ux * half);
+      context.closePath();
+      context.fillStyle = FIELD_LINE_STROKE;
+      context.strokeStyle = FIELD_LINE_CASING;
+      context.lineWidth = 1;
+      context.fill();
+      context.stroke();
+    }
+  }
+  context.restore();
+}
+
 export function prepareCanvas(canvas: HTMLCanvasElement, size: Vec2, devicePixelRatio: number): CanvasRenderingContext2D | null {
   const ratio = Math.max(1, devicePixelRatio);
   const width = Math.max(1, Math.round(size.x * ratio));
@@ -351,7 +399,7 @@ export function drawStaticField(
   grid: FieldGrid,
   sources: readonly SourceCharge[],
   rCore_m: number,
-  options: { readonly showArrows?: boolean; readonly strengthMap?: CanvasImageSource | null } = {},
+  options: { readonly showArrows?: boolean; readonly strengthMap?: CanvasImageSource | null; readonly fieldLines?: FieldLineScene | null } = {},
 ): void {
   const showArrows = options.showArrows ?? true;
   context.fillStyle = FIELD_BACKGROUND;
@@ -382,6 +430,15 @@ export function drawStaticField(
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = "high";
     context.drawImage(options.strengthMap, camera.worldLeft_px, camera.worldTop_px, camera.worldWidth_px, camera.worldHeight_px);
+    context.restore();
+  }
+
+  if (options.fieldLines) {
+    context.save();
+    context.beginPath();
+    context.rect(camera.worldLeft_px, camera.worldTop_px, camera.worldWidth_px, camera.worldHeight_px);
+    context.clip();
+    drawFieldLines(context, camera, options.fieldLines);
     context.restore();
   }
 

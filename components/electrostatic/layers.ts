@@ -2,6 +2,7 @@
 export interface ElectrostaticLayerState {
   readonly field: boolean;
   readonly fieldStrengthMap: boolean;
+  readonly fieldLines: boolean;
   readonly probe: boolean;
   readonly particle: boolean;
   readonly trail: boolean;
@@ -9,5 +10,5 @@ export interface ElectrostaticLayerState {
 }
 
 export const INITIAL_ELECTROSTATIC_LAYERS: ElectrostaticLayerState = {
-  field: true, fieldStrengthMap: false, probe: true, particle: true, trail: true, contributions: true,
+  field: true, fieldStrengthMap: false, fieldLines: false, probe: true, particle: true, trail: true, contributions: true,
 };

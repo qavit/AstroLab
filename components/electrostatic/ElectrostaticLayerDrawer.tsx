@@ -26,6 +26,7 @@ export default function ElectrostaticLayerDrawer({ open, layers, available, onCl
         <div className="layer-list">
           {toggle("field", "電場箭頭")}
           {toggle("fieldStrengthMap", "場強色圖")}
+          {toggle("fieldLines", "電場線")}
           {toggle("probe", "測量點")}
           {toggle("particle", "測試電荷")}
           {toggle("trail", "軌跡")}
