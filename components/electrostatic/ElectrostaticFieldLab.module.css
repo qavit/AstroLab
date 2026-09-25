@@ -76,7 +76,11 @@
   box-shadow: 0 8px 22px rgba(16, 48, 66, .18);
   pointer-events: auto;
 }
-.notice { border: 1px solid #b8743c; background: #fff3e8; color: #6f3516; }
+.notice { display: flex; align-items: flex-start; gap: 8px; border: 1px solid #b8743c; background: #fff3e8; color: #6f3516; }
+.notice > span { flex: 1; }
+.noticeDismiss { display: grid; flex: 0 0 auto; place-items: center; width: 28px; min-width: 28px; min-height: 28px; margin: -4px -5px -4px 0; padding: 0; border: 0; border-radius: 5px; background: transparent; color: inherit; }
+.noticeDismiss:hover { background: rgba(159, 69, 26, .12); }
+.noticeDismiss:focus-visible { outline: 3px solid #9a542b; outline-offset: 2px; }
 .shareStatus { border: 1px solid #4e8b7d; background: #e9f5f1; color: #174d43; }
 
 .workspace {

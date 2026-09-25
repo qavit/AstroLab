@@ -37,6 +37,8 @@ test("any present share parameter bypasses intent and malformed payloads fail cl
   await openFree(page, "/electrostatics?s=not!base64");
   await expect(page.getByTestId("intent-choice")).toHaveCount(0);
   await expect(page.getByTestId("setup-notice")).toContainText("已載入安全的單電荷設定");
+  await page.getByTestId("setup-notice-dismiss").click();
+  await expect(page.getByTestId("setup-notice")).toHaveCount(0);
   await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-source-count", "1");
 });
 

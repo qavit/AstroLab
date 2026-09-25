@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { ArrowLeftRight, Compass, Info, Layers3 } from "lucide-react";
+import { ArrowLeftRight, Compass, Info, Layers3, X } from "lucide-react";
 import Controls from "./electrostatic/Controls";
 import QuickPresetsMenu from "./electrostatic/QuickPresetsMenu";
 import FieldCanvas from "./electrostatic/FieldCanvas";
@@ -633,7 +633,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       </header>
 
       <div className={styles.statusOverlay} aria-live="polite">
-        {notice ? <div className={styles.notice} role="status" data-testid="setup-notice">{notice}</div> : null}
+        {notice ? <div className={styles.notice} role="status" data-testid="setup-notice"><span>{notice}</span><button type="button" className={styles.noticeDismiss} onClick={() => setNotice(null)} aria-label="關閉提示" title="關閉提示" data-testid="setup-notice-dismiss"><X size={16} aria-hidden="true" /></button></div> : null}
         {shareStatus ? <div className={styles.shareStatus} role="status" data-testid="share-status">{shareStatus}</div> : null}
         {clockMessage ? <div className={styles.notice} data-testid="clock-notice">{clockMessage}</div> : null}
       </div>
