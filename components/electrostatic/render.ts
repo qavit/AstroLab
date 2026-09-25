@@ -8,7 +8,7 @@ import type { VectorSegment } from "./vectorConstruction.ts";
 export interface ProbeVectorItem {
   readonly sourceId: string | null;
   readonly displacement: Vec2;
-  /** Same sign convention as the source glyph (gold = positive, teal = negative). */
+  /** Same sign convention as the source glyph (red = positive, teal = negative). */
   readonly positive: boolean;
   readonly emphasized: boolean;
   /** Another contribution is emphasized; this one recedes rather than competing with it. */
@@ -337,7 +337,7 @@ export function drawStaticField(
 const SOURCE_MIN_NC = 1;
 const SOURCE_MAX_NC = 5;
 /** Sign colour convention shared by the source glyph and its field-contribution vector. */
-const POSITIVE_COLOUR = "#f6c85f";
+const POSITIVE_COLOUR = "#ef6a64";
 const NEGATIVE_COLOUR = "#76c8d5";
 
 /**
@@ -352,7 +352,7 @@ function drawSource(context: CanvasRenderingContext2D, source: SourceCharge, cam
   const t = Math.min(1, Math.max(0, (magnitude_nC - SOURCE_MIN_NC) / (SOURCE_MAX_NC - SOURCE_MIN_NC)));
   context.save();
   context.translate(point.x, point.y);
-  context.strokeStyle = positive ? "rgba(246, 200, 95, 0.85)" : "rgba(118, 200, 213, 0.85)";
+  context.strokeStyle = positive ? "rgba(239, 106, 100, 0.85)" : "rgba(118, 200, 213, 0.85)";
   context.lineWidth = 1 + 2.5 * t;
   context.beginPath();
   context.arc(0, 0, 16.5 + 1.5 * t, 0, 2 * Math.PI);
@@ -377,8 +377,8 @@ function drawSource(context: CanvasRenderingContext2D, source: SourceCharge, cam
 
 /** Contribution vectors read by the same sign colour as their source, not one generic hue. */
 function contributionColour(item: ProbeVectorItem): string {
-  const [r, g, b] = item.positive ? [246, 200, 95] : [118, 200, 213];
-  if (item.emphasized) return item.positive ? "#ffedbf" : "#c9edf2";
+  const [r, g, b] = item.positive ? [239, 106, 100] : [118, 200, 213];
+  if (item.emphasized) return item.positive ? "#ffd4d0" : "#c9edf2";
   const alpha = item.quiet ? 0.35 : 0.95;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }

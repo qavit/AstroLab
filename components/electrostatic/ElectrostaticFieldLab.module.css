@@ -249,7 +249,7 @@
 .sourceList button { justify-content: flex-start; min-width: 0; padding: 8px; }
 .sourceCircle,
 .sourceDiamond { display: inline-grid; place-items: center; flex: 0 0 auto; width: 23px; height: 23px; color: #173142; font-weight: 800; }
-.sourceCircle { border-radius: 50%; background: #f6c85f; }
+.sourceCircle { border-radius: 50%; background: #ef6a64; }
 .sourceDiamond { background: #76c8d5; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
 .inlineActions,
 .primaryActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }
@@ -332,7 +332,7 @@
 .chargeLegend { margin: 12px 0 0; color: #536f7b; font-size: 12px; }
 .positiveMark,
 .negativeMark { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 3px; color: #183344; font-weight: 800; }
-.positiveMark { border-radius: 50%; background: #f6c85f; }
+.positiveMark { border-radius: 50%; background: #ef6a64; }
 .negativeMark { background: #76c8d5; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
 
 .footer { display: flex; justify-content: space-between; gap: 15px; margin-top: 15px; padding-top: 12px; border-top: 1px solid #cbd8dd; color: #6b838e; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
