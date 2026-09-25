@@ -324,16 +324,25 @@ export function traceFieldLine(
   };
 }
 
-/** Candidate seed count grows mildly with |q|: 6 at 1 nC … 12 at 5 nC, always even. */
+/** |q| at and above which a source gets the denser seed tier. */
+export const SEED_TIER_THRESHOLD_C = 4e-9;
+
+/**
+ * Two fixed tiers over the 1–5 nC envelope: 8 seeds (every 45°) below 4 nC, 16 (every 22.5°) from
+ * 4 nC. The 8 angles are an exact subset of the 16, so crossing the threshold only adds the
+ * intermediate lines; every existing line keeps its seed angle. Both tiers are closed under the
+ * x/y mirrors and 90° rotation.
+ */
 export function seedCountForCharge(q_C: number): number {
-  const q_nC = Math.abs(q_C) / 1e-9;
-  if (!(q_nC > 0)) return 0;
-  return Math.max(2, 2 * Math.round(2.5 + 0.75 * (q_nC - 1)));
+  const magnitude = Math.abs(q_C);
+  if (!(magnitude > 0)) return 0;
+  // Relative slack so a UI value of exactly 4 nC lands in the upper tier despite rounding.
+  return magnitude >= SEED_TIER_THRESHOLD_C * (1 - 1e-9) ? 16 : 8;
 }
 
 /**
  * Deterministic source-centred candidates on a ring just outside each core, at angles 2πk/n from
- * +x. An even n keeps the candidate set mirror-symmetric about both axes through the source. The
+ * +x (n = 8 or 16, so 2πk/8 and 2π(2k)/16 are the same double exactly). The
  * count is a display density choice, not a physical quantity. Candidates that fall inside another
  * source's core or outside the domain are omitted (their index stays visible through `count`).
  */

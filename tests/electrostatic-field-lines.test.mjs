@@ -113,11 +113,50 @@ test("every canonical line is +E oriented, tangent to E, core-safe, clipped and 
   }
 });
 
-test("seeds are deterministic, outside every core, and scale mildly with |q|", () => {
-  assert.equal(seedCountForCharge(1 * nC), 6);
+test("seed tiers: 8 below 4 nC, 16 from 4 nC, independent of sign", () => {
+  assert.equal(seedCountForCharge(1 * nC), 8);
   assert.equal(seedCountForCharge(3 * nC), 8);
-  assert.equal(seedCountForCharge(5 * nC), 12);
-  assert.equal(seedCountForCharge(-5 * nC), 12);
+  assert.equal(seedCountForCharge(3.75 * nC), 8);
+  assert.equal(seedCountForCharge(4 * nC), 16);
+  assert.equal(seedCountForCharge(5 * nC), 16);
+  for (const q of [1, 3, 3.75, 4, 5]) assert.equal(seedCountForCharge(-q * nC), seedCountForCharge(q * nC));
+});
+
+const seedAngles = (q_nC) => fieldLineSeeds([source("s1", 0, 0, q_nC)], DOMAIN, R_CORE_M).map((seed) => seed.angle_rad);
+
+test("crossing the tier threshold keeps every low-tier seed angle exactly", () => {
+  const low = seedAngles(3.75);
+  const high = seedAngles(4);
+  assert.equal(low.length, 8);
+  assert.equal(high.length, 16);
+  for (const angle of low) assert.ok(high.includes(angle), `${angle} rad is bit-identical in the 16-seed tier`);
+  // The lines through shared seeds are the same curves: only the new intermediate ones appear.
+  const scene = (q) => traceFieldLines([source("s1", -0.6, 0, q), source("s2", 0.6, 0, -3)], DOMAIN, R_CORE_M);
+  const before = scene(3.75).filter((line) => line.seed.sourceId === "s1");
+  const after = scene(4).filter((line) => line.seed.sourceId === "s1");
+  for (const line of before) {
+    const same = after.find((other) => other.seed.angle_rad === line.seed.angle_rad);
+    assert.ok(same, "existing seed angle survives");
+    assert.deepEqual(same.seed.point, line.seed.point);
+  }
+});
+
+test("both seed tiers are closed under the x/y mirrors and 90° rotation", () => {
+  const key = (angle) => {
+    const wrapped = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    return Math.round((wrapped / (2 * Math.PI)) * 16) % 16;
+  };
+  for (const q of [3, 5]) {
+    const set = new Set(seedAngles(q).map(key));
+    for (const angle of seedAngles(q)) {
+      assert.ok(set.has(key(-angle)), "mirror across the x axis");
+      assert.ok(set.has(key(Math.PI - angle)), "mirror across the y axis");
+      assert.ok(set.has(key(angle + Math.PI / 2)), "90° rotation");
+    }
+  }
+});
+
+test("seeds are deterministic and outside every core", () => {
   const sources = SCENES["four-charge square"];
   const seeds = fieldLineSeeds(sources, DOMAIN, R_CORE_M);
   assert.deepEqual(seeds, fieldLineSeeds(sources, DOMAIN, R_CORE_M));
