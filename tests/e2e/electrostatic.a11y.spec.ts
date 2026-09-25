@@ -56,6 +56,7 @@ test("@a11y model-info panel opens and closes with Escape, no serious or critica
 
 test("@a11y open shared Layers drawer is non-modal and has no serious or critical axe violations", async ({ page }) => {
   await page.goto("/electrostatics");
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
   await page.getByTestId("choose-sandbox").click();
   const trigger = page.getByTestId("layers-toggle");
   await trigger.click();
