@@ -5,19 +5,23 @@ import type { RefObject } from "react";
 import { HelpCircle, House, ZoomIn, ZoomOut, X } from "lucide-react";
 import { Tex } from "../math/MathJax";
 import { sampleFieldGrid } from "../../lib/science/electrostatics/sampling.ts";
+import { MAP_RASTER, sampleStrengthRaster } from "../../lib/science/electrostatics/strengthRaster.ts";
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
 import { probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import type { EvidencePolicy } from "../../models/electrostatic-learning.ts";
 import AccessibleObjects, { type DraggableObject, type HoverTarget } from "./AccessibleObjects";
 import { formatCharge, sourceDisplayName } from "./labels.ts";
 import { TOOL_BANNER, type ToolMode } from "./tools.ts";
-import ElectrostaticLayerDrawer, { INITIAL_ELECTROSTATIC_LAYERS, type ElectrostaticLayerState } from "./ElectrostaticLayerDrawer";
+import ElectrostaticLayerDrawer from "./ElectrostaticLayerDrawer";
+import FieldStrengthMapLegend from "./FieldStrengthMapLegend";
+import { INITIAL_ELECTROSTATIC_LAYERS, type ElectrostaticLayerState } from "./layers.ts";
 import { buildVectorConstruction, probeVectorEnvelopeRadius } from "./vectorConstruction.ts";
 import { layoutPredictionMarkers, predictionLabelPoint, type PredictionMarker } from "./guidedPrediction.ts";
 import type { GuidedCanvasSemantics } from "./guidedCanvasSemantics.ts";
 import {
   drawDynamicField,
   drawPredictionMarkers,
+  createStrengthMapImage,
   drawStaticField,
   prepareCanvas,
   type ParticleGlyph,
@@ -33,6 +37,8 @@ interface FieldCanvasProps {
   readonly runtime: ElectrostaticRuntime;
   /** Learning visibility policy; gated evidence is never computed into draw inputs. */
   readonly policy: EvidencePolicy;
+  /** The field-strength map is deliberately unavailable in guided activities. */
+  readonly freeExploration: boolean;
   readonly onDragStart: (target: DraggableObject) => void;
   readonly selected: SelectedObject;
   readonly onSelect: (target: SelectedObject) => void;
@@ -67,7 +73,7 @@ const MOVABLE_HINT = "可拖曳，或選取後用方向鍵移動";
 const FIXED_HINT = "此任務中位置固定";
 
 export default function FieldCanvas(props: FieldCanvasProps) {
-  const { setup, runtime, policy, selected, onSelect, onMove, onDragStart } = props;
+  const { setup, runtime, policy, freeExploration, selected, onSelect, onMove, onDragStart } = props;
   const { tool, onPlace, onDelete, onExitTool, layersOpen, onLayersOpenChange, layersTriggerRef } = props;
   const { emphasizedSourceId, onSourceHover, predictionMarkers, guidedSemantics, attentionCue, focusAnchor } = props;
   const hostRef = useRef<HTMLDivElement>(null);
@@ -107,6 +113,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
 
   const camera = useMemo(() => cameraForView(setup.domain, size, view), [setup.domain, size, view]);
   const showField = policy.globalField && layers.field;
+  const showFieldStrengthMap = freeExploration && layers.fieldStrengthMap;
   const showProbe = policy.probe && layers.probe;
   const showParticle = policy.particle && layers.particle;
   const showTrail = policy.trajectory && layers.trail;
@@ -149,6 +156,13 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     return null;
   }, [camera, hoverTarget, policy.probeMovable, policy.setupControls, policy.sourcesMovable, policy.sourceMagnitudeId, setup.probe.x_m, setup.probe.y_m, setup.sources, setup.testParticle.x_m, setup.testParticle.y_m]);
   const dimensions = size.width < 600 ? { cols: 24, rows: 18 } : { cols: 40, rows: 30 };
+  const mapDimensions = size.width < 600 ? MAP_RASTER.mobile : MAP_RASTER.desktop;
+  // The map has its own raster density (arrows stay on the sparse grid); both call the same fieldAt().
+  const strengthMap = useMemo(() => {
+    if (!showFieldStrengthMap) return null;
+    const raster = sampleStrengthRaster(setup.sources, setup.domain, mapDimensions.cols, mapDimensions.rows, setup.singularity.rCore_m);
+    return raster ? createStrengthMapImage(raster) : null;
+  }, [showFieldStrengthMap, setup.sources, setup.domain, setup.singularity.rCore_m, mapDimensions.cols, mapDimensions.rows]);
   const grid = useMemo(() => (!showField ? HIDDEN_GRID :
     sampleFieldGrid(
       setup.sources,
@@ -217,8 +231,8 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     const canvas = staticCanvasRef.current;
     if (!canvas) return;
     const context = prepareCanvas(canvas, { x: size.width, y: size.height }, window.devicePixelRatio);
-    if (context) drawStaticField(context, camera, grid, setup.sources, setup.singularity.rCore_m);
-  }, [camera, grid, setup.sources, setup.singularity.rCore_m, size]);
+    if (context) drawStaticField(context, camera, grid, setup.sources, setup.singularity.rCore_m, { showArrows: showField, strengthMap });
+  }, [camera, grid, strengthMap, setup.sources, setup.singularity.rCore_m, size, showField]);
 
   const particleGlyph: ParticleGlyph = useMemo(() => ({
     initial: { x: setup.testParticle.x_m, y: setup.testParticle.y_m },
@@ -272,6 +286,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       data-sample-count={grid.ok ? grid.samples.length : 0}
       data-trail-count={showTrail ? runtime.trail.count : 0}
       data-field-visible={showField ? "true" : "false"}
+      data-field-strength-map-visible={showFieldStrengthMap ? "true" : "false"}
       data-camera-zoom={view.zoom.toFixed(3)}
       data-camera-pan={`${view.panX_px.toFixed(1)},${view.panY_px.toFixed(1)}`}
       data-probe-vectors={probeScene.contributions.length + (probeScene.resultant ? 1 : 0)}
@@ -291,6 +306,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     >
       <canvas ref={staticCanvasRef} className={styles.canvasLayer} aria-hidden="true" />
       <canvas ref={dynamicCanvasRef} className={styles.canvasLayer} aria-hidden="true" />
+      {showFieldStrengthMap ? <FieldStrengthMapLegend /> : null}
       {guidedLabelPositions.map(({ label, point }) => (
         <span
           key={label.target === "source" ? `${label.target}:${label.sourceId}:${label.role}` : `${label.target}:${label.role}`}
@@ -328,7 +344,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         <button type="button" onClick={() => setView((current) => zoomView(current, 1.25))} aria-label="放大" title="放大" data-testid="zoom-in"><ZoomIn size={18} aria-hidden="true" /></button>
         <button type="button" onClick={() => setView(INITIAL_CAMERA_VIEW)} aria-label="回到完整視圖" title="回到完整視圖" data-testid="view-home"><House size={18} aria-hidden="true" /></button>
       </div>
-      {tipOpen ? <div className={styles.canvasTip} data-testid="canvas-tip"><span>箭頭指出電場方向；背景箭頭的明暗與長度是非線性的強弱示意。</span><button type="button" className={styles.canvasTipClose} onClick={() => setTipOpen(false)} aria-label="關閉畫布說明" title="關閉"><X size={14} aria-hidden="true" /></button></div> : <button type="button" className={styles.canvasHelp} onClick={() => setTipOpen(true)} aria-label="開啟畫布說明" title="畫布說明" data-testid="canvas-help"><HelpCircle size={18} aria-hidden="true" /></button>}
+      {tipOpen ? <div className={styles.canvasTip} data-testid="canvas-tip"><span>箭頭指出電場方向；背景箭頭的明暗與長度是非線性的強弱示意。場強色圖以顏色表示 |E|。</span><button type="button" className={styles.canvasTipClose} onClick={() => setTipOpen(false)} aria-label="關閉畫布說明" title="關閉"><X size={14} aria-hidden="true" /></button></div> : <button type="button" className={styles.canvasHelp} onClick={() => setTipOpen(true)} aria-label="開啟畫布說明" title="畫布說明" data-testid="canvas-help"><HelpCircle size={18} aria-hidden="true" /></button>}
       <AccessibleObjects
         camera={camera}
         sources={setup.sources}
@@ -386,14 +402,14 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         />
       ) : null}
       <p className={styles.srOnly} id="field-semantic-summary">
-        電場方向與大小由箭頭呈現。{policy.sourcesMovable || policy.probeMovable || policy.setupControls
+        電場方向與大小由箭頭呈現。{showFieldStrengthMap ? "場強色圖的顏色與明暗也表示 |E|，數值請以測量點讀值為準。" : ""}{policy.sourcesMovable || policy.probeMovable || policy.setupControls
           ? "可操作的物件可直接點選、拖曳或用鍵盤移動；完整數值可在右側讀值中查看。"
           : "這個任務的物件位置固定；完成預測後可在右側讀值中核對結果。"}
       </p>
       <ElectrostaticLayerDrawer
         open={layersOpen}
         layers={layers}
-        available={{ field: policy.globalField, probe: policy.probe, particle: policy.particle, trail: policy.trajectory, contributions: policy.probeContributions }}
+        available={{ field: policy.globalField, fieldStrengthMap: freeExploration, probe: policy.probe, particle: policy.particle, trail: policy.trajectory, contributions: policy.probeContributions }}
         onClose={() => onLayersOpenChange(false)}
         onToggle={(key) => setLayers((current) => ({ ...current, [key]: !current[key] }))}
         returnFocusRef={layersTriggerRef}

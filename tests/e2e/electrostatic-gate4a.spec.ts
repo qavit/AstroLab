@@ -113,6 +113,19 @@ test("source magnitude spinner commits immediately without Enter or blur", async
   await expect(page.getByTestId("source-handle-s1")).toHaveAccessibleName(/\+3\.3 nC/);
 });
 
+test("clicking the native spinner and ArrowDown both commit immediately", async ({ page }) => {
+  await openFree(page);
+  await page.getByTestId("source-handle-s1").click();
+  const input = page.getByTestId("source-x");
+  await input.hover();
+  const box = (await input.boundingBox())!;
+  // Chromium draws the native step buttons in the input's right-hand edge on hover.
+  await page.mouse.click(box.x + box.width - 14, box.y + box.height / 2 - 5);
+  await expect(page.getByTestId("source-handle-s1")).toHaveAccessibleName(/水平位置 0\.01 m/);
+  await input.press("ArrowDown");
+  await expect(page.getByTestId("source-handle-s1")).toHaveAccessibleName(/水平位置 0\.00 m/);
+});
+
 test("source x and y spinners move the source immediately", async ({ page }) => {
   await openFree(page);
   await page.getByTestId("source-handle-s1").click();

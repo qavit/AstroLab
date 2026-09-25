@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { classifyField, normalizedStrength, sampleFieldGrid } from "../lib/science/electrostatics/sampling.ts";
+import { sampleStrengthRaster } from "../lib/science/electrostatics/strengthRaster.ts";
+import { fieldAt, R_CORE_M } from "../lib/science/electrostatics/field.ts";
 import { probeReadout, ELECTROSTATIC_PRESETS, initialRuntime, applySetupEdit } from "../models/electrostatic.ts";
 import { cameraForView, fitCamera, screenToWorld, worldToScreen } from "../components/electrostatic/viewport.ts";
 import { createShareUrl, initialStateFromShare, retainFieldSceneReferences } from "../components/electrostatic/share.ts";
 import { encodeSetup } from "../models/electrostatic-serialization.ts";
+import { INITIAL_ELECTROSTATIC_LAYERS } from "../components/electrostatic/layers.ts";
+import { coreScreenRadius, fieldStrengthMapColour } from "../components/electrostatic/render.ts";
 
 test("viewport coordinate transform round-trips across the 4×3 m world", () => {
   const domain = ELECTROSTATIC_PRESETS["single-positive"].domain;
@@ -83,6 +87,59 @@ test("fixed scale maps and classifies all five visual semantic states", () => {
   assert.equal(classifyField(valid(5001))?.kind, "high-clip");
 });
 
+test("field-strength map is presentation-only, defaults off, and uses the established log scale", () => {
+  assert.equal(INITIAL_ELECTROSTATIC_LAYERS.field, true);
+  assert.equal(INITIAL_ELECTROSTATIC_LAYERS.fieldStrengthMap, false);
+  assert.notEqual(
+    { ...INITIAL_ELECTROSTATIC_LAYERS, field: false, fieldStrengthMap: true }.field,
+    { ...INITIAL_ELECTROSTATIC_LAYERS, field: false, fieldStrengthMap: true }.fieldStrengthMap,
+    "arrows and map have independent layer state",
+  );
+  assert.equal(fieldStrengthMapColour(1), "rgb(17 57 75)");
+  assert.equal(fieldStrengthMapColour(5000), "rgb(212 164 77)");
+  assert.equal(fieldStrengthMapColour(50000), fieldStrengthMapColour(5000), "only the visual colour clips");
+});
+
+test("map raster samples real fieldAt() outside the core and marks the core invalid", () => {
+  const domain = { xmin: -2, xmax: 2, ymin: -1.5, ymax: 1.5 };
+  const sources = [{ id: "s1", x_m: 0, y_m: 0, q_C: 3e-9 }];
+  const raster = sampleStrengthRaster(sources, domain, 80, 60, R_CORE_M);
+  assert.ok(raster);
+  let invalid = 0;
+  for (let iy = 0; iy < raster.rows; iy += 1) {
+    const y = domain.ymin + ((iy + 0.5) * 3) / raster.rows;
+    for (let ix = 0; ix < raster.cols; ix += 1) {
+      const x = domain.xmin + ((ix + 0.5) * 4) / raster.cols;
+      const value = raster.magnitude_N_per_C[iy * raster.cols + ix];
+      const field = fieldAt({ x, y }, sources, R_CORE_M);
+      if (Math.hypot(x, y) <= R_CORE_M) { assert.ok(Number.isNaN(value)); invalid += 1; }
+      else { assert.equal(field.valid, true); assert.equal(value, field.magnitude_N_per_C); }
+    }
+  }
+  assert.ok(invalid > 0);
+  assert.equal(raster.magnitude_N_per_C[0 * 80 + 0] > 0, true, "row 0 is the lowest physics y");
+});
+
+test("map raster resolution never changes probe values or the exact core mask radius", () => {
+  const setup = ELECTROSTATIC_PRESETS.dipole;
+  const before = JSON.stringify(probeReadout(setup));
+  const coarse = sampleStrengthRaster(setup.sources, setup.domain, 8, 6, R_CORE_M);
+  const fine = sampleStrengthRaster(setup.sources, setup.domain, 96, 72, R_CORE_M);
+  assert.ok(coarse && fine);
+  assert.equal(JSON.stringify(probeReadout(setup)), before);
+  const camera = { scale_px_per_m: 250 };
+  assert.equal(coreScreenRadius(R_CORE_M, camera), R_CORE_M * 250);
+  assert.equal(coreScreenRadius(R_CORE_M, camera), coreScreenRadius(R_CORE_M, camera), "independent of any raster dimensions");
+});
+
+test("map raster |E| is identical for +Q and -Q", () => {
+  const domain = { xmin: -1, xmax: 1, ymin: -1, ymax: 1 };
+  const plus = sampleStrengthRaster([{ id: "s1", x_m: 0.1, y_m: 0, q_C: 3e-9 }], domain, 32, 32, R_CORE_M);
+  const minus = sampleStrengthRaster([{ id: "s1", x_m: 0.1, y_m: 0, q_C: -3e-9 }], domain, 32, 32, R_CORE_M);
+  assert.ok(plus && minus);
+  assert.deepEqual(Array.from(plus.magnitude_N_per_C), Array.from(minus.magnitude_N_per_C));
+});
+
 test("schema v1 URL helper round-trips setup and fails closed on malformed input", () => {
   const setup = ELECTROSTATIC_PRESETS.dipole;
   const shared = createShareUrl(
@@ -124,6 +181,24 @@ test("probe-only edits retain field-scene references and the desktop grid stays 
   assert.equal(grid.ok, true);
   if (grid.ok) assert.equal(grid.samples.length, 1200);
   assert.ok(Number.isFinite(elapsed));
+});
+
+test("magnitude-map samples preserve sign-independent |E| and invalid cores", () => {
+  const domain = { xmin: -1, xmax: 1, ymin: -1, ymax: 1 };
+  const positive = [{ id: "s1", x_m: 0, y_m: 0, q_C: 3e-9 }];
+  const negative = [{ ...positive[0], q_C: -3e-9 }];
+  const plus = sampleFieldGrid(positive, domain, 5, 5, 0.12);
+  const minus = sampleFieldGrid(negative, domain, 5, 5, 0.12);
+  assert.equal(plus.ok, true);
+  assert.equal(minus.ok, true);
+  if (!plus.ok || !minus.ok) return;
+  assert.deepEqual(plus.samples.map((sample) => sample.magnitude_N_per_C), minus.samples.map((sample) => sample.magnitude_N_per_C));
+  const core = sampleFieldGrid(positive, domain, 1, 1, 0.12);
+  assert.equal(core.ok, true);
+  if (core.ok) {
+    assert.equal(core.samples[0].glyph.kind, "core");
+    assert.equal(core.samples[0].magnitude_N_per_C, null, "core is invalid, never painted as a maximum");
+  }
 });
 
 test("share route input separates parameter presence from payload validity", () => {

@@ -103,6 +103,7 @@ test("shared Layers drawer returns focus and keeps its closed controls out of Ta
 
 test("guided prediction cannot expose gated evidence through Layers", async ({ page }) => {
   await page.goto("/electrostatics");
+  await expect(page.getByTestId("electrostatic-lab")).toHaveAttribute("data-interactive", "true");
   await page.getByTestId("choose-guided").click();
   await page.getByTestId("layers-toggle").click();
   await expect(page.getByTestId("layer-field")).toHaveCount(0);

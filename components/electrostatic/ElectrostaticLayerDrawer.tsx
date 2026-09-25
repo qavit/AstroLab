@@ -3,18 +3,8 @@
 import type { RefObject } from "react";
 import { LabLayerDrawer, LayerGroup, LayerToggle } from "../layers/LabLayerDrawer";
 import styles from "./ElectrostaticFieldLab.module.css";
-
-export interface ElectrostaticLayerState {
-  readonly field: boolean;
-  readonly probe: boolean;
-  readonly particle: boolean;
-  readonly trail: boolean;
-  readonly contributions: boolean;
-}
-
-export const INITIAL_ELECTROSTATIC_LAYERS: ElectrostaticLayerState = {
-  field: true, probe: true, particle: true, trail: true, contributions: true,
-};
+import type { ElectrostaticLayerState } from "./layers.ts";
+export type { ElectrostaticLayerState } from "./layers.ts";
 
 interface Props {
   readonly open: boolean;
@@ -35,6 +25,7 @@ export default function ElectrostaticLayerDrawer({ open, layers, available, onCl
       <LayerGroup title="畫布顯示">
         <div className="layer-list">
           {toggle("field", "電場箭頭")}
+          {toggle("fieldStrengthMap", "場強色圖")}
           {toggle("probe", "測量點")}
           {toggle("particle", "測試電荷")}
           {toggle("trail", "軌跡")}

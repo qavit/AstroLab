@@ -1,4 +1,5 @@
-import type { FieldGrid, GlyphClass } from "../../lib/science/electrostatics/sampling.ts";
+import { normalizedStrength, type FieldGrid, type GlyphClass } from "../../lib/science/electrostatics/sampling.ts";
+import type { StrengthRaster } from "../../lib/science/electrostatics/strengthRaster.ts";
 import type { SourceCharge, Vec2 } from "../../lib/science/electrostatics/types.ts";
 import type { CameraTransform } from "./viewport.ts";
 import { worldToScreen } from "./viewport.ts";
@@ -8,7 +9,7 @@ import type { VectorSegment } from "./vectorConstruction.ts";
 export interface ProbeVectorItem {
   readonly sourceId: string | null;
   readonly displacement: Vec2;
-  /** Same sign convention as the source glyph (gold = positive, teal = negative). */
+  /** Same sign convention as the source glyph (red = positive, teal = negative). */
   readonly positive: boolean;
   readonly emphasized: boolean;
   /** Another contribution is emphasized; this one recedes rather than competing with it. */
@@ -80,6 +81,93 @@ function mixChannel(a: number, b: number, amount: number): number {
 function fieldColour(strength: number): string {
   const t = 0.18 + 0.82 * strength;
   return `rgb(${mixChannel(FIELD_NORMAL_DARK[0], FIELD_NORMAL_LIGHT[0], t)} ${mixChannel(FIELD_NORMAL_DARK[1], FIELD_NORMAL_LIGHT[1], t)} ${mixChannel(FIELD_NORMAL_DARK[2], FIELD_NORMAL_LIGHT[2], t)})`;
+}
+
+const MAP_LOW = [17, 57, 75] as const;
+const MAP_HIGH = [212, 164, 77] as const;
+
+/** Restrained sequential scale: lightness rises with |E|, so it remains ordered in grayscale. */
+export function fieldStrengthMapColour(magnitude_N_per_C: number): string {
+  const strength = normalizedStrength(magnitude_N_per_C);
+  return `rgb(${mixChannel(MAP_LOW[0], MAP_HIGH[0], strength)} ${mixChannel(MAP_LOW[1], MAP_HIGH[1], strength)} ${mixChannel(MAP_LOW[2], MAP_HIGH[2], strength)})`;
+}
+
+/**
+ * Renderer padding, never data: each invalid (in-core) texel takes the mean colour of its already
+ * coloured 8-neighbours, ring by ring inward. Without this, bilinear upscaling would blend the
+ * transparent core texels into a dark halo around the core. The exact circular core mask in
+ * `drawCore` completely covers every padded texel, and nothing here reaches readouts or the model.
+ */
+function padInvalidTexels(rgb: Float32Array, valid: Uint8Array, cols: number, rows: number): void {
+  let remaining = 0;
+  for (let index = 0; index < valid.length; index += 1) if (!valid[index]) remaining += 1;
+  while (remaining > 0) {
+    const filled: number[] = [];
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        const index = row * cols + col;
+        if (valid[index]) continue;
+        let n = 0, r = 0, g = 0, b = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nc = col + dx, nr = row + dy;
+            if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
+            const other = nr * cols + nc;
+            if (!valid[other]) continue;
+            n += 1; r += rgb[3 * other]; g += rgb[3 * other + 1]; b += rgb[3 * other + 2];
+          }
+        }
+        if (n > 0) { rgb[3 * index] = r / n; rgb[3 * index + 1] = g / n; rgb[3 * index + 2] = b / n; filled.push(index); }
+      }
+    }
+    if (filled.length === 0) break; // no valid texel at all (only possible for a fully-core raster)
+    for (const index of filled) valid[index] = 1;
+    remaining -= filled.length;
+  }
+}
+
+/**
+ * Colour a magnitude raster into a small offscreen canvas (one pixel per texel, Canvas row order).
+ * The caller scales it to the world rectangle with smoothing; see `padInvalidTexels` for how
+ * excluded-core texels are kept from haloing.
+ */
+export function createStrengthMapImage(raster: StrengthRaster): HTMLCanvasElement | null {
+  if (typeof document === "undefined") return null;
+  const { cols, rows, magnitude_N_per_C } = raster;
+  const rgb = new Float32Array(cols * rows * 3);
+  const valid = new Uint8Array(cols * rows);
+  for (let index = 0; index < magnitude_N_per_C.length; index += 1) {
+    const magnitude = magnitude_N_per_C[index];
+    if (Number.isNaN(magnitude)) continue;
+    const strength = normalizedStrength(magnitude);
+    for (let c = 0; c < 3; c += 1) rgb[3 * index + c] = MAP_LOW[c] + (MAP_HIGH[c] - MAP_LOW[c]) * strength;
+    valid[index] = 1;
+  }
+  padInvalidTexels(rgb, valid, cols, rows);
+  const canvas = document.createElement("canvas");
+  canvas.width = cols;
+  canvas.height = rows;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  const image = context.createImageData(cols, rows);
+  for (let row = 0; row < rows; row += 1) {
+    const sourceRow = rows - 1 - row; // physics y is up, Canvas y is down
+    for (let col = 0; col < cols; col += 1) {
+      const from = sourceRow * cols + col;
+      const to = (row * cols + col) * 4;
+      image.data[to] = Math.round(rgb[3 * from]);
+      image.data[to + 1] = Math.round(rgb[3 * from + 1]);
+      image.data[to + 2] = Math.round(rgb[3 * from + 2]);
+      image.data[to + 3] = 255;
+    }
+  }
+  context.putImageData(image, 0, 0);
+  return canvas;
+}
+
+/** Exact screen radius of the excluded core; the renderer never derives it from raster cells. */
+export function coreScreenRadius(rCore_m: number, camera: CameraTransform): number {
+  return rCore_m * camera.scale_px_per_m;
 }
 
 function arrowLength(glyph: GlyphClass): number {
@@ -210,11 +298,15 @@ function drawCore(
   rCore_m: number,
 ): void {
   const centre = worldToScreen({ x: source.x_m, y: source.y_m }, camera);
-  const radius = rCore_m * camera.scale_px_per_m;
+  const radius = coreScreenRadius(rCore_m, camera);
   context.save();
   context.beginPath();
   context.arc(centre.x, centre.y, radius, 0, 2 * Math.PI);
   context.clip();
+  // Opaque world background first: the exact r_core circle is the only invalid region, so no map
+  // colour (or raster padding beneath it) may show through, whatever the raster resolution.
+  context.fillStyle = WORLD_BACKGROUND;
+  context.fillRect(centre.x - radius, centre.y - radius, 2 * radius, 2 * radius);
   context.fillStyle = "rgba(233, 238, 239, 0.09)";
   context.fillRect(centre.x - radius, centre.y - radius, 2 * radius, 2 * radius);
   context.strokeStyle = "rgba(226, 235, 238, 0.38)";
@@ -259,7 +351,9 @@ export function drawStaticField(
   grid: FieldGrid,
   sources: readonly SourceCharge[],
   rCore_m: number,
+  options: { readonly showArrows?: boolean; readonly strengthMap?: CanvasImageSource | null } = {},
 ): void {
+  const showArrows = options.showArrows ?? true;
   context.fillStyle = FIELD_BACKGROUND;
   context.fillRect(0, 0, camera.width, camera.height);
   context.fillStyle = WORLD_BACKGROUND;
@@ -279,7 +373,19 @@ export function drawStaticField(
   }
   context.restore();
 
-  if (grid.ok) {
+  if (options.strengthMap) {
+    // Smoothed scalar raster over the world rectangle; core circles are masked exactly below.
+    context.save();
+    context.beginPath();
+    context.rect(camera.worldLeft_px, camera.worldTop_px, camera.worldWidth_px, camera.worldHeight_px);
+    context.clip();
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(options.strengthMap, camera.worldLeft_px, camera.worldTop_px, camera.worldWidth_px, camera.worldHeight_px);
+    context.restore();
+  }
+
+  if (grid.ok && showArrows) {
     for (const sample of grid.samples) {
       const point = worldToScreen({ x: sample.x_m, y: sample.y_m }, camera);
       if (sample.glyph.kind === "core") continue;
@@ -307,7 +413,7 @@ export function drawStaticField(
 const SOURCE_MIN_NC = 1;
 const SOURCE_MAX_NC = 5;
 /** Sign colour convention shared by the source glyph and its field-contribution vector. */
-const POSITIVE_COLOUR = "#f6c85f";
+const POSITIVE_COLOUR = "#ef6a64";
 const NEGATIVE_COLOUR = "#76c8d5";
 
 /**
@@ -322,7 +428,7 @@ function drawSource(context: CanvasRenderingContext2D, source: SourceCharge, cam
   const t = Math.min(1, Math.max(0, (magnitude_nC - SOURCE_MIN_NC) / (SOURCE_MAX_NC - SOURCE_MIN_NC)));
   context.save();
   context.translate(point.x, point.y);
-  context.strokeStyle = positive ? "rgba(246, 200, 95, 0.85)" : "rgba(118, 200, 213, 0.85)";
+  context.strokeStyle = positive ? "rgba(239, 106, 100, 0.85)" : "rgba(118, 200, 213, 0.85)";
   context.lineWidth = 1 + 2.5 * t;
   context.beginPath();
   context.arc(0, 0, 16.5 + 1.5 * t, 0, 2 * Math.PI);
@@ -347,8 +453,8 @@ function drawSource(context: CanvasRenderingContext2D, source: SourceCharge, cam
 
 /** Contribution vectors read by the same sign colour as their source, not one generic hue. */
 function contributionColour(item: ProbeVectorItem): string {
-  const [r, g, b] = item.positive ? [246, 200, 95] : [118, 200, 213];
-  if (item.emphasized) return item.positive ? "#ffedbf" : "#c9edf2";
+  const [r, g, b] = item.positive ? [239, 106, 100] : [118, 200, 213];
+  if (item.emphasized) return item.positive ? "#ffd4d0" : "#c9edf2";
   const alpha = item.quiet ? 0.35 : 0.95;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }

@@ -120,6 +120,11 @@
 .canvasTipClose { position: absolute; top: -4px; right: -3px; display: grid; place-items: center; width: 28px; min-width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #e7f1f4; }
 .canvasTipClose:hover { background: rgba(18, 61, 86, .7); color: #ffd66f; }
 .canvasHelp { position: absolute; z-index: 8; right: 12px; bottom: 12px; }
+.fieldStrengthMapLegend { position: absolute; z-index: 6; left: 12px; bottom: 12px; width: min(272px, calc(100% - 82px)); padding: 8px 10px; border: 1px solid rgba(207,224,229,.48); border-radius: 7px; background: rgba(7,26,39,.88); color: #eef5f6; font-size: 11px; line-height: 1.35; pointer-events: none; }
+.fieldStrengthMapLegend strong { display: block; font-size: 12px; }
+.fieldStrengthGradient { height: 8px; margin-top: 5px; border-radius: 99px; background: linear-gradient(90deg, rgb(17, 57, 75), rgb(212, 164, 77)); }
+.fieldStrengthMarks { display: flex; justify-content: space-between; color: #d6e4e8; font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.fieldStrengthMapLegend small { display: block; margin-top: 4px; color: #cadbe0; font-size: 10px; }
 .guidedCanvasLabel { position: absolute; z-index: 5; pointer-events: none; transform: translateY(-50%); color: #ffe1a0; font-size: 20px; font-weight: 700; line-height: 1; text-shadow: 0 1px 3px #071a27, 0 0 7px #071a27; }
 .guidedCanvasLabel[data-role="mass"] { color: #d8f0f4; }
 .guidedCanvasLabel :global(.formula-inline) { display: inline-block; margin: 0; }
@@ -244,7 +249,7 @@
 .sourceList button { justify-content: flex-start; min-width: 0; padding: 8px; }
 .sourceCircle,
 .sourceDiamond { display: inline-grid; place-items: center; flex: 0 0 auto; width: 23px; height: 23px; color: #173142; font-weight: 800; }
-.sourceCircle { border-radius: 50%; background: #f6c85f; }
+.sourceCircle { border-radius: 50%; background: #ef6a64; }
 .sourceDiamond { background: #76c8d5; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
 .inlineActions,
 .primaryActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }
@@ -252,16 +257,34 @@
 .parameterGrid > button { grid-column: 1 / -1; }
 .parameterGrid label { display: grid; gap: 4px; color: #4e6976; font-size: 12px; }
 .parameterGrid input { width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid #b8cbd3; border-radius: 6px; background: #fff; color: #143247; }
-.numberField { align-content: start; }
-.sourceEditorGroup { margin-top: 12px; }
-.sourceEditorGroup > p { margin: 0 0 5px; color: #355d70; font-size: 13px; font-weight: 700; }
-.chargeRow { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: end; gap: 8px; }
+.numberField { display: grid; align-content: start; gap: 4px; min-width: 0; color: #526f7b; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.numberFieldLabel { line-height: 1.2; }
+.numberInputWithUnit { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.numberInputWithUnit input { width: min(100%, 120px); min-width: 0; min-height: 44px; padding: 7px 11px; border: 1px solid #a9c1cc; border-radius: 8px; background: #fff; color: #173448; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.numberInputWithUnit input:hover { border-color: #5e91a6; }
+.numberUnit { flex: 0 0 auto; color: #467287; font-size: 14px; font-weight: 800; }
+.sourceControls { margin: 6px 0 14px; padding: 4px 0 0; border: 0; border-radius: 0; background: transparent; }
+.sourceControls > legend { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.sourceEditorGroup { display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: end; gap: 10px; margin-top: 0; }
+.sourceEditorGroup > p { margin: 0 0 12px; color: #355d70; font-size: 12px; font-weight: 800; }
+.sourceEditorGroup + .sourceEditorGroup { margin-top: 12px; padding-top: 12px; border-top: 1px solid #dce6e9; }
+.chargeRow { display: grid; grid-template-columns: 88px max-content; align-items: end; justify-content: start; gap: 10px; }
 .signToggle { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-.signOption { border: 1px solid #b8cbd3; background: #fff; color: #355d70; font-size: 19px; font-weight: 700; }
-.signOptionActive { border: 1px solid #246b82; background: #dceef2; color: #143f58; font-size: 19px; font-weight: 700; box-shadow: inset 0 0 0 1px #246b82; }
-.sourcePositionRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.signOption { border: 1px solid #b8cbd3; background: #fff; color: #355d70; font-size: 17px; font-weight: 700; }
+.signOptionActive { border: 1px solid #246b82; background: #dceef2; color: #143f58; font-size: 17px; font-weight: 700; box-shadow: inset 0 0 0 1px #246b82; }
+.sourcePositionRow { display: grid; grid-template-columns: repeat(2, max-content); gap: 12px; }
 .fieldError { color: #9a3b29; font-size: 11px; line-height: 1.4; }
 .numberField input[aria-invalid="true"] { border-color: #b44d38; background: #fff8f5; }
+
+/* A selected source has two small, independent edits. At a usable width, place them side by
+   side so labels, units and controls form compact groups instead of leaving a tall blank card. */
+[data-testid="selected-source-controls"] { container-type: inline-size; }
+@container (min-width: 660px) {
+  [data-testid="selected-source-controls"] { display: grid; grid-template-columns: minmax(220px, .85fr) minmax(320px, 1.15fr); gap: 16px; }
+  [data-testid="selected-source-controls"] > legend { grid-column: 1 / -1; }
+  [data-testid="selected-source-controls"] .sourceEditorGroup { margin-top: 0; }
+  [data-testid="selected-source-controls"] .sourceEditorGroup + .sourceEditorGroup { padding-top: 0; border-top: 0; }
+}
 .helperText,
 .keyboardHelp { margin: 9px 0 0; color: #607985; font-size: 12px; line-height: 1.55; }
 .inspectorLead { margin: 0 0 13px; color: #4f6c79; line-height: 1.6; }
@@ -327,7 +350,7 @@
 .chargeLegend { margin: 12px 0 0; color: #536f7b; font-size: 12px; }
 .positiveMark,
 .negativeMark { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 3px; color: #183344; font-weight: 800; }
-.positiveMark { border-radius: 50%; background: #f6c85f; }
+.positiveMark { border-radius: 50%; background: #ef6a64; }
 .negativeMark { background: #76c8d5; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
 
 .footer { display: flex; justify-content: space-between; gap: 15px; margin-top: 15px; padding-top: 12px; border-top: 1px solid #cbd8dd; color: #6b838e; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
