@@ -317,7 +317,7 @@ test("grid sampler covers the domain at cell centres and enforces the grid budge
 test("pure science imports nothing from React, DOM, Canvas, Three.js, URL or models", async () => {
   const dir = new URL("../lib/science/electrostatics/", import.meta.url);
   const files = (await readdir(dir)).filter((name) => name.endsWith(".ts"));
-  assert.deepEqual(files.sort(), ["events.ts", "field.ts", "integrator.ts", "sampling.ts", "strengthRaster.ts", "types.ts"]);
+  assert.deepEqual(files.sort(), ["events.ts", "field.ts", "fieldLines.ts", "integrator.ts", "sampling.ts", "strengthRaster.ts", "types.ts"]);
   for (const name of files) {
     const source = await readFile(new URL(name, dir), "utf8");
     for (const match of source.matchAll(/from\s+"([^"]+)"/g)) {
