@@ -69,7 +69,8 @@ test("field-strength map is independent in free exploration and unavailable in g
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-field-visible", "false");
   await expect(page.getByTestId("field-strength-map-legend")).toBeVisible();
 
-  await page.getByTestId("direct-explore").click();
+  // Already in free exploration: the header offers the way into guided activities.
+  await page.getByTestId("enter-guided").click();
   await expect(page.getByTestId("field-viewport")).toHaveAttribute("data-field-strength-map-visible", "false");
   await page.getByTestId("layers-toggle").click();
   await expect(page.getByTestId("layer-fieldStrengthMap")).toHaveCount(0);
