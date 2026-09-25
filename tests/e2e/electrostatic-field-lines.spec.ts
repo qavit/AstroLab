@@ -39,6 +39,7 @@ test("field lines default off and toggle independently of arrows and the strengt
   await expect(viewport).toHaveAttribute("data-field-lines-visible", "true");
   await expect(page.locator("#field-semantic-summary")).toContainText("線上的箭頭表示電場方向");
   await expect(page.locator("#field-semantic-summary")).toContainText("不是帶電粒子的運動軌跡");
+  await expect(page.locator("#field-semantic-summary")).toContainText("方向沒有定義");
 });
 
 test("dipole shows only the upstream-owned copy of each + → − line", async ({ page }) => {

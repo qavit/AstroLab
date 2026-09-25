@@ -263,8 +263,8 @@ test("F: the symmetric square respects its mirror and 90° symmetry and a safely
   // The 4 × 3 m domain is not square, so compare the rotated geometry only where it stays inside.
   const inside = (p) => p.x >= DOMAIN.xmin && p.x <= DOMAIN.xmax && p.y >= DOMAIN.ymin && p.y <= DOMAIN.ymax;
   assertSetMatches(mirrored(lines, (p) => ({ x: -p.y, y: p.x })).map((points) => points.filter(inside)), lines, 1e-4, "90° rotation");
-  // In the plane the centre null is a sink (the flow leaves along z): the 30° and 60° lines of
-  // each source end there.
+  // The centre is a saddle of the 3D field; within the z = 0 plane nearby E points toward it, so
+  // the 30° and 60° lines of each source approach it and stop (E = 0, direction undefined).
   const nulls = lines.filter((line) => line.end.reason === "zero-field");
   assert.equal(nulls.length, 8);
   for (const line of nulls) assert.ok(dist(line.points.at(-1), { x: 0, y: 0 }) < 0.01);

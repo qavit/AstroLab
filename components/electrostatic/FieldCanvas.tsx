@@ -425,7 +425,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         />
       ) : null}
       <p className={styles.srOnly} id="field-semantic-summary">
-        電場方向與大小由箭頭呈現。{showFieldStrengthMap ? "場強色圖的顏色與明暗也表示 |E|，數值請以測量點讀值為準。" : ""}{showFieldLines ? "電場線沿各位置的電場方向延伸，線上的箭頭表示電場方向，從正電荷出發、指向負電荷或觀察範圍邊界；線條數量由視覺化規則決定，不是精確的場強量測。電場線不是帶電粒子的運動軌跡。" : ""}{policy.sourcesMovable || policy.probeMovable || policy.setupControls
+        電場方向與大小由箭頭呈現。{showFieldStrengthMap ? "場強色圖的顏色與明暗也表示 |E|，數值請以測量點讀值為準。" : ""}{showFieldLines ? "電場線沿各位置的電場方向延伸，線上的箭頭表示電場方向，一般從正電荷出發、指向負電荷或觀察範圍邊界；在對稱的平面切面中，也可能趨近電場為零的點，那裡電場為零、方向沒有定義；線條數量由視覺化規則決定，不是精確的場強量測。電場線不是帶電粒子的運動軌跡。" : ""}{policy.sourcesMovable || policy.probeMovable || policy.setupControls
           ? "可操作的物件可直接點選、拖曳或用鍵盤移動；完整數值可在右側讀值中查看。"
           : "這個任務的物件位置固定；完成預測後可在右側讀值中核對結果。"}
       </p>
