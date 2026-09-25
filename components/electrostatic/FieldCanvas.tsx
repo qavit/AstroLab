@@ -6,6 +6,9 @@ import { HelpCircle, House, ZoomIn, ZoomOut, X } from "lucide-react";
 import { Tex } from "../math/MathJax";
 import { sampleFieldGrid } from "../../lib/science/electrostatics/sampling.ts";
 import { MAP_RASTER, sampleStrengthRaster } from "../../lib/science/electrostatics/strengthRaster.ts";
+import { traceFieldLines } from "../../lib/science/electrostatics/fieldLines.ts";
+import type { Domain, SourceCharge } from "../../lib/science/electrostatics/types.ts";
+import { buildFieldLineScene } from "./fieldLineDisplay.ts";
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
 import { probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import type { EvidencePolicy } from "../../models/electrostatic-learning.ts";
@@ -114,6 +117,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
   const camera = useMemo(() => cameraForView(setup.domain, size, view), [setup.domain, size, view]);
   const showField = policy.globalField && layers.field;
   const showFieldStrengthMap = freeExploration && layers.fieldStrengthMap;
+  const showFieldLines = freeExploration && layers.fieldLines;
   const showProbe = policy.probe && layers.probe;
   const showParticle = policy.particle && layers.particle;
   const showTrail = policy.trajectory && layers.trail;
@@ -163,6 +167,22 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     const raster = sampleStrengthRaster(setup.sources, setup.domain, mapDimensions.cols, mapDimensions.rows, setup.singularity.rCore_m);
     return raster ? createStrengthMapImage(raster) : null;
   }, [showFieldStrengthMap, setup.sources, setup.domain, setup.singularity.rCore_m, mapDimensions.cols, mapDimensions.rows]);
+  // Field lines are world-space geometry: retrace only when the field itself changes. Setup
+  // validation rebuilds `sources` on every edit (probe and particle moves included), so the
+  // physics inputs are keyed by value; camera, probe, particle and playback never retrace.
+  const fieldGeometryKey = JSON.stringify([setup.sources, setup.domain, setup.singularity.rCore_m]);
+  const fieldLineScene = useMemo(() => {
+    if (!showFieldLines) return null;
+    const [sources, domain, rCore_m] = JSON.parse(fieldGeometryKey) as [SourceCharge[], Domain, number];
+    return buildFieldLineScene(traceFieldLines(sources, domain, rCore_m));
+  }, [showFieldLines, fieldGeometryKey]);
+  // Diagnostic only: the scene object is new exactly when lines were retraced, so count identities.
+  const fieldLineTraces = useRef(0);
+  useEffect(() => {
+    if (!fieldLineScene || !hostRef.current) return;
+    fieldLineTraces.current += 1;
+    hostRef.current.dataset.fieldLineTraces = String(fieldLineTraces.current);
+  }, [fieldLineScene]);
   const grid = useMemo(() => (!showField ? HIDDEN_GRID :
     sampleFieldGrid(
       setup.sources,
@@ -231,8 +251,8 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     const canvas = staticCanvasRef.current;
     if (!canvas) return;
     const context = prepareCanvas(canvas, { x: size.width, y: size.height }, window.devicePixelRatio);
-    if (context) drawStaticField(context, camera, grid, setup.sources, setup.singularity.rCore_m, { showArrows: showField, strengthMap });
-  }, [camera, grid, strengthMap, setup.sources, setup.singularity.rCore_m, size, showField]);
+    if (context) drawStaticField(context, camera, grid, setup.sources, setup.singularity.rCore_m, { showArrows: showField, strengthMap, fieldLines: fieldLineScene });
+  }, [camera, grid, strengthMap, fieldLineScene, setup.sources, setup.singularity.rCore_m, size, showField]);
 
   const particleGlyph: ParticleGlyph = useMemo(() => ({
     initial: { x: setup.testParticle.x_m, y: setup.testParticle.y_m },
@@ -287,6 +307,9 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       data-trail-count={showTrail ? runtime.trail.count : 0}
       data-field-visible={showField ? "true" : "false"}
       data-field-strength-map-visible={showFieldStrengthMap ? "true" : "false"}
+      data-field-lines-visible={showFieldLines ? "true" : "false"}
+      data-field-line-count={fieldLineScene?.lines.length ?? 0}
+      data-field-line-candidates={fieldLineScene?.candidateCount ?? 0}
       data-camera-zoom={view.zoom.toFixed(3)}
       data-camera-pan={`${view.panX_px.toFixed(1)},${view.panY_px.toFixed(1)}`}
       data-probe-vectors={probeScene.contributions.length + (probeScene.resultant ? 1 : 0)}
@@ -344,7 +367,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         <button type="button" onClick={() => setView((current) => zoomView(current, 1.25))} aria-label="放大" title="放大" data-testid="zoom-in"><ZoomIn size={18} aria-hidden="true" /></button>
         <button type="button" onClick={() => setView(INITIAL_CAMERA_VIEW)} aria-label="回到完整視圖" title="回到完整視圖" data-testid="view-home"><House size={18} aria-hidden="true" /></button>
       </div>
-      {tipOpen ? <div className={styles.canvasTip} data-testid="canvas-tip"><span>箭頭指出電場方向；背景箭頭的明暗與長度是非線性的強弱示意。場強色圖以顏色表示 |E|。</span><button type="button" className={styles.canvasTipClose} onClick={() => setTipOpen(false)} aria-label="關閉畫布說明" title="關閉"><X size={14} aria-hidden="true" /></button></div> : <button type="button" className={styles.canvasHelp} onClick={() => setTipOpen(true)} aria-label="開啟畫布說明" title="畫布說明" data-testid="canvas-help"><HelpCircle size={18} aria-hidden="true" /></button>}
+      {tipOpen ? <div className={styles.canvasTip} data-testid="canvas-tip"><span>箭頭指出電場方向；背景箭頭的明暗與長度是非線性的強弱示意。場強色圖以顏色表示 |E|。{showFieldLines ? "電場線沿電場方向延伸，不是粒子軌跡。" : ""}</span><button type="button" className={styles.canvasTipClose} onClick={() => setTipOpen(false)} aria-label="關閉畫布說明" title="關閉"><X size={14} aria-hidden="true" /></button></div> : <button type="button" className={styles.canvasHelp} onClick={() => setTipOpen(true)} aria-label="開啟畫布說明" title="畫布說明" data-testid="canvas-help"><HelpCircle size={18} aria-hidden="true" /></button>}
       <AccessibleObjects
         camera={camera}
         sources={setup.sources}
@@ -402,14 +425,14 @@ export default function FieldCanvas(props: FieldCanvasProps) {
         />
       ) : null}
       <p className={styles.srOnly} id="field-semantic-summary">
-        電場方向與大小由箭頭呈現。{showFieldStrengthMap ? "場強色圖的顏色與明暗也表示 |E|，數值請以測量點讀值為準。" : ""}{policy.sourcesMovable || policy.probeMovable || policy.setupControls
+        電場方向與大小由箭頭呈現。{showFieldStrengthMap ? "場強色圖的顏色與明暗也表示 |E|，數值請以測量點讀值為準。" : ""}{showFieldLines ? "電場線沿各位置的電場方向延伸，線上的箭頭表示電場方向，一般從正電荷出發、指向負電荷或觀察範圍邊界；在對稱的平面切面中，也可能趨近電場為零的點，那裡電場為零、方向沒有定義；線條數量由視覺化規則決定，不是精確的場強量測。電場線不是帶電粒子的運動軌跡。" : ""}{policy.sourcesMovable || policy.probeMovable || policy.setupControls
           ? "可操作的物件可直接點選、拖曳或用鍵盤移動；完整數值可在右側讀值中查看。"
           : "這個任務的物件位置固定；完成預測後可在右側讀值中核對結果。"}
       </p>
       <ElectrostaticLayerDrawer
         open={layersOpen}
         layers={layers}
-        available={{ field: policy.globalField, fieldStrengthMap: freeExploration, probe: policy.probe, particle: policy.particle, trail: policy.trajectory, contributions: policy.probeContributions }}
+        available={{ field: policy.globalField, fieldStrengthMap: freeExploration, fieldLines: freeExploration, probe: policy.probe, particle: policy.particle, trail: policy.trajectory, contributions: policy.probeContributions }}
         onClose={() => onLayersOpenChange(false)}
         onToggle={(key) => setLayers((current) => ({ ...current, [key]: !current[key] }))}
         returnFocusRef={layersTriggerRef}

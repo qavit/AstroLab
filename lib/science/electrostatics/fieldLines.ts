@@ -324,16 +324,21 @@ export function traceFieldLine(
   };
 }
 
-/** Candidate seed count grows mildly with |q|: 6 at 1 nC … 12 at 5 nC, always even. */
+/** Every non-zero source gets the same seeds, every 30° from +x. */
+export const SEEDS_PER_SOURCE = 12;
+
+/**
+ * Field-line count is a presentation sampling convention, never an encoding of |E| (the arrows,
+ * the strength map and the probe readout carry magnitude). So the count does not depend on |q|:
+ * editing a source's charge never moves a seed.
+ */
 export function seedCountForCharge(q_C: number): number {
-  const q_nC = Math.abs(q_C) / 1e-9;
-  if (!(q_nC > 0)) return 0;
-  return Math.max(2, 2 * Math.round(2.5 + 0.75 * (q_nC - 1)));
+  return Math.abs(q_C) > 0 ? SEEDS_PER_SOURCE : 0;
 }
 
 /**
  * Deterministic source-centred candidates on a ring just outside each core, at angles 2πk/n from
- * +x. An even n keeps the candidate set mirror-symmetric about both axes through the source. The
+ * +x (n = 12, so every 30°; the set is closed under both mirrors and 90° rotation). The
  * count is a display density choice, not a physical quantity. Candidates that fall inside another
  * source's core or outside the domain are omitted (their index stays visible through `count`).
  */
