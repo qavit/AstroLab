@@ -46,7 +46,7 @@ test("A uses a native spatial chooser, previews only the learner guess, then rev
   await expect(viewport).toHaveAttribute("data-probe-vectors", "3");
   await page.getByTestId("reveal-next").click();
   await expect(viewport).toHaveAttribute("data-field-visible", "false");
-  await expect(page.getByTestId("component-evidence")).toContainText("各來源的電場分量");
+  await expect(page.getByTestId("component-evidence")).toContainText("各來源分量");
   await expect(page.getByTestId("prediction-verdict")).toContainText("你的答案");
   await expect(page.getByTestId("prediction-verdict")).toContainText("模型結果");
   await expect(page.getByTestId("feedback-status")).toContainText("和模型不同");
