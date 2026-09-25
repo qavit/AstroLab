@@ -3,8 +3,11 @@
 import { useId, useState } from "react";
 import styles from "./ElectrostaticFieldLab.module.css";
 
-function display(value: number): string {
-  return String(Number(value.toPrecision(12)));
+/** Match the editable display precision to the control's explicit step, not floating-point noise. */
+function display(value: number, step: string): string {
+  const fractional = step.split(".")[1];
+  const decimals = fractional?.length ?? 0;
+  return String(Number(value.toFixed(decimals)));
 }
 
 interface CommittedNumberFieldProps {
@@ -13,6 +16,8 @@ interface CommittedNumberFieldProps {
   readonly step: string;
   readonly min?: string;
   readonly max?: string;
+  /** Render a compact learner-facing unit beside the editable numeric value. */
+  readonly unit?: string;
   readonly testId: string;
   /** Returns true only when the canonical model accepts the candidate. */
   readonly onCommit: (value: number) => boolean;
@@ -42,32 +47,36 @@ export default function CommittedNumberField(props: CommittedNumberFieldProps) {
   };
 
   return (
-    <label className={styles.numberField}>{props.label}
-      <input
-        type="number"
-        inputMode="decimal"
-        step={props.step}
-        min={props.min}
-        max={props.max}
-        value={draft ?? display(props.value)}
-        aria-invalid={error ? "true" : undefined}
-        aria-describedby={error ? errorId : undefined}
-        onFocus={() => {
-          // Browser number fields do not consistently send beforeinput for deletion. Treat the
-          // whole focused edit as a draft so an empty/intermediate value is never submitted.
-          if (draft === null) setDraft(display(props.value));
-        }}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          setError(null);
-        }}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") { event.preventDefault(); commit(); }
-          if (event.key === "Escape") { event.preventDefault(); setDraft(null); setError(null); }
-        }}
-        data-testid={props.testId}
-      />
+    <label className={styles.numberField}>
+      <span className={styles.numberFieldLabel}>{props.label}</span>
+      <span className={styles.numberInputWithUnit}>
+        <input
+          type="number"
+          inputMode="decimal"
+          step={props.step}
+          min={props.min}
+          max={props.max}
+        value={draft ?? display(props.value, props.step)}
+          aria-invalid={error ? "true" : undefined}
+          aria-describedby={error ? errorId : undefined}
+          onFocus={() => {
+            // Browser number fields do not consistently send beforeinput for deletion. Treat the
+            // whole focused edit as a draft so an empty/intermediate value is never submitted.
+            if (draft === null) setDraft(display(props.value, props.step));
+          }}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setError(null);
+          }}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") { event.preventDefault(); commit(); }
+            if (event.key === "Escape") { event.preventDefault(); setDraft(null); setError(null); }
+          }}
+          data-testid={props.testId}
+        />
+        {props.unit ? <span className={styles.numberUnit}>{props.unit}</span> : null}
+      </span>
       {error ? <span id={errorId} className={styles.fieldError} role="alert">{error}</span> : null}
     </label>
   );

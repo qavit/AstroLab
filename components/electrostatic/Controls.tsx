@@ -75,7 +75,7 @@ export default function Controls(props: ControlsProps) {
       ) : null}
 
       {selectedSource ? (
-        <fieldset className={styles.controlGroup} data-testid="selected-source-controls">
+        <fieldset className={`${styles.controlGroup} ${styles.sourceControls}`} data-testid="selected-source-controls">
           <legend>{sourceName(props.setup, selectedSource.id)}的設定</legend>
           <div className={styles.sourceEditorGroup} role="group" aria-label="電荷" data-testid="source-charge-controls">
             <p>電荷</p>
@@ -100,14 +100,14 @@ export default function Controls(props: ControlsProps) {
                   data-testid="source-sign-negative"
                 >−</button>
               </div>
-              <CommittedNumberField label="電量（nC）" value={Math.abs(selectedSource.q_C / 1e-9)} step="0.25" min="1" max="5" testId="source-magnitude" onCommit={(value) => value >= 0 && props.onMagnitude(value)} />
+              <CommittedNumberField label="電量" unit="nC" value={Math.abs(selectedSource.q_C / 1e-9)} step="0.25" min="1" max="5" testId="source-magnitude" onCommit={(value) => value >= 0 && props.onMagnitude(value)} />
             </div>
           </div>
           <div className={styles.sourceEditorGroup} role="group" aria-label="位置" data-testid="source-position-controls">
             <p>位置</p>
             <div className={styles.sourcePositionRow}>
-              <CommittedNumberField label="x（m）" value={selectedSource.x_m} step="0.01" min="-2" max="2" testId="source-x" onCommit={(value) => props.onSourcePosition("x", value)} />
-              <CommittedNumberField label="y（m）" value={selectedSource.y_m} step="0.01" min="-1.5" max="1.5" testId="source-y" onCommit={(value) => props.onSourcePosition("y", value)} />
+              <CommittedNumberField label="x" unit="m" value={selectedSource.x_m} step="0.01" min="-2" max="2" testId="source-x" onCommit={(value) => props.onSourcePosition("x", value)} />
+              <CommittedNumberField label="y" unit="m" value={selectedSource.y_m} step="0.01" min="-1.5" max="1.5" testId="source-y" onCommit={(value) => props.onSourcePosition("y", value)} />
             </div>
           </div>
         </fieldset>
