@@ -47,8 +47,8 @@ test("dipole shows only the upstream-owned copy of each + → − line", async (
   await page.getByTestId("layers-toggle").click();
   await page.getByTestId("layer-fieldLines").check();
   const viewport = page.getByTestId("field-viewport");
-  await expect(viewport).toHaveAttribute("data-field-line-candidates", "16");
-  await expect(viewport).toHaveAttribute("data-field-line-count", "11");
+  await expect(viewport).toHaveAttribute("data-field-line-candidates", "24");
+  await expect(viewport).toHaveAttribute("data-field-line-count", "17");
 });
 
 test("field lines are unavailable in guided activities", async ({ page }) => {

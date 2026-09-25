@@ -23,8 +23,8 @@ test("a source-to-source line is kept only in its upstream (positive) source's c
   const candidates = traceFieldLines(dipole, DOMAIN, R_CORE_M);
   const shown = selectDisplayFieldLines(candidates);
   const connecting = (lines) => lines.filter((line) => line.start.reason === "source-core" && line.end.reason === "source-core");
-  assert.equal(connecting(candidates).length, 10, "each connection is traced from both ends");
-  assert.equal(connecting(shown).length, 5);
+  assert.equal(connecting(candidates).length, 14, "each connection is traced from both ends");
+  assert.equal(connecting(shown).length, 7);
   for (const line of connecting(shown)) {
     assert.equal(line.seed.sourceId, line.start.sourceId);
     assert.equal(line.start.sourceId, "s1");
@@ -33,8 +33,8 @@ test("a source-to-source line is kept only in its upstream (positive) source's c
 
 test("boundary → negative and positive → boundary lines survive ownership filtering", () => {
   const shown = selectDisplayFieldLines(traceFieldLines(dipole, DOMAIN, R_CORE_M));
-  assert.equal(shown.filter((line) => line.start.reason === "domain-boundary" && line.end.sourceId === "s2").length, 3);
-  assert.equal(shown.filter((line) => line.start.sourceId === "s1" && line.end.reason === "domain-boundary").length, 3);
+  assert.equal(shown.filter((line) => line.start.reason === "domain-boundary" && line.end.sourceId === "s2").length, 5);
+  assert.equal(shown.filter((line) => line.start.sourceId === "s1" && line.end.reason === "domain-boundary").length, 5);
   const loneNegative = traceFieldLines([source("s1", 0, 0, -3)], DOMAIN, R_CORE_M);
   assert.equal(selectDisplayFieldLines(loneNegative).length, loneNegative.length);
   const likePair = traceFieldLines([source("s1", -0.6, 0, 3), source("s2", 0.6, 0, 3)], DOMAIN, R_CORE_M);

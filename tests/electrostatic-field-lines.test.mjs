@@ -113,46 +113,34 @@ test("every canonical line is +E oriented, tangent to E, core-safe, clipped and 
   }
 });
 
-test("seed tiers: 8 below 4 nC, 16 from 4 nC, independent of sign", () => {
-  assert.equal(seedCountForCharge(1 * nC), 8);
-  assert.equal(seedCountForCharge(3 * nC), 8);
-  assert.equal(seedCountForCharge(3.75 * nC), 8);
-  assert.equal(seedCountForCharge(4 * nC), 16);
-  assert.equal(seedCountForCharge(5 * nC), 16);
-  for (const q of [1, 3, 3.75, 4, 5]) assert.equal(seedCountForCharge(-q * nC), seedCountForCharge(q * nC));
-});
-
-const seedAngles = (q_nC) => fieldLineSeeds([source("s1", 0, 0, q_nC)], DOMAIN, R_CORE_M).map((seed) => seed.angle_rad);
-
-test("crossing the tier threshold keeps every low-tier seed angle exactly", () => {
-  const low = seedAngles(3.75);
-  const high = seedAngles(4);
-  assert.equal(low.length, 8);
-  assert.equal(high.length, 16);
-  for (const angle of low) assert.ok(high.includes(angle), `${angle} rad is bit-identical in the 16-seed tier`);
-  // The lines through shared seeds are the same curves: only the new intermediate ones appear.
-  const scene = (q) => traceFieldLines([source("s1", -0.6, 0, q), source("s2", 0.6, 0, -3)], DOMAIN, R_CORE_M);
-  const before = scene(3.75).filter((line) => line.seed.sourceId === "s1");
-  const after = scene(4).filter((line) => line.seed.sourceId === "s1");
-  for (const line of before) {
-    const same = after.find((other) => other.seed.angle_rad === line.seed.angle_rad);
-    assert.ok(same, "existing seed angle survives");
-    assert.deepEqual(same.seed.point, line.seed.point);
+test("every non-zero source gets exactly 12 seeds, whatever its magnitude or sign", () => {
+  for (const q of [1, 3, 5]) {
+    assert.equal(seedCountForCharge(q * nC), 12);
+    assert.equal(seedCountForCharge(-q * nC), 12);
   }
+  assert.equal(seedCountForCharge(0), 0);
 });
 
-test("both seed tiers are closed under the x/y mirrors and 90° rotation", () => {
-  const key = (angle) => {
-    const wrapped = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    return Math.round((wrapped / (2 * Math.PI)) * 16) % 16;
-  };
-  for (const q of [3, 5]) {
-    const set = new Set(seedAngles(q).map(key));
-    for (const angle of seedAngles(q)) {
-      assert.ok(set.has(key(-angle)), "mirror across the x axis");
-      assert.ok(set.has(key(Math.PI - angle)), "mirror across the y axis");
-      assert.ok(set.has(key(angle + Math.PI / 2)), "90° rotation");
-    }
+const seedsOf = (q_nC) => fieldLineSeeds([source("s1", 0, 0, q_nC)], DOMAIN, R_CORE_M);
+
+test("seed angles are exactly k·30° and never move with |q| or sign", () => {
+  const reference = seedsOf(3);
+  assert.equal(reference.length, 12);
+  for (const [k, seed] of reference.entries()) {
+    assert.equal(seed.index, k);
+    assert.ok(Math.abs((seed.angle_rad * 180) / Math.PI - 30 * k) < 1e-12, `seed ${k} at ${seed.angle_rad} rad`);
+  }
+  for (const q of [1, 5, -1, -3, -5]) assert.deepEqual(seedsOf(q), reference, `${q} nC uses the identical seed set`);
+});
+
+test("the seed set is closed under the x/y mirrors and 90° rotation", () => {
+  const step = (angle) => Math.round((((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / (Math.PI / 6)) % 12;
+  const set = new Set(seedsOf(3).map((seed) => step(seed.angle_rad)));
+  assert.equal(set.size, 12);
+  for (const seed of seedsOf(3)) {
+    assert.ok(set.has(step(-seed.angle_rad)), "mirror across the x axis");
+    assert.ok(set.has(step(Math.PI - seed.angle_rad)), "mirror across the y axis");
+    assert.ok(set.has(step(seed.angle_rad + Math.PI / 2)), "90° rotation");
   }
 });
 
@@ -275,8 +263,10 @@ test("F: the symmetric square respects its mirror and 90° symmetry and a safely
   // The 4 × 3 m domain is not square, so compare the rotated geometry only where it stays inside.
   const inside = (p) => p.x >= DOMAIN.xmin && p.x <= DOMAIN.xmax && p.y >= DOMAIN.ymin && p.y <= DOMAIN.ymax;
   assertSetMatches(mirrored(lines, (p) => ({ x: -p.y, y: p.x })).map((points) => points.filter(inside)), lines, 1e-4, "90° rotation");
+  // In the plane the centre null is a sink (the flow leaves along z): the 30° and 60° lines of
+  // each source end there.
   const nulls = lines.filter((line) => line.end.reason === "zero-field");
-  assert.equal(nulls.length, 4);
+  assert.equal(nulls.length, 8);
   for (const line of nulls) assert.ok(dist(line.points.at(-1), { x: 0, y: 0 }) < 0.01);
   for (const line of lines) assert.notEqual(line.end.reason, "source-core");
 });
