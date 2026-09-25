@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { classifyField, normalizedStrength, sampleFieldGrid } from "../lib/science/electrostatics/sampling.ts";
+import { sampleStrengthRaster } from "../lib/science/electrostatics/strengthRaster.ts";
+import { fieldAt, R_CORE_M } from "../lib/science/electrostatics/field.ts";
 import { probeReadout, ELECTROSTATIC_PRESETS, initialRuntime, applySetupEdit } from "../models/electrostatic.ts";
 import { cameraForView, fitCamera, screenToWorld, worldToScreen } from "../components/electrostatic/viewport.ts";
 import { createShareUrl, initialStateFromShare, retainFieldSceneReferences } from "../components/electrostatic/share.ts";
 import { encodeSetup } from "../models/electrostatic-serialization.ts";
 import { INITIAL_ELECTROSTATIC_LAYERS } from "../components/electrostatic/layers.ts";
-import { fieldGridScreenCell, fieldStrengthMapColour } from "../components/electrostatic/render.ts";
+import { coreScreenRadius, fieldStrengthMapColour } from "../components/electrostatic/render.ts";
 
 test("viewport coordinate transform round-trips across the 4×3 m world", () => {
   const domain = ELECTROSTATIC_PRESETS["single-positive"].domain;
@@ -98,9 +100,44 @@ test("field-strength map is presentation-only, defaults off, and uses the establ
   assert.equal(fieldStrengthMapColour(50000), fieldStrengthMapColour(5000), "only the visual colour clips");
 });
 
-test("field-strength map flips sampled physics rows into Canvas screen rows", () => {
-  assert.deepEqual(fieldGridScreenCell(0, 40, 30), { column: 0, row: 29 }, "lowest physics y belongs at the Canvas bottom");
-  assert.deepEqual(fieldGridScreenCell(1199, 40, 30), { column: 39, row: 0 }, "highest physics y belongs at the Canvas top");
+test("map raster samples real fieldAt() outside the core and marks the core invalid", () => {
+  const domain = { xmin: -2, xmax: 2, ymin: -1.5, ymax: 1.5 };
+  const sources = [{ id: "s1", x_m: 0, y_m: 0, q_C: 3e-9 }];
+  const raster = sampleStrengthRaster(sources, domain, 80, 60, R_CORE_M);
+  assert.ok(raster);
+  let invalid = 0;
+  for (let iy = 0; iy < raster.rows; iy += 1) {
+    const y = domain.ymin + ((iy + 0.5) * 3) / raster.rows;
+    for (let ix = 0; ix < raster.cols; ix += 1) {
+      const x = domain.xmin + ((ix + 0.5) * 4) / raster.cols;
+      const value = raster.magnitude_N_per_C[iy * raster.cols + ix];
+      const field = fieldAt({ x, y }, sources, R_CORE_M);
+      if (Math.hypot(x, y) <= R_CORE_M) { assert.ok(Number.isNaN(value)); invalid += 1; }
+      else { assert.equal(field.valid, true); assert.equal(value, field.magnitude_N_per_C); }
+    }
+  }
+  assert.ok(invalid > 0);
+  assert.equal(raster.magnitude_N_per_C[0 * 80 + 0] > 0, true, "row 0 is the lowest physics y");
+});
+
+test("map raster resolution never changes probe values or the exact core mask radius", () => {
+  const setup = ELECTROSTATIC_PRESETS.dipole;
+  const before = JSON.stringify(probeReadout(setup));
+  const coarse = sampleStrengthRaster(setup.sources, setup.domain, 8, 6, R_CORE_M);
+  const fine = sampleStrengthRaster(setup.sources, setup.domain, 96, 72, R_CORE_M);
+  assert.ok(coarse && fine);
+  assert.equal(JSON.stringify(probeReadout(setup)), before);
+  const camera = { scale_px_per_m: 250 };
+  assert.equal(coreScreenRadius(R_CORE_M, camera), R_CORE_M * 250);
+  assert.equal(coreScreenRadius(R_CORE_M, camera), coreScreenRadius(R_CORE_M, camera), "independent of any raster dimensions");
+});
+
+test("map raster |E| is identical for +Q and -Q", () => {
+  const domain = { xmin: -1, xmax: 1, ymin: -1, ymax: 1 };
+  const plus = sampleStrengthRaster([{ id: "s1", x_m: 0.1, y_m: 0, q_C: 3e-9 }], domain, 32, 32, R_CORE_M);
+  const minus = sampleStrengthRaster([{ id: "s1", x_m: 0.1, y_m: 0, q_C: -3e-9 }], domain, 32, 32, R_CORE_M);
+  assert.ok(plus && minus);
+  assert.deepEqual(Array.from(plus.magnitude_N_per_C), Array.from(minus.magnitude_N_per_C));
 });
 
 test("schema v1 URL helper round-trips setup and fails closed on malformed input", () => {

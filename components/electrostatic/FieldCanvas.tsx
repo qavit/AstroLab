@@ -5,6 +5,7 @@ import type { RefObject } from "react";
 import { HelpCircle, House, ZoomIn, ZoomOut, X } from "lucide-react";
 import { Tex } from "../math/MathJax";
 import { sampleFieldGrid } from "../../lib/science/electrostatics/sampling.ts";
+import { MAP_RASTER, sampleStrengthRaster } from "../../lib/science/electrostatics/strengthRaster.ts";
 import type { Vec2 } from "../../lib/science/electrostatics/types.ts";
 import { probeReadout, type ElectrostaticRuntime, type ElectrostaticSetup } from "../../models/electrostatic.ts";
 import type { EvidencePolicy } from "../../models/electrostatic-learning.ts";
@@ -20,6 +21,7 @@ import type { GuidedCanvasSemantics } from "./guidedCanvasSemantics.ts";
 import {
   drawDynamicField,
   drawPredictionMarkers,
+  createStrengthMapImage,
   drawStaticField,
   prepareCanvas,
   type ParticleGlyph,
@@ -154,7 +156,14 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     return null;
   }, [camera, hoverTarget, policy.probeMovable, policy.setupControls, policy.sourcesMovable, policy.sourceMagnitudeId, setup.probe.x_m, setup.probe.y_m, setup.sources, setup.testParticle.x_m, setup.testParticle.y_m]);
   const dimensions = size.width < 600 ? { cols: 24, rows: 18 } : { cols: 40, rows: 30 };
-  const grid = useMemo(() => (!(showField || showFieldStrengthMap) ? HIDDEN_GRID :
+  const mapDimensions = size.width < 600 ? MAP_RASTER.mobile : MAP_RASTER.desktop;
+  // The map has its own raster density (arrows stay on the sparse grid); both call the same fieldAt().
+  const strengthMap = useMemo(() => {
+    if (!showFieldStrengthMap) return null;
+    const raster = sampleStrengthRaster(setup.sources, setup.domain, mapDimensions.cols, mapDimensions.rows, setup.singularity.rCore_m);
+    return raster ? createStrengthMapImage(raster) : null;
+  }, [showFieldStrengthMap, setup.sources, setup.domain, setup.singularity.rCore_m, mapDimensions.cols, mapDimensions.rows]);
+  const grid = useMemo(() => (!showField ? HIDDEN_GRID :
     sampleFieldGrid(
       setup.sources,
       setup.domain,
@@ -163,7 +172,7 @@ export default function FieldCanvas(props: FieldCanvasProps) {
       setup.singularity.rCore_m,
       setup.fieldStyle,
     )
-  ), [showField, showFieldStrengthMap, setup.sources, setup.domain, setup.singularity, setup.fieldStyle, dimensions.cols, dimensions.rows]);
+  ), [showField, setup.sources, setup.domain, setup.singularity, setup.fieldStyle, dimensions.cols, dimensions.rows]);
   const probe = useMemo(() => probeReadout(setup), [setup]);
   const { probeTotal } = policy;
   const probeZero = showProbe && probeTotal && probe.valid && probe.isZero;
@@ -222,8 +231,8 @@ export default function FieldCanvas(props: FieldCanvasProps) {
     const canvas = staticCanvasRef.current;
     if (!canvas) return;
     const context = prepareCanvas(canvas, { x: size.width, y: size.height }, window.devicePixelRatio);
-    if (context) drawStaticField(context, camera, grid, setup.sources, setup.singularity.rCore_m, { showArrows: showField, showStrengthMap: showFieldStrengthMap });
-  }, [camera, grid, setup.sources, setup.singularity.rCore_m, size, showField, showFieldStrengthMap]);
+    if (context) drawStaticField(context, camera, grid, setup.sources, setup.singularity.rCore_m, { showArrows: showField, strengthMap });
+  }, [camera, grid, strengthMap, setup.sources, setup.singularity.rCore_m, size, showField]);
 
   const particleGlyph: ParticleGlyph = useMemo(() => ({
     initial: { x: setup.testParticle.x_m, y: setup.testParticle.y_m },
