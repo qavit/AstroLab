@@ -257,7 +257,7 @@
 .parameterGrid > button { grid-column: 1 / -1; }
 .parameterGrid label { display: grid; gap: 4px; color: #4e6976; font-size: 12px; }
 .parameterGrid input { width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid #b8cbd3; border-radius: 6px; background: #fff; color: #143247; }
-.numberField { align-content: start; }
+.numberField { display: grid; align-content: start; gap: 4px; color: #4e6976; font-size: 12px; }
 .sourceEditorGroup { margin-top: 12px; }
 .sourceEditorGroup > p { margin: 0 0 5px; color: #355d70; font-size: 13px; font-weight: 700; }
 .chargeRow { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: end; gap: 8px; }

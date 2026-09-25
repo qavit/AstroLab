@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import styles from "./ElectrostaticFieldLab.module.css";
 
 function display(value: number): string {
@@ -19,14 +19,13 @@ interface CommittedNumberFieldProps {
 }
 
 /**
- * Numeric inputs are a two-phase editor: typing is local, Enter/blur is the commit boundary.
+ * Numeric inputs are a two-phase editor: every focused edit is local, Enter/blur is the commit boundary.
  * Rejected text stays visible beside its local error; Escape restores the last physical value.
  */
 export default function CommittedNumberField(props: CommittedNumberFieldProps) {
   const errorId = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const textEditRef = useRef(false);
 
   const commitText = (text: string) => {
     const value = text.trim() === "" ? Number.NaN : Number(text);
@@ -53,18 +52,14 @@ export default function CommittedNumberField(props: CommittedNumberFieldProps) {
         value={draft ?? display(props.value)}
         aria-invalid={error ? "true" : undefined}
         aria-describedby={error ? errorId : undefined}
-        onBeforeInput={() => { textEditRef.current = true; }}
+        onFocus={() => {
+          // Browser number fields do not consistently send beforeinput for deletion. Treat the
+          // whole focused edit as a draft so an empty/intermediate value is never submitted.
+          if (draft === null) setDraft(display(props.value));
+        }}
         onChange={(event) => {
-          const next = event.target.value;
-          // Text input stays local. Native number steppers dispatch an input/change without a
-          // preceding beforeinput, so they are an explicit immediate canonical adjustment.
-          if (textEditRef.current) {
-            textEditRef.current = false;
-            setDraft(next);
-            setError(null);
-            return;
-          }
-          commitText(next);
+          setDraft(event.target.value);
+          setError(null);
         }}
         onBlur={commit}
         onKeyDown={(event) => {

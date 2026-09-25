@@ -83,6 +83,21 @@ test("numeric editing is transient until commit, rejects locally, and Escape res
   await expect(input).toHaveValue("0.75");
 });
 
+test("clearing a numeric field is an in-progress edit, not an immediate validation error", async ({ page }) => {
+  await openFree(page);
+  await page.getByTestId("source-handle-s1").click();
+  const input = page.getByTestId("source-magnitude");
+  await input.click();
+  await input.press("ControlOrMeta+A");
+  await input.press("Backspace");
+  await expect(input).toHaveValue("");
+  await expect(input).not.toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await input.pressSequentially("4");
+  await input.press("Enter");
+  await expect(input).toHaveValue("4");
+});
+
 test("measurement point exposes compact MathJax readout and natural zero/invalid states", async ({ page }) => {
   await openFree(page);
   await page.getByTestId("probe-handle").click();
