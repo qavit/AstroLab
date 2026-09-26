@@ -78,6 +78,10 @@ Cloudflare 保留既有版本，rollback 不需要重新建置。另一條路是
 
 太陽模型的赤緯仍採課堂用的平滑近似式（全年誤差在 2° 以內）。需要真實星曆的部分改走 `lib/science/ephemeris.ts` —— 全平台唯一接觸 `astronomy-engine` 的檔案，由測試強制維持。
 
+## Versioning
+
+各種「版本」（Lab 產品版本、model 版本、schema 版本、部署識別等）的定義與 bump 規則見 [`VERSIONING.md`](VERSIONING.md)；對外有意義的變更記錄在 [`CHANGELOG.md`](CHANGELOG.md)。
+
 ## Model registry
 
 `lib/labs/registry.ts` 匯出 `LabManifest[]`，是 catalog 顯示、路由與未來跨產品聚合的唯一資料來源。Registry 本身是機器可讀的 pure data：icon、card art 等呈現細節一律以字串 key 儲存，由 `components/ModelCatalog.tsx` 這一層做字串到元件的 mapping。
