@@ -2,7 +2,7 @@
 
 互動式科學模型平台。這個 repo 是 **Kakau Lab** 平台的技術基礎與前身 —— `qavit/AstroLab` 這個名稱是歷史沿革，使用者看到的正式產品名稱是 **Kakau Lab**。Repo 改名是未來可選項，不是本階段（Stage 0）的 blocker。
 
-首個模組「太陽、天球與竿影」把地心天球、觀察者天空、季節日行跡與竿影放在同一份同步狀態中；目前平台共有 8 個已發布的互動模型，見 `lib/labs/registry.ts`；另有 Model 09「靜電學」（`/electrostatics`）處於 `experimental` 狀態，只有 server-side experimental preview 會列入 catalog，尚未發布。
+首個模組「太陽、天球與竿影」把地心天球、觀察者天空、季節日行跡與竿影放在同一份同步狀態中；目前 catalog 共有 9 個已發布的互動模型，見 `lib/labs/registry.ts`；Model 09「靜電學」（`/electrostatics`）已正式發布。
 
 ## Kakau Lab / Kakau Web 整合邊界
 
@@ -48,7 +48,7 @@ npx wrangler deploy --dry-run       # 完整打包但不上傳（不需要 Cloud
 
 ### 驗證
 
-部署後 Cloudflare 會回一個 `https://kakau-lab.<subdomain>.workers.dev` 網址。最小驗收：catalog 回 200 且顯示 8 個模型、01–07 各自載入、Model 08 連到 `https://kakau.tw/lab/interference`、Model 07 的 `/projectile/notes` 數學式有算繪。
+部署後 Cloudflare 會回一個 `https://kakau-lab.<subdomain>.workers.dev` 網址。最小驗收：catalog 回 200 且顯示 9 個模型、01–07 各自載入、Model 08 連到 `https://kakau.tw/lab/interference`、Model 09 的 `/electrostatics` 正常載入、Model 07 的 `/projectile/notes` 數學式有算繪。
 
 ### Rollback
 
@@ -77,6 +77,10 @@ Cloudflare 保留既有版本，rollback 不需要重新建置。另一條路是
 - `docs/architecture.md`: 平台分層、相依方向、各模型的設計取捨，以及 Kakau Lab / Kakau Web 的部署邊界
 
 太陽模型的赤緯仍採課堂用的平滑近似式（全年誤差在 2° 以內）。需要真實星曆的部分改走 `lib/science/ephemeris.ts` —— 全平台唯一接觸 `astronomy-engine` 的檔案，由測試強制維持。
+
+## Versioning
+
+各種「版本」（Lab 產品版本、model 版本、schema 版本、部署識別等）的定義與 bump 規則見 [`VERSIONING.md`](VERSIONING.md)；對外有意義的變更記錄在 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## Model registry
 
