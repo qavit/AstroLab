@@ -3,7 +3,7 @@
  * continuous across years, which the moon and the planets both require.
  *
  * Angles elsewhere in this module are documented per function. Times here are always UTC;
- * AstroLab makes no attempt to model local civil time, time zones, or daylight saving.
+ * Kakau Lab makes no attempt to model local civil time, time zones, or daylight saving.
  */
 
 /** Julian Day of the J2000 epoch: 2000-01-01 12:00 UTC. */

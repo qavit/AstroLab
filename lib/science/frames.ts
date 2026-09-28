@@ -1,5 +1,5 @@
 /**
- * Conversions between the three coordinate frames AstroLab teaches, written out explicitly
+ * Conversions between the three coordinate frames Kakau Lab teaches, written out explicitly
  * rather than delegated, so the chain a student is shown on screen is the chain the code runs.
  *
  * Every angle in this module is in DEGREES, in and out. (`solar.ts` predates this convention
@@ -129,7 +129,7 @@ export function equatorialToHorizontal(
     Math.sin(ha),
     Math.cos(ha) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi),
   );
-  // atan2 above measures from south; AstroLab measures azimuth from north through east.
+  // atan2 above measures from south; Kakau Lab measures azimuth from north through east.
   return {
     azimuth: normalizeDegrees(toDegrees(azimuth) + 180),
     altitude: toDegrees(altitude),

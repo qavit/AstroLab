@@ -144,7 +144,7 @@ export default function SolarLab() {
   const saveExport = useCallback(async () => {
     const dataUrl = sceneRef.current?.capture(exportTarget, exportMode, lineWidth, exportShadowTimes);
     if (!dataUrl) return;
-    const filename = `astrolab-${exportTarget}-${Math.round(state.latitude)}-${Math.round(state.day)}-${exportMode}.png`;
+    const filename = `kakau-lab-${exportTarget}-${Math.round(state.latitude)}-${Math.round(state.day)}-${exportMode}.png`;
     await saveDataUrl(dataUrl, filename, directoryRef.current);
   }, [exportTarget, exportMode, lineWidth, exportShadowTimes, state.latitude, state.day]);
 
@@ -238,7 +238,7 @@ export default function SolarLab() {
         />
       )}
 
-      <footer className="lab-footer"><span>ASTROLAB / INTERACTIVE SCIENCE MODELS</span><span>教學近似模型 · 赤緯採週期近似式</span></footer>
+      <footer className="lab-footer"><span>KAKAU LAB / INTERACTIVE SCIENCE MODELS</span><span>教學近似模型 · 赤緯採週期近似式</span></footer>
     </main>
   );
 }

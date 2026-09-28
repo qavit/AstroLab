@@ -503,7 +503,7 @@ export default function StandardAtmosphereLab() {
 
   const handleExport = () => {
     if (!chartSvgRef.current) return;
-    const filename = `astrolab-atmosphere-${state.quantityA}-${state.quantityB}-${Math.round(state.maxAltitudeKm)}km.png`;
+    const filename = `kakau-lab-atmosphere-${state.quantityA}-${state.quantityB}-${Math.round(state.maxAltitudeKm)}km.png`;
     void exportChartPng(chartSvgRef.current, filename);
   };
 

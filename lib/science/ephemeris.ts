@@ -1,8 +1,8 @@
 /**
  * The single point of contact with `astronomy-engine`.
  *
- * Nothing else in AstroLab imports that package. Everything here takes a Julian Day and
- * AstroLab's own plain types, and returns the same, so the rest of the platform stays
+ * Nothing else in Kakau Lab imports that package. Everything here takes a Julian Day and
+ * Kakau Lab's own plain types, and returns the same, so the rest of the platform stays
  * independent of the ephemeris source and a future precision/approximation switch is a change
  * to one file.
  *
@@ -37,7 +37,7 @@ import {
 import { j2000DaysFromJulianDay, julianDayFromJ2000Days } from "./time.ts";
 import type { Cartesian } from "./frames.ts";
 
-/** The bodies AstroLab draws. Deliberately narrower than the ephemeris supports. */
+/** The bodies Kakau Lab draws. Deliberately narrower than the ephemeris supports. */
 export type OrreryBody =
   | "sun"
   | "moon"
@@ -142,7 +142,7 @@ export function geocentric(body: OrreryBody, jd: number): EclipticPosition {
   return eclipticFrom(GeoVector(BODIES[body], time(jd), true));
 }
 
-// The ephemeris reports right ascension in sidereal hours; AstroLab works in degrees.
+// The ephemeris reports right ascension in sidereal hours; Kakau Lab works in degrees.
 const HOURS_TO_DEGREES = 15;
 
 /**

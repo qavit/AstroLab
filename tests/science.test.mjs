@@ -12,7 +12,7 @@ import * as projectile from "../lib/science/projectile.ts";
 import { radians, solarDeclination } from "../lib/science/solar.ts";
 
 /**
- * These tests check AstroLab's own adapter and coordinate chain, not astronomy-engine.
+ * These tests check Kakau Lab's own adapter and coordinate chain, not astronomy-engine.
  * Where a number could only come from the library itself, the assertion is instead a physical
  * invariant (an eclipse requires the moon near a node) or an independently known fact
  * (the total solar eclipse of 12 August 2026), so a wiring mistake cannot pass by agreeing
@@ -240,7 +240,7 @@ test("the earth's heliocentric longitude is the sun's geocentric longitude turne
   }
 });
 
-test("AstroLab's own ecliptic-to-equatorial chain reproduces the ephemeris", () => {
+test("Kakau Lab's own ecliptic-to-equatorial chain reproduces the ephemeris", () => {
   // Independent paths to the same answer: our spherical trigonometry applied to the
   // ephemeris' ecliptic position, against the ephemeris' own equatorial position.
   let maxRightAscensionError = 0;

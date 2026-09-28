@@ -8,7 +8,7 @@ export type ViewportOptions = {
   position: readonly [number, number, number];
   /** Initial orbit target. Defaults to the origin. */
   target?: readonly [number, number, number];
-  /** Which axis points up on screen. AstroLab models are z-up. */
+  /** Which axis points up on screen. Kakau Lab models are z-up. */
   up?: readonly [number, number, number];
   fov?: number;
   near?: number;
