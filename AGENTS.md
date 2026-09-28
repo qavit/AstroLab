@@ -1,6 +1,7 @@
-# AstroLab contributor instructions
+# Kakau Lab contributor instructions
 
 - Use Conventional Commits for every commit (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`).
+- Use the repository-local Git identity `qavit` for commits. Do not use g4kakau, Claude, ChatGPT, or Codex as an author or committer, and do not modify global Git configuration. Before committing, verify both identities with `git var GIT_AUTHOR_IDENT` and `git var GIT_COMMITTER_IDENT`.
 - Keep scientific calculations independent from Three.js and React whenever practical.
 - Respect the one-way layering: `lib/science` and `lib/render` depend on nothing above them, `models` may import `lib/science` only, and `components` is the only layer that combines them. `lib/render` must stay model-agnostic — put geometry whose meaning belongs to one model in that model instead.
 - Treat coordinate-system colors consistently: equatorial coordinates are red, ecliptic coordinates are yellow, horizontal coordinates are green.

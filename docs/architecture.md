@@ -1,6 +1,6 @@
-# AstroLab architecture
+# Kakau Lab architecture
 
-AstroLab is a thin teaching-model platform. It keeps scientific calculations independent from rendering so the same model state can drive 2D diagrams, 3D scenes, charts, and exports.
+Kakau Lab is a thin teaching-model platform. It keeps scientific calculations independent from rendering so the same model state can drive 2D diagrams, 3D scenes, charts, and exports.
 
 ## Layers
 
@@ -14,7 +14,7 @@ The direction of dependency is one-way: `app` → `components` → (`models` →
 
 ## The ephemeris layer
 
-`lib/science/ephemeris.ts` is the platform's only contact with `astronomy-engine`. It takes a Julian Day and returns AstroLab's own plain types — degrees, AU, and `{ julianDay, kind }` events — so no library object escapes it. A test walks `app`, `components`, `lib`, and `models` and fails if any other file imports the package, which keeps switching ephemeris source, or offering an approximate/precise mode, a change to one file.
+`lib/science/ephemeris.ts` is the platform's only contact with `astronomy-engine`. It takes a Julian Day and returns Kakau Lab's own plain types — degrees, AU, and `{ julianDay, kind }` events — so no library object escapes it. A test walks `app`, `components`, `lib`, and `models` and fails if any other file imports the package, which keeps switching ephemeris source, or offering an approximate/precise mode, a change to one file.
 
 Two supporting modules sit beside it and depend on nothing external. `lib/science/time.ts` makes Julian Day the canonical instant, because a day-of-year cannot carry the moon or the planets across a year boundary; the solar-sphere model's 1–365 clock is derived from it. `lib/science/frames.ts` writes out the ecliptic ↔ equatorial ↔ horizontal conversions explicitly rather than delegating them, so the chain shown to a student is the chain the code runs — and a test checks that chain against the ephemeris' independent path to the same answer.
 
@@ -174,10 +174,8 @@ compatibility re-export, so there is one provider and no second math runtime.
 
 ## Kakau Lab integration (Stage 0)
 
-This repo (`qavit/AstroLab`) is the technical foundation of **Kakau Lab**, the product's
-user-facing name. The repository keeps its historical name; only the product identity shown to
-users — catalog header, hero, footer, page metadata, `/about` copy, accessible labels — changed to
-Kakau Lab. Renaming the GitHub repository is a future option, not something this stage requires.
+This repository (`qavit/kakau-lab`) is the technical foundation of **Kakau Lab**, its user-facing
+product identity. This repository was formerly named `qavit/AstroLab`.
 
 ### Model registry
 
