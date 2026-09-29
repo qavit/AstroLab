@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import * as THREE from "three";
-import { Compass, Eye, EyeOff, Pause, Play, RotateCcw, Wind } from "lucide-react";
+import { Eye, EyeOff, Pause, Play, RotateCcw, Wind } from "lucide-react";
 import { surfaceWindAt, type PressureBand } from "@/lib/science/atmosphere";
 import { arrowGroup, clearGroup, makeLine, textSprite } from "@/lib/render/primitives";
 import { createRenderLoop, createViewport } from "@/lib/render/viewport";
@@ -15,6 +15,7 @@ import {
   type AtmosphereReadout,
   type AtmosphereState,
 } from "@/models/atmosphere";
+import KakauLabMark from "@/components/KakauLabMark";
 
 const WIND_COLORS = {
   hadley: { hex: 0x5ed8c3, css: "#5ed8c3" },
@@ -358,7 +359,7 @@ export default function PlanetaryWindLab() {
     <main className="lab-shell wind-lab">
       <div className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><KakauLabMark /></Link>
           <div className="eyebrow">Model 03</div>
           <h1><span className="live-dot" />全球行星風系</h1>
         </div>

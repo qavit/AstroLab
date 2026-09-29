@@ -20,6 +20,7 @@ import {
   type GeologyReadout,
   type GeologyState,
 } from "@/models/geology";
+import KakauLabMark from "@/components/KakauLabMark";
 
 const SURFACE_COLOR = new THREE.Color(0xd9d2be);
 const LAYER_COLOR = new THREE.Color(0x37434b);
@@ -309,7 +310,7 @@ export default function ValleyBeddingLab() {
     <main className="lab-shell geology-lab">
       <div className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><KakauLabMark /></Link>
           <div className="eyebrow">Earth Science · Model 04</div>
           <h1><span className="live-dot" />岩層位態 × 河谷地形</h1>
         </div>

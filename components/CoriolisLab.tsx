@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import * as THREE from "three";
-import { Compass, Eye, EyeOff, Pause, Play, RotateCcw, RotateCw } from "lucide-react";
+import { Eye, EyeOff, Pause, Play, RotateCcw, RotateCw } from "lucide-react";
 import { inertialPosition, type PlanarPoint } from "@/lib/science/coriolis";
 import { arrowGroup, clearGroup, makeLine, textSprite } from "@/lib/render/primitives";
 import { createRenderLoop, createViewport } from "@/lib/render/viewport";
@@ -14,6 +14,7 @@ import {
   type CoriolisReadout,
   type CoriolisState,
 } from "@/models/coriolis";
+import KakauLabMark from "@/components/KakauLabMark";
 
 const GHOST_COLOR = 0xf2c66d;
 const TRACE_COLOR = 0x5ed8c3;
@@ -264,7 +265,7 @@ export default function CoriolisLab() {
     <main className="lab-shell coriolis-lab">
       <div className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><KakauLabMark /></Link>
           <div className="eyebrow">Model 06</div>
           <h1><span className="live-dot" />科氏力效應</h1>
         </div>

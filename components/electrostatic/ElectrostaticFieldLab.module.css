@@ -581,7 +581,8 @@
      .catalog-brand rule itself is left untouched, so it still matches the homepage
      everywhere the icon+text form is shown. */
   .appBarLeft :global(.catalog-brand) { gap: 0; font-size: 0; }
-  .appBarLeft :global(.catalog-brand) svg { width: 18px; height: 18px; }
+  .appBarLeft :global(.catalog-brand) :global(.kakau-lab-mark__wordmark) { display: none; }
+  .appBarLeft :global(.catalog-brand) :global(.kakau-lab-mark__symbol) { display: block; width: 18px; height: 18px; }
   .appBarTitle { font-size: 16px; }
   .statusChip { padding: 3px 6px; font-size: 9px; }
   .headerActions { flex-wrap: nowrap; gap: 3px; }

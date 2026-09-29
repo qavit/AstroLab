@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type RefObject } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, Compass, Download, ExternalLink, Layers3, Maximize2, Minimize2, RotateCcw } from "lucide-react";
+import { ArrowLeftRight, Download, ExternalLink, Layers3, Maximize2, Minimize2, RotateCcw } from "lucide-react";
 import {
   DENSITY_UNIT_LABEL,
   OZONE_LAYER,
@@ -26,6 +26,7 @@ import {
 } from "@/models/standardAtmosphere";
 import { saveDataUrl } from "@/lib/render/export";
 import AtmosphereLayerDrawer from "@/components/atmosphere/AtmosphereLayerDrawer";
+import KakauLabMark from "@/components/KakauLabMark";
 
 const CHART_W = 760;
 const CHART_H = 560;
@@ -511,7 +512,7 @@ export default function StandardAtmosphereLab() {
     <main className="lab-shell atmosphere-profile-lab">
       <div className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><KakauLabMark /></Link>
           <div className="eyebrow">Model 05</div>
           <h1><span className="live-dot" />大氣垂直結構</h1>
         </div>

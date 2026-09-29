@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Compass, Download, Info, Layers3, MousePointer2, RotateCcw, Settings2 } from "lucide-react";
+import { Download, Info, Layers3, MousePointer2, RotateCcw, Settings2 } from "lucide-react";
 import { formatLatitude, radians } from "@/lib/science/solar";
 import { pickDirectory, saveDataUrl, type DirectoryHandle } from "@/lib/render/export";
 import {
@@ -25,6 +25,7 @@ import { setupScenes, type SolarSceneApi } from "@/components/solar/scene";
 import ControlDeck from "@/components/solar/ControlDeck";
 import ExportDialog from "@/components/solar/ExportDialog";
 import LayerDrawer from "@/components/solar/LayerDrawer";
+import KakauLabMark from "@/components/KakauLabMark";
 
 export default function SolarLab() {
   const globalRef = useRef<HTMLDivElement>(null);
@@ -152,7 +153,7 @@ export default function SolarLab() {
     <main className="lab-shell">
       <header className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><KakauLabMark /></Link>
           <div className="eyebrow"><span className="live-dot" /> 模型 01</div>
           <h1>太陽、天球與竿影</h1>
         </div>

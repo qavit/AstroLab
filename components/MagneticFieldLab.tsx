@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import * as THREE from "three";
-import { Compass, RotateCcw, Scissors, Sparkles } from "lucide-react";
+import { RotateCcw, Scissors, Sparkles } from "lucide-react";
 import {
   crossV,
   formatField,
@@ -21,6 +21,7 @@ import {
   type MagnetismReadout,
   type MagnetismState,
 } from "@/models/magnetism";
+import KakauLabMark from "@/components/KakauLabMark";
 
 const WIRE_COLORS: Record<string, { hex: number; css: string }> = {
   I1: { hex: 0xef6c57, css: "#ef6c57" },
@@ -222,7 +223,7 @@ export default function MagneticFieldLab() {
     <main className="lab-shell">
       <div className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><Compass size={15} />Kakau Lab</Link>
+          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><KakauLabMark /></Link>
           <div className="eyebrow">Model 02</div>
           <h1 style={{ margin: 0, fontFamily: "Georgia,'Noto Serif TC',serif", fontWeight: 500, fontSize: 22 }}>
             <span className="live-dot" />
