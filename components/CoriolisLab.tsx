@@ -15,6 +15,7 @@ import {
   type CoriolisState,
 } from "@/models/coriolis";
 import KakauLabMark from "@/components/KakauLabMark";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const GHOST_COLOR = 0xf2c66d;
 const TRACE_COLOR = 0x5ed8c3;
@@ -270,6 +271,7 @@ export default function CoriolisLab() {
           <h1><span className="live-dot" />科氏力效應</h1>
         </div>
         <div className="header-actions">
+          <ThemeToggle />
           <Link className="model-index-link" href="/">模型目錄</Link>
           <button onClick={() => setState(initialCoriolisState())}><RotateCcw size={14} /> 重設</button>
         </div>

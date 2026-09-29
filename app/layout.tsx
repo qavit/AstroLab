@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
 import { localeHtmlLang, type Locale } from "@/lib/i18n";
+import { themeInitScript } from "@/lib/theme";
 import { SITE_DESCRIPTION, SITE_TITLE, socialMetadata } from "@/lib/site-metadata";
 
 // Next.js needs an absolute base to turn relative OG/Twitter image URLs into the absolute
@@ -21,5 +22,11 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const requestHeaders = await headers();
   const locale: Locale = requestHeaders.get("x-kakau-locale") === "en" ? "en" : "zh-TW";
-  return <html lang={localeHtmlLang[locale]}><body>{children}</body></html>;
+  return (
+    // data-mode is set by the inline script before hydration, so React must not treat it as a mismatch.
+    <html lang={localeHtmlLang[locale]} suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeInitScript }} /></head>
+      <body>{children}</body>
+    </html>
+  );
 }

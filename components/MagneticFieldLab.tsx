@@ -22,6 +22,7 @@ import {
   type MagnetismState,
 } from "@/models/magnetism";
 import KakauLabMark from "@/components/KakauLabMark";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const WIRE_COLORS: Record<string, { hex: number; css: string }> = {
   I1: { hex: 0xef6c57, css: "#ef6c57" },
@@ -231,6 +232,7 @@ export default function MagneticFieldLab() {
           </h1>
         </div>
         <div className="header-actions">
+          <ThemeToggle />
           <Link className="model-index-link" href="/">模型目錄</Link>
           <button onClick={reset}><RotateCcw size={14} /> 重設為範例題</button>
         </div>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 import TheoryNotes from "@/components/electrostatic/TheoryNotes";
 
 export const metadata: Metadata = {
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 export default function ElectrostaticsNotesPage() {
   return (
     <main className="about-page">
-      <nav><Link href="/electrostatics">← 返回模型</Link></nav>
+      <nav className="about-nav"><Link href="/electrostatics">← 返回模型</Link><ThemeToggle /></nav>
       <article><TheoryNotes /></article>
     </main>
   );

@@ -27,6 +27,7 @@ import {
 import { saveDataUrl } from "@/lib/render/export";
 import AtmosphereLayerDrawer from "@/components/atmosphere/AtmosphereLayerDrawer";
 import KakauLabMark from "@/components/KakauLabMark";
+import ThemeToggle from "@/components/ThemeToggle";
 import { atmosphereProfileCopy, defaultLocale, localizedPath, type AtmosphereProfileCopy, type Locale } from "@/lib/i18n";
 
 const CHART_W = 760;
@@ -527,6 +528,7 @@ export default function StandardAtmosphereLab({ locale = defaultLocale }: { loca
           <nav className="language-switcher" aria-label={copy.language.label}>
             {(["zh-TW", "en"] as const).map((target) => <Link key={target} href={localizedPath(target, "/atmosphere-profile")} lang={target} aria-current={target === locale ? "page" : undefined}>{copy.language[target]}</Link>)}
           </nav>
+          <ThemeToggle locale={locale} />
           <button className={state.swapAxes ? "active" : ""} onClick={() => patchState({ swapAxes: !state.swapAxes })}><ArrowLeftRight size={14} /> {copy.actions.swapAxes}</button>
           <button className={showLayers ? "active" : ""} onClick={() => setShowLayers((v) => !v)}><Layers3 size={14} /> {copy.actions.layers}</button>
           <button onClick={handleExport}><Download size={14} /> {copy.actions.export}</button>

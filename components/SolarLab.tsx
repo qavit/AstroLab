@@ -26,6 +26,7 @@ import ControlDeck from "@/components/solar/ControlDeck";
 import ExportDialog from "@/components/solar/ExportDialog";
 import LayerDrawer from "@/components/solar/LayerDrawer";
 import KakauLabMark from "@/components/KakauLabMark";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function SolarLab() {
   const globalRef = useRef<HTMLDivElement>(null);
@@ -158,6 +159,7 @@ export default function SolarLab() {
           <h1>太陽、天球與竿影</h1>
         </div>
         <div className="header-actions">
+          <ThemeToggle />
           <button className={appearance.directManipulation ? "active" : ""} onClick={() => patchAppearance({ directManipulation: !appearance.directManipulation })}><MousePointer2 size={15} />直接操控</button>
           <button ref={layersTriggerRef} className={showLayers ? "active" : ""} onClick={() => setShowLayers((value) => !value)} aria-expanded={showLayers} aria-controls="solar-layer-drawer"><Layers3 size={15} />圖層</button>
           <button className={showControls ? "active" : ""} onClick={() => setShowControls((value) => !value)}><Settings2 size={15} />控制台</button>

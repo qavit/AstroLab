@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export const metadata: Metadata = {
   title: "模型說明｜Kakau Lab",
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <main className="about-page">
-      <nav><Link href="/solar">← 返回模型</Link></nav>
+      <nav className="about-nav"><Link href="/solar">← 返回模型</Link><ThemeToggle /></nav>
       <article>
         <div className="eyebrow">Kakau Lab · Model notes</div>
         <h1>模型的理想化設計</h1>

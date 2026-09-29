@@ -23,6 +23,7 @@ import {
 import TheoryNotes from "@/components/projectile/TheoryNotes";
 import GuidedActivities from "@/components/projectile/GuidedActivities";
 import KakauLabMark from "@/components/KakauLabMark";
+import ThemeToggle from "@/components/ThemeToggle";
 import { MathProvider, Tex } from "@/components/projectile/mathjax";
 import type { PathAcceleration, TrajectorySample, Vec2 } from "@/lib/science/projectile";
 import { DRAG_PRESETS, GRAVITY_PRESETS } from "@/lib/science/projectile";
@@ -1488,6 +1489,7 @@ export default function ProjectileLab() {
           <h1><span className="live-dot" />拋體運動</h1>
         </div>
         <div className="header-actions">
+          <ThemeToggle />
           {freeStateControlsAvailable && (
             <>
               <Menu label="情境">

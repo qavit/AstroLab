@@ -21,6 +21,7 @@ import {
   type GeologyState,
 } from "@/models/geology";
 import KakauLabMark from "@/components/KakauLabMark";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const SURFACE_COLOR = new THREE.Color(0xd9d2be);
 const LAYER_COLOR = new THREE.Color(0x37434b);
@@ -315,6 +316,7 @@ export default function ValleyBeddingLab() {
           <h1><span className="live-dot" />岩層位態 × 河谷地形</h1>
         </div>
         <div className="header-actions">
+          <ThemeToggle />
           <Link className="model-index-link" href="/">模型目錄</Link>
           <button onClick={reset}><RotateCcw size={14} /> 題目預設</button>
         </div>
