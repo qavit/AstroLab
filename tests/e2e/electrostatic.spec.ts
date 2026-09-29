@@ -105,7 +105,7 @@ test("measurement point exposes compact MathJax readout and natural zero/invalid
   await page.getByTestId("probe-handle").click();
   await expect(page.getByTestId("probe-panel")).toBeVisible();
   await expect(page.getByTestId("total-magnitude")).toContainText("N/C");
-  await expect(page.getByTestId("probe-panel")).toContainText("各來源的電場分量");
+  await expect(page.getByTestId("probe-panel")).toContainText("各來源分量");
 
   await page.keyboard.press("Escape");
   await applyPreset(page, "like-pair");
@@ -144,5 +144,5 @@ test("@mobile 320px keeps canvas and fixed bottom tabs reachable without horizon
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   await page.getByRole("button", { name: "讀值", exact: true }).click();
   await expect(page.getByTestId("probe-panel")).toBeVisible();
-  await expect(page.getByText("精確位置", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("probe-x")).toBeVisible();
 });

@@ -38,7 +38,7 @@ export default function Controls(props: ControlsProps) {
 
   return (
     <section className={styles.controls} aria-labelledby="setup-controls-title" data-testid="context-inspector">
-      <div className={styles.sectionHeading}>
+      <div className={`${styles.sectionHeading} ${props.selected?.kind === "probe" ? styles.probeSelectionHeading : ""}`}>
         <div>
           <p>{props.selected ? "目前選取" : "自由探索"}</p>
           <h2 id="setup-controls-title">{heading}</h2>
@@ -114,13 +114,12 @@ export default function Controls(props: ControlsProps) {
       ) : null}
 
       {props.selected?.kind === "probe" ? (
-        <fieldset className={styles.controlGroup}>
-          <legend>精確位置</legend>
+        <div className={styles.probeControls} role="group" aria-label="測量點位置">
           <div className={styles.parameterGrid}>
-            <CommittedNumberField label="水平位置 x（m）" value={props.setup.probe.x_m} step="0.01" min="-2" max="2" testId="probe-x" onCommit={(value) => props.onProbePosition("x", value)} />
-            <CommittedNumberField label="垂直位置 y（m）" value={props.setup.probe.y_m} step="0.01" min="-1.5" max="1.5" testId="probe-y" onCommit={(value) => props.onProbePosition("y", value)} />
+            <CommittedNumberField label="x" unit="m" value={props.setup.probe.x_m} step="0.01" min="-2" max="2" testId="probe-x" onCommit={(value) => props.onProbePosition("x", value)} />
+            <CommittedNumberField label="y" unit="m" value={props.setup.probe.y_m} step="0.01" min="-1.5" max="1.5" testId="probe-y" onCommit={(value) => props.onProbePosition("y", value)} />
           </div>
-        </fieldset>
+        </div>
       ) : null}
 
       {props.children}
