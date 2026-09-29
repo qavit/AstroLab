@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/site-metadata";
 import ElectrostaticFieldLab from "@/components/ElectrostaticFieldLab";
 import type { ShareRouteInput } from "@/components/electrostatic/share";
 
 export const metadata: Metadata = {
   title: "靜電學｜Kakau Lab",
   description: "從點電荷與電場開始，探索看不見的電作用。",
-  openGraph: {
-    title: "靜電學｜Kakau Lab",
-    description: "從點電荷與電場開始，探索看不見的電作用。",
-  },
+  ...socialMetadata({ title: "靜電學｜Kakau Lab", description: "從點電荷與電場開始，探索看不見的電作用。" }),
 };
 
 type PageProps = {

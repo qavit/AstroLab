@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/site-metadata";
 import StandardAtmosphereLab from "@/components/StandardAtmosphereLab";
 
 export const metadata: Metadata = {
@@ -8,11 +9,7 @@ export const metadata: Metadata = {
     canonical: "/en/atmosphere-profile",
     languages: { "zh-TW": "/atmosphere-profile", en: "/en/atmosphere-profile", "x-default": "/atmosphere-profile" },
   },
-  openGraph: {
-    title: "Vertical Structure of the Atmosphere | Kakau Lab",
-    description: "An interactive profile of temperature, pressure, and density through the atmosphere.",
-    locale: "en_US",
-  },
+  ...socialMetadata({ title: "Vertical Structure of the Atmosphere | Kakau Lab", description: "An interactive profile of temperature, pressure, and density through the atmosphere.", locale: "en_US" }),
 };
 
 export default function EnglishAtmosphereProfilePage() {

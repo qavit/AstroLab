@@ -87,10 +87,38 @@ test("server-side preview flag adds no experimental section while no model is ex
   }
 });
 
-test("resolves Open Graph image URLs against the production origin", async () => {
+const SITE_OG = "https://lab.kakau.tw/brand/og-lab.png";
+const meta = (html, name) => html.match(new RegExp(`(?:property|name)="${name}" content="([^"]*)"`))?.[1];
+
+test("resolves Open Graph and Twitter image URLs against the production origin", async () => {
   const response = await render("/");
   const html = await response.text();
-  assert.match(html, /property="og:image" content="https:\/\/lab\.kakau\.tw\/home-preview\.png"/);
+  assert.equal(meta(html, "og:title"), "Kakau Lab｜互動式科學模型");
+  assert.equal(meta(html, "og:description"), "用可操作的科學模型探索物理、地球科學與天文概念。");
+  assert.equal(meta(html, "og:image"), SITE_OG);
+  assert.equal(meta(html, "og:image:width"), "1200");
+  assert.equal(meta(html, "og:image:height"), "630");
+  assert.equal(meta(html, "twitter:card"), "summary_large_image");
+  assert.equal(meta(html, "twitter:image"), SITE_OG);
+  assert.equal(meta(html, "twitter:description"), meta(html, "og:description"));
+});
+
+test("every page with its own openGraph still carries a share image", async () => {
+  const expected = {
+    "/coriolis": SITE_OG,
+    "/electrostatics": SITE_OG,
+    "/projectile": SITE_OG,
+    "/atmosphere-profile": SITE_OG,
+    "/en/atmosphere-profile": SITE_OG,
+    "/geology": "https://lab.kakau.tw/geology-preview.png",
+    "/atmosphere": "https://lab.kakau.tw/atmosphere-preview.png",
+  };
+  for (const [path, image] of Object.entries(expected)) {
+    const html = await (await render(path)).text();
+    assert.equal(meta(html, "og:image"), image, `${path} og:image`);
+    assert.equal(meta(html, "twitter:image"), image, `${path} twitter:image`);
+    assert.equal(meta(html, "twitter:card"), "summary_large_image", `${path} twitter:card`);
+  }
 });
 
 test("server-renders the model explanation page", async () => {
