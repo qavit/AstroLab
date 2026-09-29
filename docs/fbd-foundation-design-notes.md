@@ -22,7 +22,7 @@ System selection is a modelling act, not just UI focus.
 
 ### Interaction precedes force
 
-A learner-authored force must eventually be traceable to:
+A learner-authored force must be traceable to:
 
 - a source agent;
 - the selected target system;
@@ -30,11 +30,15 @@ A learner-authored force must eventually be traceable to:
 - a direction;
 - an optional numerical magnitude.
 
-The current pure vector helpers remain useful, but the domain model must not stop at anonymous arrows. The next model increment should represent interaction/agent identity separately from vector arithmetic.
+The pure vector helpers stay independent from this domain identity. `models/fbd.ts` now represents `FbdSystem`, `FbdAgent`, and `FbdInteraction` explicitly, while each `FbdForce` references an `interactionId`. This keeps agent/system semantics out of display labels and makes the relation structurally testable.
+
+One interaction may support more than one force representation where the physics requires it. In particular, a contact interaction can later support normal and friction forces without duplicating the agent/system relation.
 
 ### Learner model is not the answer key
 
-Learner-authored state and canonical scenario/reference state must remain separate. A scenario may know the expected interactions and forces for comparison, but those answers are not part of the learner diagram state and must not be exposed automatically.
+Learner-authored state and canonical scenario/reference state remain separate. `FbdLabState` contains only the learner diagram; `FbdReferenceModel` is a separate type for future scenario/reference answers and is not embedded in initial learner state.
+
+A scenario may know the expected interactions and forces for comparison, but those answers are not part of the learner diagram state and must not be exposed automatically.
 
 ### Particle-model FBD
 
@@ -97,7 +101,15 @@ Do not finalize a generic schema before the first scene exercises it. The goal i
 
 ## Science invariants worth testing first
 
-Science regression is a first-class contract:
+Science regression is a first-class contract. The current foundation already enforces and tests the first structural subset:
+
+- interactions must reference an existing source agent;
+- interactions must target the selected system;
+- forces must reference an existing interaction rather than exist as anonymous arrows;
+- learner state does not contain canonical/reference answer sets;
+- when any force magnitude is unknown, the model does not pretend the resultant is complete.
+
+The next scenario/reference layer should extend that contract to:
 
 - every canonical force targets the selected system;
 - canonical forces are backed by a valid external interaction;
@@ -105,25 +117,23 @@ Science regression is a first-class contract:
 - normal-force direction is derived from contact geometry, not hard-coded as upward;
 - friction is not hard-coded as opposite velocity;
 - force components are not serialized or counted as independent forces;
-- when every magnitude and mass are known, resultant force and acceleration are consistent;
-- when any required numerical quantity is unknown, the model does not pretend the resultant is complete.
+- when every magnitude and mass are known, resultant force and acceleration are consistent.
 
 UI, keyboard, drag, screenshot, and accessibility tests should verify that representation layers expose this science state correctly; they do not replace these invariants.
 
-## What the current foundation should and should not become
+## Current foundation status
 
-Keep:
+Implemented on the draft branch:
 
 - pure 2D vector/force arithmetic in `lib/science/fbd.ts`;
-- FBD-local model/state rather than shared selection/viewport abstractions;
+- explicit `FbdSystem`, `FbdAgent`, and `FbdInteraction` identity;
+- force-to-interaction references instead of free-text agent ownership;
+- FBD-local learner model/state rather than shared selection/viewport abstractions;
+- learner/reference state separation;
 - unknown magnitude as a legitimate qualitative state;
-- focused unit tests.
+- structural validation and focused unit tests.
 
-Next model increment:
-
-- add explicit system/agent/interaction identity before building the UI;
-- keep learner state separate from scenario/reference answers;
-- make particle-model semantics explicit in model/UI naming and tests.
+The next useful increment is not another generic abstraction. It is the **first real scenario contract** for the horizontal-table scene, with canonical interactions/forces and comparison diagnostics that exercise the domain model without exposing answers before commit.
 
 Still defer:
 
