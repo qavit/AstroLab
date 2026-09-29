@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { ArrowLeftRight, Compass, Info, Layers3 } from "lucide-react";
+import { ArrowLeftRight, Info, Layers3 } from "lucide-react";
 import Controls from "./electrostatic/Controls";
 import QuickPresetsMenu from "./electrostatic/QuickPresetsMenu";
 import FieldCanvas from "./electrostatic/FieldCanvas";
@@ -19,6 +19,7 @@ import { createShareUrl, initialStateFromShare, retainFieldSceneReferences, type
 import { TOOL_SHORTCUT, type ToolMode } from "./electrostatic/tools.ts";
 import { pointInDomain } from "./electrostatic/viewport.ts";
 import styles from "./electrostatic/ElectrostaticFieldLab.module.css";
+import KakauLabMark from "@/components/KakauLabMark";
 import { MathProvider } from "./math/MathJax";
 import type { Vec2 } from "../lib/science/electrostatics/types.ts";
 import {
@@ -593,7 +594,7 @@ export default function ElectrostaticFieldLab({ share }: ElectrostaticFieldLabPr
       <header ref={appBarRef} className={styles.appBar}>
         <div className={styles.appBarLeft}>
           <Link href="/" className="catalog-brand" aria-label="Kakau Lab 模型目錄">
-            <Compass size={20} aria-hidden="true" /> <span>Kakau Lab</span>
+            <KakauLabMark />
           </Link>
           <span className={styles.appBarDivider} aria-hidden="true">/</span>
           <h1 className={styles.appBarTitle}>靜電學</h1>

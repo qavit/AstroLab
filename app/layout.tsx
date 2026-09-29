@@ -8,7 +8,10 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://lab.kakau.tw"),
   title: "Kakau Lab｜互動式科學模型",
   description: "用可操作的科學模型探索物理、地球科學與天文概念。",
-  icons: { icon: "/favicon.svg" },
+  icons: {
+    icon: [{ url: "/brand/symbol_color.svg?v=logo-system-mvp-v0.1", sizes: "any", type: "image/svg+xml" }],
+    shortcut: "/brand/symbol_color.svg?v=logo-system-mvp-v0.1",
+  },
   openGraph: {
     title: "Kakau Lab｜互動式科學模型",
     description: "用可操作的科學模型探索天文、地球科學與物理概念。",

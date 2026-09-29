@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   ArrowUpRight,
-  Compass,
   Layers,
   Magnet,
   Mountain,
@@ -14,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { experimentalLabs, publishedLabs, type LabManifest, type LabSubject } from "@/lib/labs/registry";
+import KakauLabMark from "@/components/KakauLabMark";
 
 /** Maps the registry's string icon keys to actual components. The registry itself stays free of React/lucide. */
 const icons: Record<string, LucideIcon> = {
@@ -140,7 +140,7 @@ export default function ModelCatalog({ showExperimental = process.env.KAKAU_EXPE
     <main className="catalog-shell">
       <header className="catalog-header">
         <Link href="/" className="catalog-brand" aria-label="Kakau Lab 模型目錄">
-          <Compass size={20} /> <span>Kakau Lab</span>
+          <KakauLabMark />
         </Link>
         <span className="catalog-count">{`${labs.length.toString().padStart(2, "0")} interactive models`}</span>
       </header>
