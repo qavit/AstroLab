@@ -10,7 +10,6 @@ export type PhysicalQuantity = "temperature" | "pressure" | "density";
 export const STANDARD_ATMOSPHERE_MAX_ALTITUDE_KM = 1000;
 export const STANDARD_ATMOSPHERE_GRID_STEP_KM = 5;
 export const STANDARD_ATMOSPHERE_SOURCE = {
-  label: "U.S. Standard Atmosphere, 1976（PDAS bigtables）",
   url: "https://www.pdas.com/bigtables.html",
 };
 
@@ -184,26 +183,26 @@ export function standardAtmosphereProfile(maxAltitudeKm = STANDARD_ATMOSPHERE_MA
   return samples;
 }
 
-export type AtmosphereLayerName = "對流層" | "平流層" | "中氣層" | "增溫層" | "外氣層";
+export type AtmosphereLayerId = "troposphere" | "stratosphere" | "mesosphere" | "thermosphere" | "exosphere";
 
 /** Named layer bands. Boundaries follow the ranges commonly cited for each -pause; a single
  * representative altitude (tropopause 13 km, stratopause 52 km, mesopause 83 km) is used to
  * split bands, matching the boundary lines drawn on the chart. */
-export const ATMOSPHERE_LAYER_BANDS: readonly { name: AtmosphereLayerName; from: number; to: number }[] = [
-  { name: "對流層", from: 0, to: 13 },
-  { name: "平流層", from: 13, to: 52 },
-  { name: "中氣層", from: 52, to: 83 },
-  { name: "增溫層", from: 83, to: 600 },
-  { name: "外氣層", from: 600, to: STANDARD_ATMOSPHERE_MAX_ALTITUDE_KM },
+export const ATMOSPHERE_LAYER_BANDS: readonly { id: AtmosphereLayerId; from: number; to: number }[] = [
+  { id: "troposphere", from: 0, to: 13 },
+  { id: "stratosphere", from: 13, to: 52 },
+  { id: "mesosphere", from: 52, to: 83 },
+  { id: "thermosphere", from: 83, to: 600 },
+  { id: "exosphere", from: 600, to: STANDARD_ATMOSPHERE_MAX_ALTITUDE_KM },
 ];
 
 export type AtmosphereBoundaryKey = "tropopause" | "stratopause" | "mesopause" | "thermopause";
 
-export const ATMOSPHERE_BOUNDARIES: readonly { key: AtmosphereBoundaryKey; label: string; altitudeKm: number; range: string }[] = [
-  { key: "tropopause", label: "對流層頂", altitudeKm: 13, range: "8–18 km" },
-  { key: "stratopause", label: "平流層頂", altitudeKm: 52, range: "50–55 km" },
-  { key: "mesopause", label: "中氣層頂", altitudeKm: 83, range: "80–85 km" },
-  { key: "thermopause", label: "增溫層頂", altitudeKm: 600, range: "~600 km" },
+export const ATMOSPHERE_BOUNDARIES: readonly { key: AtmosphereBoundaryKey; altitudeKm: number; range: string }[] = [
+  { key: "tropopause", altitudeKm: 13, range: "8–18 km" },
+  { key: "stratopause", altitudeKm: 52, range: "50–55 km" },
+  { key: "mesopause", altitudeKm: 83, range: "80–85 km" },
+  { key: "thermopause", altitudeKm: 600, range: "~600 km" },
 ];
 
-export const OZONE_LAYER = { from: 20, to: 30, label: "臭氧層" };
+export const OZONE_LAYER = { from: 20, to: 30 };

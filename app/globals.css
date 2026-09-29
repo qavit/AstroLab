@@ -40,6 +40,10 @@ button.active { background:#dceaf0; border-color:#527b94; color:#103b56; }
 .live-dot { display:inline-block; width:7px; height:7px; margin-right:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 4px rgba(120,110,75,.11); }
 h1 { margin:0; font-family:Georgia,"Noto Serif TC",serif; font-size:clamp(25px,2.6vw,38px); font-weight:500; letter-spacing:-.035em; }
 .header-actions { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+.language-switcher { display:flex; align-items:center; gap:2px; padding:2px; border:1px solid #c2d0d7; border-radius:5px; background:rgba(250,253,254,.86); }
+.language-switcher a { padding:5px 7px; border-radius:3px; color:#416f89; font-size:12px; text-decoration:none; }
+.language-switcher a[aria-current='page'] { background:#dceaf0; color:#103b56; font-weight:700; pointer-events:none; }
+.language-switcher a:focus-visible { outline:2px solid #173d57; outline-offset:2px; }
 
 .stage-grid { display:grid; grid-template-columns:minmax(0,1.16fr) minmax(390px,.84fr); gap:14px; min-height:calc(100vh - 118px); }
 .right-column { display:grid; grid-template-rows:minmax(0,1fr) auto; gap:12px; min-height:0; }

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
+import { localeHtmlLang, type Locale } from "@/lib/i18n";
 
 // Next.js needs an absolute base to turn relative OG/Twitter image URLs into the absolute
 // ones link-preview crawlers require; without it they resolve against an implicit
@@ -19,6 +21,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="zh-Hant"><body>{children}</body></html>;
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const requestHeaders = await headers();
+  const locale: Locale = requestHeaders.get("x-kakau-locale") === "en" ? "en" : "zh-TW";
+  return <html lang={localeHtmlLang[locale]}><body>{children}</body></html>;
 }

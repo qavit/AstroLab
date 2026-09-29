@@ -27,6 +27,7 @@ import {
 import { saveDataUrl } from "@/lib/render/export";
 import AtmosphereLayerDrawer from "@/components/atmosphere/AtmosphereLayerDrawer";
 import KakauLabMark from "@/components/KakauLabMark";
+import { atmosphereProfileCopy, defaultLocale, localizedPath, type AtmosphereProfileCopy, type Locale } from "@/lib/i18n";
 
 const CHART_W = 760;
 const CHART_H = 560;
@@ -222,7 +223,7 @@ function AxisGroup({ vertical, side, fixedCoord, spanFrom, spanTo, ticks, posOf,
   );
 }
 
-function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude }: {
+function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude, copy }: {
   state: StandardAtmosphereState;
   readout: StandardAtmosphereReadout;
   svgRef: RefObject<SVGSVGElement | null>;
@@ -232,6 +233,7 @@ function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude
   /** Called with the hovered altitude while the pointer is over the plot, so the read-cursor
    * can follow the mouse the way a candlestick chart's crosshair drives its OHLC readout. */
   onHoverAltitude: (altitudeKm: number) => void;
+  copy: AtmosphereProfileCopy;
 }) {
   const { profile, layers, boundaries, cursor } = readout;
   const maxAltitude = state.maxAltitudeKm;
@@ -345,7 +347,7 @@ function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude
   return (
     <svg
       ref={svgRef}
-      viewBox={`0 0 ${CHART_W} ${CHART_H}`} role="img" aria-label="大氣垂直結構剖面圖" className="atmos-svg"
+      viewBox={`0 0 ${CHART_W} ${CHART_H}`} role="img" aria-label={copy.chartLabel} className="atmos-svg"
       onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave}
     >
       {state.showOzoneLayer && ozone.width > 0 && ozone.height > 0 && (() => {
@@ -359,7 +361,7 @@ function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude
               y={swap ? plot.top + 27 : nearTopEdge ? bandMidY + 14 : bandMidY + 3}
               textAnchor={swap ? "middle" : "end"}
               className="atmos-ozone-label"
-            >{OZONE_LAYER.label}（{OZONE_LAYER.from}–{OZONE_LAYER.to} km）</text>
+            >{copy.ozone} ({OZONE_LAYER.from}–{OZONE_LAYER.to} km)</text>
           </g>
         );
       })()}
@@ -367,7 +369,7 @@ function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude
       {state.showLayerLabels && layers.map((layer) => {
         const mid = (layer.from + layer.to) / 2;
         const pos = layerLabelPos(mid);
-        return <text key={layer.name} x={pos.x} y={pos.y} textAnchor="middle" className="atmos-layer-label">{layer.name}</text>;
+        return <text key={layer.id} x={pos.x} y={pos.y} textAnchor="middle" className="atmos-layer-label">{copy.layers[layer.id]}</text>;
       })}
 
       {state.showBoundaries && boundaries.map((boundary) => {
@@ -385,7 +387,7 @@ function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude
         return (
           <g key={boundary.key}>
             <line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} className="atmos-boundary-line" />
-            <text x={labelPos.x} y={labelPos.y} textAnchor={labelPos.anchor} className="atmos-boundary-label">{boundary.label}</text>
+            <text x={labelPos.x} y={labelPos.y} textAnchor={labelPos.anchor} className="atmos-boundary-label">{copy.boundaries[boundary.key]}</text>
           </g>
         );
       })}
@@ -395,14 +397,14 @@ function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude
         fixedCoord={swap ? plot.bottom : plot.left}
         spanFrom={swap ? plot.left : plot.top} spanTo={swap ? plot.right : plot.bottom}
         ticks={altTicks} posOf={altPixel} formatTick={(t) => t.toLocaleString()}
-        title="高度（km）"
+        title={copy.altitude}
       />
       <AxisGroup
         vertical={swap} side={swap ? "left" : "bottom"}
         fixedCoord={swap ? plot.left : plot.bottom}
         spanFrom={swap ? plot.top : plot.left} spanTo={swap ? plot.bottom : plot.right}
         ticks={ticksA} posOf={(t) => valPixel(state.quantityA, t, domainA)} formatTick={(t) => formatQuantityValue(t, state.quantityA, 0)}
-        title={`${QUANTITY_META[state.quantityA].label}（${unitFor(state.quantityA, units)}）`}
+        title={`${copy.quantities[state.quantityA]} (${unitFor(state.quantityA, units)})`}
         color={QUANTITY_META[state.quantityA].color}
       />
       <AxisGroup
@@ -410,7 +412,7 @@ function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude
         fixedCoord={swap ? plot.right : plot.top}
         spanFrom={swap ? plot.top : plot.left} spanTo={swap ? plot.bottom : plot.right}
         ticks={ticksB} posOf={(t) => valPixel(state.quantityB, t, domainB)} formatTick={(t) => formatQuantityValue(t, state.quantityB, 0)}
-        title={`${QUANTITY_META[state.quantityB].label}（${unitFor(state.quantityB, units)}）`}
+        title={`${copy.quantities[state.quantityB]} (${unitFor(state.quantityB, units)})`}
         color={QUANTITY_META[state.quantityB].color}
       />
 
@@ -454,10 +456,10 @@ function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude
           <rect x={tooltip.x} y={tooltip.y} width="148" height="60" rx="6" className="atmos-hover-tooltip-bg" />
           <text x={tooltip.x + 10} y={tooltip.y + 18} className="atmos-hover-tooltip-title">{cursor.altitudeKm.toFixed(1)} km</text>
           <text x={tooltip.x + 10} y={tooltip.y + 35} className="atmos-hover-tooltip-row" fill={QUANTITY_META[state.quantityA].color}>
-            {QUANTITY_META[state.quantityA].label} {formatQuantityValue(quantityDisplayValue(cursor, state.quantityA, units), state.quantityA, 2)} {unitFor(state.quantityA, units)}
+            {copy.quantities[state.quantityA]} {formatQuantityValue(quantityDisplayValue(cursor, state.quantityA, units), state.quantityA, 2)} {unitFor(state.quantityA, units)}
           </text>
           <text x={tooltip.x + 10} y={tooltip.y + 51} className="atmos-hover-tooltip-row" fill={QUANTITY_META[state.quantityB].color}>
-            {QUANTITY_META[state.quantityB].label} {formatQuantityValue(quantityDisplayValue(cursor, state.quantityB, units), state.quantityB, 2)} {unitFor(state.quantityB, units)}
+            {copy.quantities[state.quantityB]} {formatQuantityValue(quantityDisplayValue(cursor, state.quantityB, units), state.quantityB, 2)} {unitFor(state.quantityB, units)}
           </text>
         </g>
       )}
@@ -465,7 +467,8 @@ function AtmosphereChart({ state, readout, svgRef, sliderActive, onHoverAltitude
   );
 }
 
-export default function StandardAtmosphereLab() {
+export default function StandardAtmosphereLab({ locale = defaultLocale }: { locale?: Locale }) {
+  const copy = atmosphereProfileCopy(locale);
   const [state, setState] = useState<StandardAtmosphereState>(initialStandardAtmosphereState);
   const [showLayers, setShowLayers] = useState(false);
   const [sliderActive, setSliderActive] = useState(false);
@@ -512,49 +515,56 @@ export default function StandardAtmosphereLab() {
     <main className="lab-shell atmosphere-profile-lab">
       <div className="topbar">
         <div>
-          <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><KakauLabMark /></Link>
+          {locale === "en" ? (
+            <span className="lab-brand" aria-label={copy.catalog}><KakauLabMark /></span>
+          ) : (
+            <Link href="/" className="lab-brand" aria-label={copy.catalog}><KakauLabMark /></Link>
+          )}
           <div className="eyebrow">Model 05</div>
-          <h1><span className="live-dot" />大氣垂直結構</h1>
+          <h1><span className="live-dot" />{copy.title}</h1>
         </div>
         <div className="header-actions">
-          <button className={state.swapAxes ? "active" : ""} onClick={() => patchState({ swapAxes: !state.swapAxes })}><ArrowLeftRight size={14} /> 對調座標軸</button>
-          <button className={showLayers ? "active" : ""} onClick={() => setShowLayers((v) => !v)}><Layers3 size={14} /> 圖層</button>
-          <button onClick={handleExport}><Download size={14} /> 匯出圖片</button>
-          <button onClick={() => setState(initialStandardAtmosphereState())}><RotateCcw size={14} /> 重設</button>
+          <nav className="language-switcher" aria-label={copy.language.label}>
+            {(["zh-TW", "en"] as const).map((target) => <Link key={target} href={localizedPath(target, "/atmosphere-profile")} lang={target} aria-current={target === locale ? "page" : undefined}>{copy.language[target]}</Link>)}
+          </nav>
+          <button className={state.swapAxes ? "active" : ""} onClick={() => patchState({ swapAxes: !state.swapAxes })}><ArrowLeftRight size={14} /> {copy.actions.swapAxes}</button>
+          <button className={showLayers ? "active" : ""} onClick={() => setShowLayers((v) => !v)}><Layers3 size={14} /> {copy.actions.layers}</button>
+          <button onClick={handleExport}><Download size={14} /> {copy.actions.export}</button>
+          <button onClick={() => setState(initialStandardAtmosphereState())}><RotateCcw size={14} /> {copy.actions.reset}</button>
         </div>
       </div>
 
       <section className="viewport-card atmos-chart-card" ref={chartCardRef}>
         <div className="card-label">
           <span>2D</span>
-          <div><strong>{QUANTITY_META[state.quantityA].label} × {QUANTITY_META[state.quantityB].label}</strong></div>
+          <div><strong>{copy.quantities[state.quantityA]} × {copy.quantities[state.quantityB]}</strong></div>
         </div>
         <div className="atmos-chart-wrap">
           <AtmosphereChart
             state={state} readout={readout} svgRef={chartSvgRef} sliderActive={sliderActive}
-            onHoverAltitude={(altitudeKm) => patchState({ cursorAltitudeKm: altitudeKm })}
+            onHoverAltitude={(altitudeKm) => patchState({ cursorAltitudeKm: altitudeKm })} copy={copy}
           />
         </div>
-        <button className="atmos-fullscreen-btn" onClick={toggleFullscreen} aria-label={isFullscreen ? "退出全螢幕" : "全螢幕檢視"}>
+        <button className="atmos-fullscreen-btn" onClick={toggleFullscreen} aria-label={isFullscreen ? copy.actions.exitFullscreen : copy.actions.fullscreen}>
           {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
         </button>
       </section>
 
       <section className="control-panel profile-controls">
-        <div className="control-panel-heading"><div>剖面控制台</div></div>
+        <div className="control-panel-heading"><div>{copy.controls.title}</div></div>
         <div className="profile-control-grid">
           <div className="wind-control-block">
-            <label><span>顯示高度上限 <b>{state.maxAltitudeKm.toLocaleString()} km</b></span>
+            <label><span>{copy.controls.maxAltitude} <b>{state.maxAltitudeKm.toLocaleString()} km</b></span>
               <input type="range" min="10" max="1000" step="1" value={state.maxAltitudeKm} onChange={(event) => patchState({ maxAltitudeKm: Number(event.target.value) })} />
             </label>
             <div className="preset-row">
               {Object.entries(ALTITUDE_PRESETS).map(([key, preset]) => (
-                <button key={key} className={state.maxAltitudeKm === preset.maxAltitudeKm ? "selected" : ""} onClick={() => patchState({ maxAltitudeKm: preset.maxAltitudeKm })}>{preset.label}</button>
+                <button key={key} className={state.maxAltitudeKm === preset.maxAltitudeKm ? "selected" : ""} onClick={() => patchState({ maxAltitudeKm: preset.maxAltitudeKm })}>{copy.presets[key as keyof typeof copy.presets]}</button>
               ))}
             </div>
           </div>
           <div className="wind-control-block">
-            <label><span>讀值游標高度 <b>{readout.cursor.altitudeKm.toFixed(1)} km</b></span>
+            <label><span>{copy.controls.cursorAltitude} <b>{readout.cursor.altitudeKm.toFixed(1)} km</b></span>
               <input
                 type="range" min="0" max={state.maxAltitudeKm} step={state.maxAltitudeKm / 500}
                 value={Math.min(state.cursorAltitudeKm, state.maxAltitudeKm)}
@@ -568,7 +578,7 @@ export default function StandardAtmosphereLab() {
             </label>
             {usesTemperature && (
               <div className="unit-toggle">
-                <span>溫度單位</span>
+                <span>{copy.controls.temperatureUnit}</span>
                 <div className="preset-row">
                   {(["K", "C", "F"] as const).map((unit) => (
                     <button key={unit} className={state.temperatureUnit === unit ? "selected" : ""} onClick={() => patchState({ temperatureUnit: unit })}>{TEMPERATURE_UNIT_LABEL[unit]}</button>
@@ -578,7 +588,7 @@ export default function StandardAtmosphereLab() {
             )}
             {usesPressure && (
               <div className="unit-toggle">
-                <span>氣壓單位</span>
+                <span>{copy.controls.pressureUnit}</span>
                 <div className="preset-row">
                   {(["Pa", "hPa", "bar", "atm", "cmHg", "mmHg", "Torr"] as const).map((unit) => (
                     <button key={unit} className={state.pressureUnit === unit ? "selected" : ""} onClick={() => patchState({ pressureUnit: unit })}>{PRESSURE_UNIT_LABEL[unit]}</button>
@@ -588,7 +598,7 @@ export default function StandardAtmosphereLab() {
             )}
             {usesDensity && (
               <div className="unit-toggle">
-                <span>密度單位</span>
+                <span>{copy.controls.densityUnit}</span>
                 <div className="preset-row">
                   {(["kg/m3", "g/cm3"] as const).map((unit) => (
                     <button key={unit} className={state.densityUnit === unit ? "selected" : ""} onClick={() => patchState({ densityUnit: unit })}>{DENSITY_UNIT_LABEL[unit]}</button>
@@ -598,16 +608,16 @@ export default function StandardAtmosphereLab() {
             )}
           </div>
           <div className="wind-control-block">
-            <label><span>物理量 A（實線）</span>
+            <label><span>{copy.controls.quantityA}</span>
               <select value={state.quantityA} onChange={(event) => setQuantityA(event.target.value as PhysicalQuantity)}>
-                {(["temperature", "pressure", "density"] as const).map((q) => <option key={q} value={q}>{QUANTITY_META[q].label}</option>)}
+                {(["temperature", "pressure", "density"] as const).map((q) => <option key={q} value={q}>{copy.quantities[q]}</option>)}
               </select>
             </label>
           </div>
           <div className="wind-control-block">
-            <label><span>物理量 B（虛線）</span>
+            <label><span>{copy.controls.quantityB}</span>
               <select value={state.quantityB} onChange={(event) => setQuantityB(event.target.value as PhysicalQuantity)}>
-                {(["temperature", "pressure", "density"] as const).map((q) => <option key={q} value={q}>{QUANTITY_META[q].label}</option>)}
+                {(["temperature", "pressure", "density"] as const).map((q) => <option key={q} value={q}>{copy.quantities[q]}</option>)}
               </select>
             </label>
           </div>
@@ -615,14 +625,14 @@ export default function StandardAtmosphereLab() {
       </section>
 
       <p className="wind-model-note profile-source">
-        資料依據：
+        {copy.source}
         <a href={STANDARD_ATMOSPHERE_SOURCE.url} target="_blank" rel="noreferrer noopener">
-          {STANDARD_ATMOSPHERE_SOURCE.label} <ExternalLink size={11} />
+          {copy.sourceCitation} <ExternalLink size={11} />
         </a>
-        （0–1000 km，每 5 km 一筆；格點間以線性〔溫度〕與對數線性〔氣壓、密度〕內插）。理想化水平分層模式：忽略緯度、季節、天氣系統造成的實際大氣變化，僅代表全球年平均概況。
+        {copy.sourceNote}
       </p>
 
-      <AtmosphereLayerDrawer open={showLayers} state={state} onClose={() => setShowLayers(false)} onPatch={patchState} />
+      <AtmosphereLayerDrawer open={showLayers} state={state} onClose={() => setShowLayers(false)} onPatch={patchState} copy={copy} />
     </main>
   );
 }

@@ -29,17 +29,17 @@ export type StandardAtmosphereState = {
 };
 
 export const ALTITUDE_PRESETS = {
-  troposphere: { label: "至對流層頂", maxAltitudeKm: 13 },
-  stratosphere: { label: "至平流層頂", maxAltitudeKm: 52 },
-  mesosphere: { label: "至中氣層頂", maxAltitudeKm: 83 },
-  thermosphere: { label: "至增溫層頂", maxAltitudeKm: 600 },
-  full: { label: "全剖面 0–1000 km", maxAltitudeKm: STANDARD_ATMOSPHERE_MAX_ALTITUDE_KM },
+  troposphere: { maxAltitudeKm: 13 },
+  stratosphere: { maxAltitudeKm: 52 },
+  mesosphere: { maxAltitudeKm: 83 },
+  thermosphere: { maxAltitudeKm: 600 },
+  full: { maxAltitudeKm: STANDARD_ATMOSPHERE_MAX_ALTITUDE_KM },
 } as const;
 
-export const QUANTITY_META: Record<PhysicalQuantity, { label: string; unit: string; color: string }> = {
-  temperature: { label: "溫度", unit: "K", color: "#f2c66d" },
-  pressure: { label: "氣壓", unit: "Pa", color: "#72aee6" },
-  density: { label: "密度", unit: "kg/m³", color: "#5ed8c3" },
+export const QUANTITY_META: Record<PhysicalQuantity, { unit: string; color: string }> = {
+  temperature: { unit: "K", color: "#f2c66d" },
+  pressure: { unit: "Pa", color: "#72aee6" },
+  density: { unit: "kg/m³", color: "#5ed8c3" },
 };
 
 export function initialStandardAtmosphereState(): StandardAtmosphereState {
