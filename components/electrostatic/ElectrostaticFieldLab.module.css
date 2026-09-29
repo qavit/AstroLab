@@ -25,7 +25,7 @@
 .appBarLeft { display: flex; align-items: center; gap: 9px; min-width: 0; }
 /* .catalog-brand is the repo's global wordmark (app/globals.css) — reused verbatim here so the
    brand reads identically to the homepage; only wrapped, never restyled. */
-.appBarLeft :global(.catalog-brand):focus-visible { outline: 3px solid #e3ad36; outline-offset: 3px; }
+.appBarLeft :global(.catalog-brand):focus-visible { outline: 2px solid #173d57; outline-offset: 4px; }
 .appBarDivider { color: #b9cad2; font-size: 14px; }
 .appBarTitle { margin: 0; color: #143247; font: 500 21px/1.2 Georgia, "Noto Serif TC", serif; white-space: nowrap; }
 .statusChip {

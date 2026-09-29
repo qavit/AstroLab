@@ -9,7 +9,7 @@ interface Props {
 export default function KakauLabMark({ compact = false }: Props) {
   return (
     <span className="kakau-lab-mark">
-      {!compact && <img className="kakau-lab-mark__wordmark" src="/brand/horizontal_lab_light.svg" alt="Kakau Lab" />}
+      {!compact && <img className="kakau-lab-mark__wordmark" src="/brand/lab_inline_transparent_light.svg" alt="Kakau Lab" />}
       <img className="kakau-lab-mark__symbol" src="/brand/symbol_color.svg" alt={compact ? "Kakau Lab" : ""} aria-hidden={compact ? undefined : true} />
     </span>
   );
