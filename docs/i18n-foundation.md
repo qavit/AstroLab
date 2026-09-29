@@ -17,7 +17,7 @@
 
 - Next.js proxy records the URL locale for the root layout, which emits the matching `<html lang>`.
 - Every localized page has a self-canonical URL, localized title/description/Open Graph locale, and `hreflang` only for real paired routes. `x-default` is the Chinese URL.
-- The app has no sitemap implementation today. Add both real counterparts to a sitemap when the first indexable English catalog surface is published; do not submit speculative `/en` paths.
+- `app/sitemap.ts` lists only published routes, including both Model 05 counterparts. Add a peer only when its reviewed content is ready; never submit speculative `/en` paths.
 
 ## Adding a translated module
 
@@ -41,4 +41,4 @@
 
 ## Known limitations
 
-v0.1 validates only Model 05. Other modules remain Chinese-first and deliberately have no English fallback page or language switcher. Translating the catalogue, module long-form notes, and a sitemap are follow-on work, not implied by this foundation.
+v0.1 validates only Model 05. Other modules remain Chinese-first and deliberately have no English fallback page or language switcher. Translating the catalogue and module long-form notes are follow-on work, not implied by this foundation.
