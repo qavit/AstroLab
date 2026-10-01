@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/site-metadata";
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export const metadata: Metadata = {
   title: "模型說明｜Kakau Lab",
   description: "了解太陽、天球與竿影模型的理想化假設，以及它和真實日地系統的差異。",
+  alternates: { canonical: "/about" },
+  ...socialMetadata({ title: "模型說明｜Kakau Lab", description: "了解太陽、天球與竿影模型的理想化假設，以及它和真實日地系統的差異。" }),
 };
 
 export default function AboutPage() {

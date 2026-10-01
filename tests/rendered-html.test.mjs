@@ -508,3 +508,18 @@ test("server-renders the shared electrostatics theory notes at /electrostatics/n
   const overlay = await readFile(new URL("../components/electrostatic/ModelInfoOverlay.tsx", import.meta.url), "utf8");
   assert.match(overlay, /import TheoryNotes from "\.\/TheoryNotes"/);
 });
+
+test("every published route declares a self canonical and a page-specific og:title", async () => {
+  const sitemapSource = await readFile(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+  const paths = [...sitemapSource.matchAll(/^\s+"(\/[^"]*)",$/gm)].map((match) => match[1]);
+  assert.ok(paths.length >= 13, `expected the published routes, got ${paths.length}`);
+  const siteTitle = "Kakau Lab｜互動式科學模型";
+  for (const path of paths) {
+    const html = await (await render(path)).text();
+    const canonical = html.match(/<link rel="canonical" href="([^"]+)"/)?.[1];
+    assert.equal(canonical, new URL(path, "https://lab.kakau.tw").href, `${path} canonical`);
+    const ogTitle = html.match(/<meta property="og:title" content="([^"]*)"/)?.[1];
+    assert.ok(ogTitle, `${path} has og:title`);
+    if (path !== "/") assert.notEqual(ogTitle, siteTitle, `${path} must not fall back to the site-level og:title`);
+  }
+});

@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/site-metadata";
 import SolarLab from "@/components/SolarLab";
 
 export const metadata: Metadata = {
   title: "太陽、天球與竿影｜Kakau Lab",
   description: "同步探索地心天球與觀察者天空的互動式科學模型。",
+  alternates: { canonical: "/solar" },
+  ...socialMetadata({ title: "太陽、天球與竿影｜Kakau Lab", description: "同步探索地心天球與觀察者天空的互動式科學模型。" }),
 };
 
 export default function SolarPage() {

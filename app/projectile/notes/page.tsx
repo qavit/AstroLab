@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/site-metadata";
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
 import TheoryNotes from "@/components/projectile/TheoryNotes";
@@ -6,6 +7,8 @@ import TheoryNotes from "@/components/projectile/TheoryNotes";
 export const metadata: Metadata = {
   title: "拋體運動：理論與計算｜Kakau Lab",
   description: "拋體運動模型使用的公式、它們的成立條件，以及空氣阻力為何必須改用數值積分。",
+  alternates: { canonical: "/projectile/notes" },
+  ...socialMetadata({ title: "拋體運動：理論與計算｜Kakau Lab", description: "拋體運動模型使用的公式、它們的成立條件，以及空氣阻力為何必須改用數值積分。" }),
 };
 
 /** The same notes the lab shows in its overlay, as a linkable page. */

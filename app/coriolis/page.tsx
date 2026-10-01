@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "科氏力效應｜Kakau Lab",
   description: "同步顯示慣性系直線與旋轉系彎曲路徑，比較旋轉平台與地球緯度兩種情境下的科氏偏轉。",
   ...socialMetadata({ title: "科氏力效應｜Kakau Lab", description: "旋轉參考系、科氏參數與傅科擺" }),
+  alternates: { canonical: "/coriolis" },
 };
 
 export default function CoriolisPage() {

@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "拋體運動｜Kakau Lab",
   description: "水平等速與垂直等加速的獨立性、互補角、安全拋物線、階梯落點與空氣阻力對照。",
   ...socialMetadata({ title: "拋體運動｜Kakau Lab", description: "把拋物線拆成水平與垂直兩個各自成立的運動" }),
+  alternates: { canonical: "/projectile" },
 };
 
 export default function ProjectilePage() {

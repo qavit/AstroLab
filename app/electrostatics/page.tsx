@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "靜電學｜Kakau Lab",
   description: "從點電荷與電場開始，探索看不見的電作用。",
   ...socialMetadata({ title: "靜電學｜Kakau Lab", description: "從點電荷與電場開始，探索看不見的電作用。" }),
+  alternates: { canonical: "/electrostatics" },
 };
 
 type PageProps = {
