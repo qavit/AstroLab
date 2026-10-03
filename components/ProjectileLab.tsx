@@ -6,8 +6,9 @@ import {
   BookOpen,
   ChevronDown,
   ChevronRight,
-  Eye,
-  EyeOff,
+  Info,
+  Layers3,
+  Share2,
   Home,
   Pause,
   Play,
@@ -24,6 +25,10 @@ import TheoryNotes from "@/components/projectile/TheoryNotes";
 import GuidedActivities from "@/components/projectile/GuidedActivities";
 import KakauLabMark from "@/components/KakauLabMark";
 import ThemeToggle from "@/components/ThemeToggle";
+import LabInfoDialog from "./overlays/LabInfoDialog";
+import { LabLayerDrawer, LayerGroup, LayerToggle } from "./layers/LabLayerDrawer";
+import { INITIAL_PROJECTILE_LAYERS, PROJECTILE_LAYER_LABELS, type ProjectileLayers } from "./projectile/layers";
+import { decodeProjectileShare, encodeProjectileShare, type ProjectileShareInput } from "../models/projectile-serialization.ts";
 import { MathProvider, Tex } from "@/components/projectile/mathjax";
 import type { PathAcceleration, TrajectorySample, Vec2 } from "@/lib/science/projectile";
 import { DRAG_PRESETS, GRAVITY_PRESETS } from "@/lib/science/projectile";
@@ -378,8 +383,9 @@ function Arrow({ x1, y1, x2, y2, color, width = 2, dash }: {
 
 type Probe = { t: number; point: Vec2; velocity: Vec2; acceleration: PathAcceleration; angle: number };
 
-function TrajectoryView({ state, model, cursor, geometry, manualView, onManualViewChange, onScrubTo, timeInteractionEnabled }: {
+function TrajectoryView({ state, layers, model, cursor, geometry, manualView, onManualViewChange, onScrubTo, timeInteractionEnabled }: {
   state: ProjectileState;
+  layers: ProjectileLayers;
   model: ProjectileReadout;
   cursor: CursorReadout;
   geometry: Geometry;
@@ -708,6 +714,7 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
         ["v", `${shownProbe.acceleration.speed.toFixed(2)} m/s`],
         ["v_x", `${shownProbe.velocity.x.toFixed(2)} m/s`],
         ["v_y", `${shownProbe.velocity.y.toFixed(2)} m/s`],
+        ["a_x", "0.00 m/s²"], ["a_y", `${(-state.gravity).toFixed(2)} m/s²`],
         ["\\theta_\\text{path}", `${shownProbe.angle.toFixed(1)}°`],
         ...(state.showAcceleration
           ? ([
@@ -754,10 +761,10 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
         </clipPath>
       </defs>
 
-      {xTicks.map((tick) => (
+      {layers.grid && xTicks.map((tick) => (
         <line key={`gx${tick}`} x1={frame.px(tick)} y1={plot.top} x2={frame.px(tick)} y2={plot.bottom} stroke={GRID} strokeWidth={1} />
       ))}
-      {yTicks.map((tick) => (
+      {layers.grid && yTicks.map((tick) => (
         <line key={`gy${tick}`} x1={plot.left} y1={frame.py(tick)} x2={plot.right} y2={frame.py(tick)} stroke={GRID} strokeWidth={1} />
       ))}
 
@@ -770,13 +777,13 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
       )}
       <line x1={plot.left} y1={plot.top} x2={plot.left} y2={plot.bottom} stroke={AXIS} strokeWidth={1.4} />
 
-      {xTicks.map((tick) => (
+      {layers.labels && xTicks.map((tick) => (
         <text key={`tx${tick}`} x={frame.px(tick)} y={plot.bottom + geometry.tick + 7} textAnchor="middle" fill={LABEL} fontSize={geometry.tick}>{tick}</text>
       ))}
-      {yTicks.map((tick) => (
+      {layers.labels && yTicks.map((tick) => (
         <text key={`ty${tick}`} x={plot.left - 9} y={frame.py(tick) + 5} textAnchor="end" fill={LABEL} fontSize={geometry.tick}>{tick}</text>
       ))}
-      <text x={plot.right} y={plot.bottom + geometry.tick + 7 + geometry.title + 10} textAnchor="end" fill={LABEL} fontSize={geometry.title}>水平距離 x (m)</text>
+      {layers.labels && <><text x={plot.right} y={plot.bottom + geometry.tick + 7 + geometry.title + 10} textAnchor="end" fill={LABEL} fontSize={geometry.title}>水平距離 x (m)</text>
       <text
         x={yTitleX}
         y={(plot.top + plot.bottom) / 2}
@@ -784,7 +791,7 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
         fill={LABEL}
         fontSize={geometry.title}
         transform={`rotate(-90 ${yTitleX} ${(plot.top + plot.bottom) / 2})`}
-      >高度 y (m)</text>
+      >高度 y (m)</text></>}
 
       <g clipPath="url(#projectile-plot-clip)">
         {model.envelope.length > 0 && (
@@ -793,45 +800,45 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
               <path key={fan.angle} d={samplePath(fan.samples, frame)} fill="none" stroke={BOUND} strokeWidth={1.1} opacity={0.5} />
             ))}
             <path d={pathFrom(model.envelope, frame)} fill="none" stroke={BOUND} strokeWidth={2.2} strokeDasharray="7 4" />
-            <text x={frame.px(model.envelope[0]?.x ?? 0) + 10} y={frame.py(model.envelope[0]?.y ?? 0) + 16} fill={BOUND} fontSize={geometry.note}>
+            {layers.labels && <text x={frame.px(model.envelope[0]?.x ?? 0) + 10} y={frame.py(model.envelope[0]?.y ?? 0) + 16} fill={BOUND} fontSize={geometry.note}>
               安全拋物線（此速度的可及邊界）
-            </text>
+            </text>}
           </>
         )}
 
         {model.complementary && (
           <>
             <path d={samplePath(model.complementary.samples, frame)} fill="none" stroke={COMPARE} strokeWidth={2.2} />
-            <circle cx={frame.px(model.complementary.range)} cy={frame.py(0)} r={5} fill="none" stroke={COMPARE} strokeWidth={2} />
+            {layers.markers && <circle cx={frame.px(model.complementary.range)} cy={frame.py(0)} r={5} fill="none" stroke={COMPARE} strokeWidth={2} />}
           </>
         )}
 
         {model.dragSamples.length > 0 && (
           <>
             <path d={samplePath(model.dragSamples, frame)} fill="none" stroke={COMPARE} strokeWidth={2.2} strokeDasharray="3 4" />
-            <circle cx={frame.px(model.dragLanding?.point.x ?? 0)} cy={frame.py(0)} r={4.5} fill="none" stroke={COMPARE} strokeWidth={2} />
+            {layers.markers && <circle cx={frame.px(model.dragLanding?.point.x ?? 0)} cy={frame.py(0)} r={4.5} fill="none" stroke={COMPARE} strokeWidth={2} />}
           </>
         )}
 
-        {model.duration > 0 && (
-          <path d={samplePath(model.trajectory, frame)} fill="none" stroke={PATH} strokeWidth={3} strokeLinecap="round" />
+        {layers.trajectory && model.duration > 0 && (
+          <path data-testid="projectile-main-trajectory" d={samplePath(model.trajectory, frame)} fill="none" stroke={PATH} strokeWidth={3} strokeLinecap="round" />
         )}
 
-        {!isStairs && model.apex.t > 0 && (
+        {(layers.guides || layers.labels) && !isStairs && model.apex.t > 0 && (
           <>
-            <line x1={frame.px(model.apex.point.x)} y1={frame.py(model.apex.point.y)} x2={frame.px(model.apex.point.x)} y2={frame.py(0)} stroke={PATH} strokeWidth={1} strokeDasharray="3 4" opacity={0.5} />
-            <text x={frame.px(model.apex.point.x)} y={frame.py(model.apex.point.y) - 10} textAnchor="middle" fill={PATH} fontSize={geometry.note}>
+            {layers.guides && <line x1={frame.px(model.apex.point.x)} y1={frame.py(model.apex.point.y)} x2={frame.px(model.apex.point.x)} y2={frame.py(0)} stroke={PATH} strokeWidth={1} strokeDasharray="3 4" opacity={0.5} />}
+            {layers.labels && <text x={frame.px(model.apex.point.x)} y={frame.py(model.apex.point.y) - 10} textAnchor="middle" fill={PATH} fontSize={geometry.note}>
               最高點 {model.apex.point.y.toFixed(1)} m
-            </text>
+            </text>}
           </>
         )}
 
-        {isStairs && model.landing && (
+        {(layers.markers || layers.labels) && isStairs && model.landing && (
           <>
-            <circle cx={frame.px(model.landing.point.x)} cy={frame.py(model.landing.point.y)} r={6} fill="none" stroke={COMPARE} strokeWidth={2.4} />
-            <text x={frame.px(model.landing.point.x) + 11} y={frame.py(model.landing.point.y) + 15} fill={COMPARE} fontSize={geometry.note + 1} fontWeight={700}>
+            {layers.markers && <circle cx={frame.px(model.landing.point.x)} cy={frame.py(model.landing.point.y)} r={6} fill="none" stroke={COMPARE} strokeWidth={2.4} />}
+            {layers.labels && <text x={frame.px(model.landing.point.x) + 11} y={frame.py(model.landing.point.y) + 15} fill={COMPARE} fontSize={geometry.note + 1} fontWeight={700}>
               落在第 {model.landing.step} 階
-            </text>
+            </text>}
           </>
         )}
 
@@ -841,14 +848,14 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
 
         {/* Comparison launches leave with the main one and are drawn on the same clock, so the
             complementary ball can be watched arriving late at the same landing point. */}
-        {companion && <circle cx={frame.px(companion.point.x)} cy={frame.py(companion.point.y)} r={5} fill={COMPARE} />}
-        {dragMarker && <circle cx={frame.px(dragMarker.point.x)} cy={frame.py(dragMarker.point.y)} r={4.5} fill={COMPARE} opacity={0.75} />}
+        {layers.markers && companion && <circle cx={frame.px(companion.point.x)} cy={frame.py(companion.point.y)} r={5} fill={COMPARE} />}
+        {layers.markers && dragMarker && <circle cx={frame.px(dragMarker.point.x)} cy={frame.py(dragMarker.point.y)} r={4.5} fill={COMPARE} opacity={0.75} />}
 
         {model.duration > 0 && (
           <>
-            <Arrow x1={cx} y1={cy} x2={tipVx.x} y2={tipVx.y} color={VELOCITY} width={1.5} dash="5 4" />
-            <Arrow x1={cx} y1={cy} x2={tipVy.x} y2={tipVy.y} color={VELOCITY} width={1.5} dash="5 4" />
-            <Arrow x1={cx} y1={cy} x2={tipV.x} y2={tipV.y} color={VELOCITY} width={2.6} />
+            {layers.components && <><Arrow x1={cx} y1={cy} x2={tipVx.x} y2={tipVx.y} color={VELOCITY} width={1.5} dash="5 4" />
+            <Arrow x1={cx} y1={cy} x2={tipVy.x} y2={tipVy.y} color={VELOCITY} width={1.5} dash="5 4" /></>}
+            {layers.velocity && <Arrow x1={cx} y1={cy} x2={tipV.x} y2={tipV.y} color={VELOCITY} width={2.6} />}
             {state.showAcceleration && (
               <>
                 <Arrow x1={cx} y1={cy} x2={tipAt.x} y2={tipAt.y} color={ACCEL} width={1.5} dash="5 4" />
@@ -862,8 +869,8 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
 
         {shownProbe && (
           <>
-            <line x1={probeX} y1={plot.top} x2={probeX} y2={plot.bottom} stroke={LABEL} strokeWidth={1} opacity={0.3} />
-            <circle cx={probeX} cy={probeY} r={4} fill="none" stroke={LABEL} strokeWidth={1.6} />
+            {layers.guides && <line x1={probeX} y1={plot.top} x2={probeX} y2={plot.bottom} stroke={LABEL} strokeWidth={1} opacity={0.3} />}
+            {layers.markers && <circle cx={probeX} cy={probeY} r={4} fill="none" stroke={LABEL} strokeWidth={1.6} />}
           </>
         )}
       </g>
@@ -873,7 +880,7 @@ function TrajectoryView({ state, model, cursor, geometry, manualView, onManualVi
       )}
     </svg>
 
-    {shownProbe && (
+    {shownProbe && layers.labels && (
       <div
         className="projectile-tip"
         style={{ left: tipX, top: tipY, width: tipW, fontSize: geometry.tip.font }}
@@ -1252,13 +1259,14 @@ function HeightControl({ height, onChange }: { height: number; onChange: (height
 function Menu({ label, children }: { label: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: MouseEvent) => {
       if (!ref.current?.contains(event.target as Node)) setOpen(false);
     };
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") { setOpen(false); triggerRef.current?.focus(); } };
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     return () => {
@@ -1269,10 +1277,10 @@ function Menu({ label, children }: { label: string; children: ReactNode }) {
 
   return (
     <div className="projectile-menu" ref={ref}>
-      <button className={open ? "active" : ""} onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open}>
+      <button ref={triggerRef} className={open ? "active" : ""} onClick={() => setOpen((value) => !value)} aria-expanded={open}>
         {label} <ChevronDown size={13} />
       </button>
-      {open && <div className="projectile-menu-list" role="menu" onClick={() => setOpen(false)}>{children}</div>}
+      {open && <div className="projectile-menu-list" role="group" aria-label={`${label}選項`} onClick={() => { setOpen(false); triggerRef.current?.focus(); }}>{children}</div>}
     </div>
   );
 }
@@ -1283,36 +1291,34 @@ function Menu({ label, children }: { label: string; children: ReactNode }) {
  * question came from; the same notes remain linkable at /projectile/notes.
  */
 function TheoryOverlay({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKeyDown);
-    /* The page behind must not scroll while the overlay owns the screen. */
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [onClose]);
-
-  return (
-    <div className="theory-backdrop" onClick={onClose}>
-      <div
-        className="theory-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label="拋體運動的理論與計算"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <button className="theory-close" onClick={onClose} aria-label="關閉"><X size={16} /></button>
-        <div className="theory-scroll"><TheoryNotes /></div>
-      </div>
-    </div>
-  );
+  return <LabInfoDialog title="拋體運動的理論與計算" onClose={onClose}><TheoryNotes /></LabInfoDialog>;
 }
 
-export default function ProjectileLab() {
-  const [state, setState] = useState<ProjectileState>(initialProjectileState);
+export default function ProjectileLab({ share }: { share?: ProjectileShareInput }) {
+  const initial = useMemo(() => decodeProjectileShare(share), [share]);
+  const [state, setState] = useState<ProjectileState>(() => initial.state);
+  const [layers, setLayers] = useState<ProjectileLayers>(() => initial.layers);
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(() => initial.preset);
+  const [shareStatus, setShareStatus] = useState<string | null>(initial.error);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [modelInfoOpen, setModelInfoOpen] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const layersTriggerRef = useRef<HTMLButtonElement>(null);
+  const shellRef = useRef<HTMLElement>(null);
+  const appBarRef = useRef<HTMLDivElement>(null);
+  const [appBarBottom, setAppBarBottom] = useState(120);
+  const freeSnapshot = useRef<{ state: ProjectileState; layers: ProjectileLayers; cursorFraction: number; manualView: ManualView | null; preset: string | null } | null>(null);
+  useEffect(() => {
+    shellRef.current?.setAttribute("data-interactive", "true");
+    const bar = appBarRef.current;
+    if (!bar) return;
+    const update = () => setAppBarBottom(bar.getBoundingClientRect().bottom);
+    const observer = new ResizeObserver(update);
+    observer.observe(bar);
+    update();
+    window.addEventListener("resize", update);
+    return () => { observer.disconnect(); window.removeEventListener("resize", update); };
+  }, []);
   const [cursorFraction, setCursorFraction] = useState(0.45);
   const [showComponents, setShowComponents] = useState(false);
   const [showEnvironment, setShowEnvironment] = useState(false);
@@ -1356,19 +1362,28 @@ export default function ProjectileLab() {
 
   const patchState = useCallback((patch: Partial<ProjectileState>) => {
     setState((current) => ({ ...current, ...patch }));
+    if (["speed", "angle", "height", "gravity", "dragFactor", "scenario", "stairs"].some((key) => key in patch)) setSelectedPreset(null);
   }, []);
 
   const selectGuidedActivity = useCallback((activityId: ProjectileActivityId) => {
     const activity = LEARNING_ACTIVITIES.find((candidate) => candidate.id === activityId) ?? LEARNING_ACTIVITIES[0];
+    if (!freeSnapshot.current) freeSnapshot.current = { state, layers, cursorFraction, manualView, preset: selectedPreset };
+    setLayers({ ...INITIAL_PROJECTILE_LAYERS });
+    setLayersOpen(false);
     setGuidedSession(newGuidedSession(activity.id));
     setState(activity.initialState);
     setCursorFraction(0);
     setManualView(null);
     setPanelOpen(false);
     setGuidedChartVisible(false);
-  }, []);
+  }, [state, layers, cursorFraction, manualView, selectedPreset]);
 
   const closeGuided = useCallback(() => {
+    const saved = freeSnapshot.current;
+    if (saved) {
+      setState(saved.state); setLayers(saved.layers); setCursorFraction(saved.cursorFraction); setManualView(saved.manualView); setSelectedPreset(saved.preset);
+      freeSnapshot.current = null;
+    }
     setGuidedSession(null);
     setGuidedChartVisible(false);
   }, []);
@@ -1475,14 +1490,18 @@ export default function ProjectileLab() {
     ["最佳發射角 θ*", maskOptimalAngle ? "先做預測，再揭曉" : `${model.optimalAngle.toFixed(1)}°`],
   ];
   const liveReadouts: readonly (readonly [string, string])[] = [
+    ["游標 t", `${cursor.t.toFixed(2)} s`],
+    ["x", `${cursor.point.x.toFixed(2)} m`], ["y", `${cursor.point.y.toFixed(2)} m`],
+    ["vₓ", `${cursor.velocity.x.toFixed(2)} m/s`], ["vᵧ", `${cursor.velocity.y.toFixed(2)} m/s`],
+    ["aₓ", "0.00 m/s²"], ["aᵧ", `${(-state.gravity).toFixed(2)} m/s²`],
     ["當下速率 v", `${cursor.acceleration.speed.toFixed(2)} m/s`],
     ["曲率半徑 ρ", Number.isFinite(cursor.acceleration.radiusOfCurvature) ? `${cursor.acceleration.radiusOfCurvature.toFixed(1)} m` : "∞"],
   ];
 
   return (
     <MathProvider>
-    <main className="lab-shell projectile-lab">
-      <div className="topbar projectile-topbar">
+    <main ref={shellRef} className="lab-shell projectile-lab" style={{ "--projectile-appbar-bottom": `${appBarBottom}px` } as React.CSSProperties}>
+      <div ref={appBarRef} className="topbar projectile-topbar">
         <div>
           <Link href="/" className="lab-brand" aria-label="Kakau Lab 模型目錄"><KakauLabMark /></Link>
           <div className="eyebrow">Model 07</div>
@@ -1499,7 +1518,7 @@ export default function ProjectileLab() {
               <Menu label="教學預設">
                 {Object.entries(PROJECTILE_PRESETS).map(([key, preset]) => {
                   const { label, ...patch } = preset;
-                  return <button key={key} onClick={() => { patchState(patch); setCursorFraction(0); setManualView(null); }}>{label}</button>;
+                  return <button key={key} aria-pressed={selectedPreset === key} onClick={() => { setState({ ...initialProjectileState(), ...patch, playing: false }); setLayers({ ...INITIAL_PROJECTILE_LAYERS }); setSelectedPreset(key); setCursorFraction(0); setManualView(null); }}>{label}</button>;
                 })}
               </Menu>
             </>
@@ -1511,6 +1530,20 @@ export default function ProjectileLab() {
           >
             {guidedSession ? "離開探索任務" : "探索任務"}
           </button>
+          {freeStateControlsAvailable && <>
+            <button ref={layersTriggerRef} aria-expanded={layersOpen} aria-controls="projectile-layer-drawer" onClick={() => setLayersOpen((open) => !open)}><Layers3 size={14} /> 圖層</button>
+            <button onClick={async () => {
+              try {
+                const url = new URL("/projectile", window.location.origin);
+                url.searchParams.set("s", encodeProjectileShare(state, layers, selectedPreset));
+                if (url.href.length > 2000) throw new Error("分享網址過長。");
+                setShareUrl(url.href);
+                try { await navigator.clipboard.writeText(url.href); setShareStatus("分享連結已複製；開啟後從起點暫停。"); }
+                catch { setShareStatus("請選取下方連結複製。"); }
+              } catch { setShareStatus("目前設定無法分享。"); }
+            }}><Share2 size={14} /> 分享設定</button>
+          </>}
+          <button aria-haspopup="dialog" onClick={() => setModelInfoOpen(true)}><Info size={14} /> 模型資訊</button>
           <button className={theoryOpen ? "active" : ""} onClick={() => setTheoryOpen(true)} aria-haspopup="dialog" aria-expanded={theoryOpen}>
             <BookOpen size={14} /> 理論與計算
           </button>
@@ -1523,11 +1556,18 @@ export default function ProjectileLab() {
           </button>
           <button onClick={() => {
             if (guidedSession) selectGuidedActivity(guidedSession.activityId);
-            else { setState(initialProjectileState()); setCursorFraction(0); setManualView(null); }
+            else { setState(initialProjectileState()); setLayers({ ...INITIAL_PROJECTILE_LAYERS }); setSelectedPreset(null); setCursorFraction(0); setManualView(null); }
           }}><RotateCcw size={14} /> 重設</button>
         </div>
       </div>
 
+      {shareStatus && <div className="projectile-share-notice" role="status">{shareStatus}{shareUrl && <label>分享連結<input readOnly value={shareUrl} onFocus={(event) => event.target.select()} /></label>}</div>}
+      <LabLayerDrawer open={layersOpen} id="projectile-layer-drawer" title="視圖圖層" className="projectile-layer-drawer" onClose={() => setLayersOpen(false)} returnFocusRef={layersTriggerRef}>
+        <LayerGroup title="軌跡與測量"><div className="layer-list">{Object.entries(PROJECTILE_LAYER_LABELS).map(([name, label]) => { const key = name as keyof ProjectileLayers; return <LayerToggle key={key} checked={layers[key]} label={label} onChange={() => setLayers((current) => ({ ...current, [key]: !current[key] }))} />; })}</div></LayerGroup>
+        <LayerGroup title="向量與比較"><div className="layer-list">{([
+          ["showAcceleration", "加速度分量與曲率圓"], ["showComplementary", "互補角對照軌跡"], ["showEnvelope", "安全拋物線與軌跡束"], ["showDrag", "空氣阻力對照軌跡"],
+        ] as const).map(([key, label]) => <LayerToggle key={key} checked={state[key]} label={label} disabled={isStairs && key !== "showAcceleration"} onChange={() => patchState({ [key]: !state[key] })} />)}</div></LayerGroup>
+      </LabLayerDrawer>
       {/* The panel takes width from the chart rather than covering it, and the chart is drawn at
           whatever size it is left with, so opening the panel never hides the trajectory. */}
       <div className="projectile-stage" data-panel={panelOpen || Boolean(guidedSession)}>
@@ -1542,6 +1582,7 @@ export default function ProjectileLab() {
           <div className="canvas-host" ref={chartHostRef}>
             <TrajectoryView
               state={state}
+              layers={layers}
               model={model}
               cursor={cursor}
               geometry={geometry}
@@ -1552,10 +1593,10 @@ export default function ProjectileLab() {
             />
           </div>
           <div className="legend">
-            <span><i style={{ background: PATH }} />本次軌跡</span>
+            {layers.trajectory && <span><i style={{ background: PATH }} />本次軌跡</span>}
             {comparisonIsRevealed && (model.complementary || dragActive) && <span><i style={{ background: COMPARE }} />對照軌跡</span>}
             {model.envelope.length > 0 && <span><i style={{ background: BOUND }} />可及邊界</span>}
-            <span><i style={{ background: VELOCITY }} />速度 <Tex>{"\\vec v"}</Tex>（分量為虛線）</span>
+            {(layers.velocity || layers.components) && <span><i style={{ background: VELOCITY }} />速度 <Tex>{"\\vec v"}</Tex>（分量為虛線）</span>}
             {state.showAcceleration && <span><i style={{ background: ACCEL }} />加速度 <Tex>{"g"}</Tex>（分量為虛線）</span>}
           </div>
         </section>
@@ -1565,6 +1606,12 @@ export default function ProjectileLab() {
             className="projectile-side-grip"
             onPointerDown={startPanelResize}
             role="separator"
+            tabIndex={0}
+            aria-valuemin={PANEL_MIN_WIDTH} aria-valuemax={PANEL_MAX_WIDTH} aria-valuenow={panelWidth}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); setPanelWidth((width) => clamp(width + (event.key === "ArrowLeft" ? 20 : -20), PANEL_MIN_WIDTH, PANEL_MAX_WIDTH)); }
+              if (event.key === "Home") setPanelWidth(PANEL_DEFAULT_WIDTH);
+            }}
             aria-orientation="vertical"
             aria-label="調整面板寬度"
           />
@@ -1589,24 +1636,6 @@ export default function ProjectileLab() {
                 )}
               </div>
               <small className="projectile-hint">最佳角 <Tex>{"\\theta^{*}"}</Tex> = {model.optimalAngle.toFixed(1)}°；只有 <Tex>{"h = 0"}</Tex> 時才會是 45°。</small>
-            </div>
-
-            {/* The eye icon here is the value, not decoration, so icon and text together earn
-                their width. Elsewhere one or the other does. */}
-            <div className="projectile-group">
-              <p className="projectile-group-label">圖層</p>
-              <div className="projectile-btn-column">
-                {([
-                  ["showComplementary", "互補角對照軌跡"],
-                  ["showEnvelope", "安全拋物線與軌跡束"],
-                  ["showAcceleration", "加速度分量與曲率圓"],
-                  ["showDrag", "空氣阻力對照軌跡"],
-                ] as const).map(([key, label]) => (
-                  <button key={key} className={state[key] ? "active" : ""} onClick={() => patchState({ [key]: !state[key] })}>
-                    {state[key] ? <Eye size={14} /> : <EyeOff size={14} />} {label}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <div className="projectile-group projectile-group-flush">
@@ -1760,12 +1789,18 @@ export default function ProjectileLab() {
             ))}
           </div>
         </div>
-        <div className="projectile-readout">
+        <div className="projectile-readout" aria-label="真空主軌跡的時間游標讀值">
           {readouts.map(([name, value]) => <span key={name}><i>{name}</i>{value}</span>)}
           {liveReadouts.map(([name, value]) => <span key={name} className="live"><i>{name}</i>{value}</span>)}
         </div>
       </div>
 
+      {modelInfoOpen && <LabInfoDialog title="拋體運動模型資訊" onClose={() => setModelInfoOpen(false)}><article className="theory-body">
+        <h2>主軌跡的模型</h2><p>質點、無空氣阻力、均勻向下重力場。aₓ = 0，aᵧ = −g；水平等速與垂直等加速可分別計算，再組成同一個位置。</p>
+        <p>座標原點固定在發射點的水平位置 x = 0，發射高度為 h。時間游標與下方讀值追蹤真空主軌跡；比較軌跡的飛行時間可能不同。</p>
+        <p>可選的空氣阻力軌跡是二次阻力的數值對照，不改變主軌跡與讀值。模型忽略風、物體大小與自轉、地球曲率與重力隨高度變化。</p>
+        <p><Link href="/projectile/notes">閱讀完整理論與計算</Link></p>
+      </article></LabInfoDialog>}
       {theoryOpen && <TheoryOverlay onClose={() => setTheoryOpen(false)} />}
     </main>
     </MathProvider>

@@ -576,3 +576,23 @@ html[data-mode="dark"] .geology-answer strong { color:#f0a998; }
 html[data-mode="dark"] .experimental-badge { border-color:#a67c22; }
 html[data-mode="dark"] .layer-drawer,html[data-mode="dark"] .export-modal,html[data-mode="dark"] .theory-panel { box-shadow:0 30px 90px rgba(0,0,0,.55); }
 @media(max-width:520px){ .catalog-header-end{gap:0}.catalog-count{display:none} }
+
+/* Projectile uses existing app bar, appearance and layer presentation contracts. */
+.projectile-layer-drawer { top:var(--projectile-appbar-bottom,120px); }
+.projectile-lab :is(button,a,input,summary,[role="separator"]):focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+.projectile-share-notice { padding:10px 14px; margin-bottom:10px; border:1px solid var(--line); background:var(--surface); border-radius:6px; font-size:13px; }
+.projectile-share-notice label { display:grid; gap:5px; margin-top:8px; }
+.projectile-share-notice input { width:100%; min-width:0; padding:8px; color:var(--ink); background:var(--field-bg); border:1px solid var(--line); }
+@media(max-width:600px) {
+  .projectile-transport-buttons { flex-wrap:wrap; }
+  .projectile-transport-speeds { flex-wrap:wrap; }
+  .projectile-clock { min-width:0; }
+  .projectile-readout { gap:8px 16px; }
+  .projectile-readout span { font-size:14px; }
+  .projectile-layer-drawer { width:min(340px,100vw); }
+}
+@media(max-width:600px) {
+  .projectile-topbar .header-actions button { font-size:12px; min-height:40px; }
+  .projectile-topbar .header-actions { justify-content:flex-start; }
+  .projectile-topbar .theme-switcher button { padding:7px; }
+}

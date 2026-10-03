@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/projectile" },
 };
 
-export default function ProjectilePage() {
-  return <ProjectileLab />;
+export default async function ProjectilePage({ searchParams }: { searchParams: Promise<{ s?: string | string[] }> }) {
+  const params = await searchParams;
+  return <ProjectileLab share={params.s} />;
 }
