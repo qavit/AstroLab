@@ -21,7 +21,7 @@ import {
   type Staircase,
   type TrajectorySample,
   type Vec2,
-} from "@/lib/science/projectile";
+} from "../lib/science/projectile.ts";
 
 export { DRAG_PRESETS, GRAVITY_PRESETS };
 
@@ -59,11 +59,14 @@ const OFF = { showComplementary: false, showEnvelope: false, showDrag: false, sh
 /** Every preset states its own launch speed: the two scenarios work at speeds an order of
  * magnitude apart, so a preset that inherited the previous one's speed would land off-screen. */
 export const PROJECTILE_PRESETS: Record<string, { label: string } & Partial<ProjectileState>> = {
+  horizontal: { label: "水平拋射：高台出發", scenario: "field", speed: 20, angle: 0, height: 25, dragFactor: 0, ...OFF },
+  oblique: { label: "一般斜拋：30°", scenario: "field", speed: 20, angle: 30, height: 0, dragFactor: 0, ...OFF },
+  sameSpeed: { label: "同速率不同角度：軌跡束", scenario: "field", speed: 20, angle: 45, height: 0, dragFactor: 0, ...OFF, showEnvelope: true },
   optimal45: { label: "45° 最遠", scenario: "field", speed: 24, angle: 45, height: 0, dragFactor: 0, ...OFF },
   complementary: { label: "互補角對比", scenario: "field", speed: 20, angle: 30, height: 0, dragFactor: 0, ...OFF, showComplementary: true },
   elevated: { label: "高台拋射", scenario: "field", speed: 20, angle: 30, height: 25, dragFactor: 0, ...OFF, showComplementary: true },
   envelope: { label: "安全拋物線", scenario: "field", speed: 20, angle: 60, height: 0, dragFactor: 0, ...OFF, showEnvelope: true },
-  staircase: { label: "階梯落點", scenario: "staircase", speed: 4, angle: 0, dragFactor: 0, ...OFF },
+  staircase: { label: "階梯落點", scenario: "staircase", speed: 4, angle: 0, height: 0, dragFactor: 0, ...OFF },
   drag: { label: "羽球阻力", scenario: "field", speed: 22, angle: 40, height: 0, ...OFF, dragFactor: DRAG_PRESETS.shuttlecock.value, showDrag: true },
   moon: { label: "月球重力", scenario: "field", speed: 24, angle: 45, height: 0, dragFactor: 0, ...OFF, gravity: GRAVITY_PRESETS.moon.value },
 };

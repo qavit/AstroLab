@@ -299,7 +299,7 @@ test("keeps the model layer free of rendering and React", async () => {
     assert.doesNotMatch(source, /from "three/);
     assert.doesNotMatch(source, /@\/lib\/render/);
     assert.doesNotMatch(source, /from "react"/);
-    assert.match(source, /@\/lib\/science\//);
+    assert.match(source, /(?:@\/|\.\.\/)lib\/science\//);
   }
 });
 
