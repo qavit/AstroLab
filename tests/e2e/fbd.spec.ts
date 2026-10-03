@@ -44,8 +44,10 @@ test("FBD keyboard controls and mobile layout @mobile", async ({ page }) => {
   await page.keyboard.press("ArrowRight");
   await expect(page.getByLabel("方向（度）")).toHaveValue("1");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expect(page.getByRole("button", { name: "重新開始", exact: true })).toHaveCSS("font-size", "13px");
   for (const appearance of ["亮色", "暗色", "跟隨系統"]) {
     await page.getByRole("button", { name: appearance, exact: true }).click();
     await expect(page.getByRole("button", { name: appearance, exact: true })).toHaveAttribute("aria-pressed", "true");
   }
+  await page.screenshot({ path: "/tmp/mechanics-fbd-mobile.png", fullPage: true });
 });

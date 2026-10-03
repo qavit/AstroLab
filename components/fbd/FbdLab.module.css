@@ -21,3 +21,5 @@
 .shell :is(button,input,select,a):focus-visible { outline:3px solid var(--strong); outline-offset:3px; }
 .shell button[aria-pressed="true"] { border-color:var(--strong); background:var(--tint); }
 @media(max-width:800px) { .grid { grid-template-columns:1fr; } .card { padding:16px; } .steps { font-size:12px; } }
+
+@media(max-width:660px) { .shell :global(.header-actions) button { font-size:13px; } }

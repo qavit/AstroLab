@@ -33,3 +33,13 @@ FBD foundation rebased cleanly onto main, retaining all seven foundation commits
 One smooth horizontal table and a hand continuously in contact, neglecting air resistance. Learner selects block, records interactions, adds forces through those interactions, chooses force kind/direction and qualitative length, commits a cloned snapshot, compares, then revises. Removing an interaction cascades its forces. Qualitative length is presentation-only and never becomes newtons. Canonical interactions/forces live separately from learner state; no canonical diagram is rendered before commit. Comparison uses agent/kind/target relations rather than IDs, labels, or vector-only equality. Tests include unknown magnitudes, missing/extra interaction and force, wrong direction/agent/target, Newton III, motion-force misconception, detached hand and conditional normal-force reasoning.
 
 Foundation numerical helpers are retained, but the UI does not expose an equation or acceleration solver. Friction, torque, rigid bodies, accounts, authoring and FBD share are deferred.
+
+## Completed validation
+
+FBD focused tests: 18/18 (seven retained foundation plus eleven conceptual/commit fixtures). Full `npm test`: build + 257/257 pass. `npm run lint`: zero errors, two existing StandardAtmosphere warnings. Raw typecheck still reproduces the three baseline Cloudflare errors; with generated runtime types, the two existing DB-binding errors remain. Runtime declaration generated for investigation was removed afterward.
+
+Desktop browser flow passes wrong-direction comparison, revise-to-PASS and interaction removal cascading its force. Mobile flow passes keyboard arrow control, visible restart control, no horizontal overflow and light/dark/system appearance. Both screenshots inspected; page errors absent in the desktop flow. Force ID allocation occurs in the event handler so React updater functions remain pure.
+
+The requested first learning slice is implemented. `/fbd` is accessible directly and deliberately unlisted/noindex until catalogue/product publication is decided. Real classroom review and any future diagram drag refinement remain follow-up work; friction/torque/solvers are still deferred. No canonical answer is stored in learner state.
+
+Projectile was implemented separately from the same main baseline on `feat/projectile-v0.2-uplift`: local layers/deep links/presets/readout, saved free exploration state across guided tasks, shared modal presentation, and responsive/a11y polish. That branch records its details in `docs/projectile-v0.2-uplift.md`, with 243/243 unit tests, four browser flows and two Electrostatics modal regressions passing. The two branches are intentionally not combined or pushed.

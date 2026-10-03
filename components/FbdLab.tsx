@@ -33,7 +33,10 @@ export default function FbdLab() {
     const forces = current.diagram.forces.filter((force) => force.interactionId !== id);
     return { ...current, selectedForceId: forces.some((force) => force.id === current.selectedForceId) ? current.selectedForceId : null, diagram: { ...current.diagram, forces, interactions: current.diagram.interactions.filter((interaction) => interaction.id !== id) } };
   });
-  const addForce = (interactionId: string) => edit((current) => addFbdForce(current, createFbdForce({ id: `force-${nextId.current++}`, interactionId, kind: "other", label: "尚未命名的力", direction: directionFromDegrees(0) })));
+  const addForce = (interactionId: string) => {
+    const force = createFbdForce({ id: `force-${nextId.current++}`, interactionId, kind: "other", label: "尚未命名的力", direction: directionFromDegrees(0) });
+    edit((current) => addFbdForce(current, force));
+  };
   const degrees = selected ? (Math.round(Math.atan2(selected.direction.y, selected.direction.x) * 180 / Math.PI) + 360) % 360 : 0;
 
   return <main ref={shellRef} className={`lab-shell ${styles.shell}`}>
