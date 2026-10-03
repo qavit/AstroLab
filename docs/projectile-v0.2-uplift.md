@@ -2,9 +2,9 @@
 
 ## Current baseline
 
-Main/origin main `df154bf`. This branch starts directly from main and is independent of `feat/fbd-foundation`. No physics engine or Electrostatics state rewrite. Science regression tests remain unchanged.
+Implementation baseline: main/origin main `df154bf`. Projectile was developed independently, then rebased onto main after FBD was merged. Both increments are now merged into local main. No physics engine or Electrostatics state rewrite. Science regression tests remain unchanged.
 
-The recovery audit was reported before implementation. FBD PR #18 was draft/open, seven commits ahead and 23 behind main, with science/model/tests/docs only. Its local branch was rebased cleanly onto main and now contains the first horizontal-table learning loop. Full audit and FBD decisions live on that branch in `docs/mechanics-recovery-2026-10-03.md`. Remote branch and PR remain unchanged; nothing pushed.
+The recovery audit was reported before implementation. FBD PR #18 was draft/open, seven commits ahead and 23 behind main, with science/model/tests/docs only. Its local branch was rebased cleanly onto main and now contains the first horizontal-table learning loop. Full audit and FBD decisions are now included in main in `docs/mechanics-recovery-2026-10-03.md`. Remote branch and PR remain unchanged; nothing pushed.
 
 ## Product changes
 

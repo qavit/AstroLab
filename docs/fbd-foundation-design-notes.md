@@ -1,6 +1,6 @@
 # FBD Foundation Design Notes
 
-> Implementation-facing notes for the `feat/fbd-foundation` branch. The current Kakau Lab FBD Stage 0 page in Notion remains the product/design source of truth. This file exists to keep the code foundation aligned with that product baseline; it is not a second product spec.
+> Implementation-facing notes for the FBD foundation, now merged into local main with its first horizontal-table learning slice. The current Kakau Lab FBD Stage 0 page in Notion remains the product/design source of truth. This file exists to keep the code foundation aligned with that product baseline; it is not a second product spec.
 
 ## Product thesis
 
@@ -123,7 +123,7 @@ UI, keyboard, drag, screenshot, and accessibility tests should verify that repre
 
 ## Current foundation status
 
-Implemented on the draft branch:
+Foundation retained in local main:
 
 - pure 2D vector/force arithmetic in `lib/science/fbd.ts`;
 - explicit `FbdSystem`, `FbdAgent`, and `FbdInteraction` identity;
@@ -133,7 +133,7 @@ Implemented on the draft branch:
 - unknown magnitude as a legitimate qualitative state;
 - structural validation and focused unit tests.
 
-The next useful increment is not another generic abstraction. It is the **first real scenario contract** for the horizontal-table scene, with canonical interactions/forces and comparison diagnostics that exercise the domain model without exposing answers before commit.
+The **first real scenario contract** for the horizontal-table scene is now implemented at `/fbd`, with canonical interactions/forces and comparison diagnostics that exercise the domain model without exposing answers before commit. The route remains unlisted/noindex; merging the feature does not publish it to the catalogue.
 
 Still defer:
 
